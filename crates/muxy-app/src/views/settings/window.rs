@@ -108,7 +108,7 @@ impl SettingsWindow {
         let mut subscriptions = vec![events, appearance, focus_lost, activation];
         if let Some(model) = model.upgrade() {
             subscriptions.push(cx.observe(&model, |root: &mut Self, model, cx| {
-                let error = model.read(cx).error.clone();
+                let error = model.read(cx).visible_error().map(str::to_owned);
                 root.view.update(cx, |view, cx| {
                     if view.errors.get("application") != error.as_ref() {
                         view.set_error("application", error.as_deref(), cx);
@@ -597,6 +597,9 @@ impl SettingsWindow {
             }
             SettingsEvent::OpenConfiguration(filename) => {
                 self.open_configuration(filename, cx);
+            }
+            SettingsEvent::DismissProblem => {
+                let _ = self.model.update(cx, AppModel::dismiss_problem);
             }
         }
     }

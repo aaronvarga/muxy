@@ -148,6 +148,7 @@ pub(crate) enum SettingsEvent {
     RevokeDevice(muxy_protocol::DeviceId),
     Connect,
     OpenConfiguration(&'static str),
+    DismissProblem,
 }
 
 #[derive(Clone)]
@@ -520,6 +521,14 @@ impl SettingsView {
         }
         self.results.dirty = true;
         cx.notify();
+    }
+
+    /// Clears a page-level error; the application error is dismissed everywhere.
+    fn dismiss_error(&mut self, id: &str, cx: &mut Context<Self>) {
+        self.set_error(id, None, cx);
+        if id == "application" {
+            cx.emit(SettingsEvent::DismissProblem);
+        }
     }
 
     fn commit_field(&mut self, id: &'static str, cx: &mut Context<Self>) {

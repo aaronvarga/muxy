@@ -3,6 +3,7 @@
 mod mobile;
 
 use super::*;
+use crate::model::banners::BannerKind;
 use crate::views::settings::Change;
 
 fn settings_view(model: &AppModel) -> Entity<crate::views::settings::SettingsView> {
@@ -432,5 +433,61 @@ fn hand_edits_to_terminal_settings_load_when_settings_regains_focus(cx: &mut Tes
                 .errors
                 .contains_key("configuration")
         );
+    });
+}
+
+#[gpui::test]
+fn application_errors_leave_settings_when_dismissed_in_either_window(cx: &mut TestAppContext) {
+    let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let (model, settings) = settings_window(boot, cx);
+    let shown = |settings: &mut VisualTestContext| {
+        settings.run_until_parked();
+        model.read_with(settings, |model, cx| {
+            settings_view(model)
+                .read(cx)
+                .errors
+                .get("application")
+                .cloned()
+        })
+    };
+
+    model.update(settings, |model, cx| {
+        model.fail("couldn't commit".into(), cx);
+    });
+    assert_eq!(shown(settings).as_deref(), Some("couldn't commit"));
+    click_preference(settings, "settings-dismiss-application-error");
+    assert_eq!(shown(settings), None);
+    model.update(settings, |model, cx| {
+        assert!(model.visible_banner().is_none());
+        model.set_configuration_error(Some("broken terminal.toml".into()));
+        cx.notify();
+    });
+    assert_eq!(shown(settings), None);
+
+    model.update(settings, |model, cx| {
+        model.fail_detail("couldn't commit".into(), "nothing staged", cx);
+    });
+    assert_eq!(shown(settings).as_deref(), Some("couldn't commit"));
+    model.update(settings, AppModel::dismiss_problem);
+    assert_eq!(shown(settings), None);
+    model.read_with(settings, |model, _| {
+        assert_eq!(
+            model.visible_banner(),
+            Some((BannerKind::Configuration, "broken terminal.toml"))
+        );
+    });
+}
+
+#[gpui::test]
+fn configuration_errors_in_settings_can_be_dismissed(cx: &mut TestAppContext) {
+    let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let (model, settings) = settings_window(boot, cx);
+    let view = model.read_with(settings, |model, _| settings_view(model));
+    view.update(settings, |view, cx| {
+        view.set_error("configuration", Some("Could not open terminal.toml"), cx);
+    });
+    click_preference(settings, "settings-dismiss-configuration-error");
+    view.read_with(settings, |view, _| {
+        assert!(!view.errors.contains_key("configuration"));
     });
 }

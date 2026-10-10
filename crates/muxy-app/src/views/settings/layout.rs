@@ -1,9 +1,10 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    AnyElement, Context, InteractiveElement, IntoElement, ParentElement, SharedString,
+    AnyElement, AppContext, Context, InteractiveElement, IntoElement, ParentElement, SharedString,
     StatefulInteractiveElement, Styled, Window, div, list, px,
 };
-use muxy_ui::components::ButtonInteraction;
+use muxy_ui::components::{ButtonInteraction, IconGlyph, Tooltip};
+use muxy_ui::icon::Icon;
 use muxy_ui::l10n::{tr_key, translate};
 use muxy_ui::{controls, navigation, tr};
 
@@ -272,6 +273,56 @@ impl SettingsView {
             .into_any_element()
     }
 
+    fn dismissible_error(
+        &self,
+        id: &'static str,
+        error: &str,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let tooltip_theme = self.theme.clone();
+        div()
+            .debug_selector(move || format!("settings-{id}-error"))
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .child(self.note(error, true).flex_1().min_w(px(0.0)))
+            .child(
+                div()
+                    .id(SharedString::from(format!("settings-dismiss-{id}-error")))
+                    .debug_selector(move || format!("settings-dismiss-{id}-error"))
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .justify_center()
+                    .size(self.metrics.control_small())
+                    .rounded(self.metrics.radius_sm())
+                    .cursor_pointer()
+                    .hover(|button| button.bg(self.theme.hover))
+                    .focus(|button| button.bg(self.theme.hover))
+                    .tooltip(move |_, cx| {
+                        cx.new(|_| {
+                            Tooltip::new(
+                                tr!("Dismiss"),
+                                tooltip_theme.raised(),
+                                tooltip_theme.fg,
+                                tooltip_theme.border,
+                                tooltip_theme.bg,
+                            )
+                        })
+                        .into()
+                    })
+                    .button_interaction(cx.listener(move |view, _, _, cx| {
+                        view.dismiss_error(id, cx);
+                    }))
+                    .child(IconGlyph::new(
+                        Icon::X,
+                        self.metrics.icon_sm(),
+                        self.theme.fg_muted,
+                    )),
+            )
+            .into_any_element()
+    }
+
     pub(super) fn content(&self, cx: &mut Context<Self>) -> AnyElement {
         for anchor in self.picker_anchors.values() {
             anchor.set(None);
@@ -300,16 +351,15 @@ impl SettingsView {
             .flex_col()
             .px(px(if self.compact { 20.0 } else { 32.0 }))
             .child(self.header(cx))
-            .when_some(self.errors.get("application"), |body, error| {
-                body.child(
-                    div()
-                        .debug_selector(|| "settings-application-error".into())
-                        .child(self.note(error, true)),
-                )
-            })
-            .when_some(self.errors.get("configuration"), |body, error| {
-                body.child(self.note(error, true))
-            })
+            .children(
+                ["application", "configuration"]
+                    .into_iter()
+                    .filter_map(|id| {
+                        self.errors
+                            .get(id)
+                            .map(|error| self.dismissible_error(id, error, cx))
+                    }),
+            )
             .child(
                 div()
                     .id("settings-sections")

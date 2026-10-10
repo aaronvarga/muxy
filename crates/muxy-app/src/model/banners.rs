@@ -159,6 +159,13 @@ impl AppModel {
         })
     }
 
+    /// The application error, until it is dismissed.
+    pub(crate) fn visible_error(&self) -> Option<&str> {
+        self.visible_banner()
+            .filter(|(kind, _)| *kind == BannerKind::Error)
+            .map(|(_, message)| message)
+    }
+
     pub(crate) fn dismiss_banner(&mut self, kind: BannerKind) {
         self.dismissed_banners[kind as usize].clone_from(match kind {
             BannerKind::Error => &self.error,
