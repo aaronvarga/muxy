@@ -18,7 +18,7 @@ use super::{
     clipboard,
     colors::Palette,
     element, find, input,
-    scroll::{HistoryRequest, Scroll},
+    scroll::{HistoryRequest, Scroll, output_changed},
     selection::{Point, SelectedRow, Selection},
 };
 
@@ -310,16 +310,18 @@ impl TerminalPane {
     }
 
     fn keeps_scroll(&self, live: &RunGrid) -> bool {
-        let output_changed = || {
-            self.grid
-                .as_ref()
-                .is_none_or(|grid| grid.rows != live.rows || grid.cursor != live.cursor)
+        let scrolls_on_output = || {
+            self.terminal.options.scroll_on_output
+                && self
+                    .grid
+                    .as_ref()
+                    .is_none_or(|grid| output_changed(grid, live))
         };
         self.scroll
             .view
             .as_ref()
             .is_some_and(|view| view.size == live.size)
-            && !(self.terminal.options.scroll_on_output && output_changed())
+            && !scrolls_on_output()
     }
 
     pub(crate) fn apply(&mut self, frame: &ScreenFrame, cx: &mut Context<Self>) {
@@ -2402,20 +2404,22 @@ mod tests {
                 cx,
             )
         });
+        let quiet: fn(&mut RunGrid) = |_| {};
+        let printed: fn(&mut RunGrid) = |grid| grid.rows[0] = row(0, "new output").runs;
+        let repeated: fn(&mut RunGrid) = |grid| grid.history_total += 1;
         for (resized, scroll_on_output, output, kept) in [
-            (false, false, true, true),
-            (false, true, false, true),
-            (false, true, true, false),
-            (true, false, false, false),
+            (false, false, printed, true),
+            (false, true, quiet, true),
+            (false, true, printed, false),
+            (false, true, repeated, false),
+            (true, false, quiet, false),
         ] {
             pane.update(cx, |pane, cx| {
                 prepare_mouse(pane);
                 pane.terminal.options.scroll_on_output = scroll_on_output;
                 pane.scroll_rows(1.0, cx);
                 let mut live = grid();
-                if output {
-                    live.rows[0] = row(0, "new output").runs;
-                }
+                output(&mut live);
                 if resized {
                     live.size.cols += 1;
                     pane.viewport = Some(live.size);

@@ -48,7 +48,7 @@ use crate::boot::{Boot, Update, Work, missing_session};
 use crate::views::overlays::Overlay;
 use crate::views::terminal::colors::Palette;
 use crate::views::terminal::pane::{PaneEvent, PaneState, TerminalPane};
-use crate::views::terminal::scroll::Scroll;
+use crate::views::terminal::scroll::{Scroll, output_changed};
 use muxy_ui::theme::{Metrics, Theme};
 use muxy_ui::tr;
 
@@ -2251,6 +2251,14 @@ impl AppModel {
             }
         } else {
             self.send(server, Work::Detach(attachment.channel), cx);
+            if self.terminal.options.scroll_on_output
+                && self
+                    .snapshots
+                    .get(&pane)
+                    .is_some_and(|grid| output_changed(grid, &attachment.grid))
+            {
+                self.scrolls.remove(&pane);
+            }
             self.snapshots.insert(pane, attachment.grid);
         }
     }

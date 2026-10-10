@@ -415,6 +415,12 @@ impl Scroll {
     }
 }
 
+pub(crate) fn output_changed(before: &RunGrid, after: &RunGrid) -> bool {
+    before.rows != after.rows
+        || before.cursor != after.cursor
+        || before.history_total != after.history_total
+}
+
 fn continues_snapshot(view: &RunGrid, page: &HistoryPage) -> bool {
     view.history_total == page.total_rows
         && page.screen.as_ref().is_some_and(|screen| {

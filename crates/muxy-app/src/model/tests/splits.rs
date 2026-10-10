@@ -106,6 +106,27 @@ fn zoom_and_tab_switch_detach_only_hidden_leaves_and_restore_all(cx: &mut TestAp
     });
 }
 
+fn scroll_first_pane(model: &mut AppModel, panes: &[PaneId], cx: &mut Context<AppModel>) {
+    let scrolled = model.terminal(&panes[0]).expect("terminal").view.clone();
+    scrolled.update(cx, |pane, cx| pane.set_viewport(attachment().grid.size, cx));
+    attach_panes(model, panes, cx);
+    scrolled.update(cx, |pane, cx| {
+        let grid = pane.grid.as_mut().expect("grid");
+        grid.history = (0..10)
+            .map(|index| muxy_protocol::Row {
+                index,
+                runs: vec![muxy_protocol::Run {
+                    text: index.to_string(),
+                    width: 1,
+                    style: muxy_protocol::Style::default(),
+                }],
+            })
+            .collect();
+        grid.history_total = 10;
+        pane.scroll_rows(4.0, cx);
+    });
+}
+
 #[gpui::test]
 fn a_hidden_tab_comes_back_scrolled_where_it_was_left(cx: &mut TestAppContext) {
     let (state, first_tab, panes) = split_state();
@@ -119,24 +140,7 @@ fn a_hidden_tab_comes_back_scrolled_where_it_was_left(cx: &mut TestAppContext) {
                 .expect("row")
                 .to_vec()
         };
-        let scrolled = model.terminal(&panes[0]).expect("terminal").view.clone();
-        scrolled.update(cx, |pane, cx| pane.set_viewport(attachment().grid.size, cx));
-        attach_panes(model, &panes, cx);
-        scrolled.update(cx, |pane, cx| {
-            let grid = pane.grid.as_mut().expect("grid");
-            grid.history = (0..10)
-                .map(|index| muxy_protocol::Row {
-                    index,
-                    runs: vec![muxy_protocol::Run {
-                        text: index.to_string(),
-                        width: 1,
-                        style: muxy_protocol::Style::default(),
-                    }],
-                })
-                .collect();
-            grid.history_total = 10;
-            pane.scroll_rows(4.0, cx);
-        });
+        scroll_first_pane(model, &panes, cx);
         let left = top_row(model, panes[0], cx);
         assert_eq!(left[0].text, "6");
         model.new_tab(cx);
@@ -147,6 +151,35 @@ fn a_hidden_tab_comes_back_scrolled_where_it_was_left(cx: &mut TestAppContext) {
         assert_eq!(top_row(model, panes[0], cx), left);
         assert_eq!(top_row(model, panes[1], cx)[0].text, "final marker");
         assert!(model.scrolls.is_empty());
+    });
+}
+
+#[gpui::test]
+fn scroll_on_output_notices_output_attached_while_the_tab_was_hidden_again(
+    cx: &mut TestAppContext,
+) {
+    let (state, first_tab, panes) = split_state();
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        scroll_first_pane(model, &panes, cx);
+        model.terminal.options.scroll_on_output = true;
+        model.new_tab(cx);
+        let session = model.pane_session(panes[0]).expect("session");
+        let mut output = attachment();
+        output.grid.rows[1] = output.grid.rows[0].clone();
+        let attached = || Update::Attached {
+            pane: panes[0],
+            session,
+            attachment: output.clone(),
+            created: false,
+        };
+        model.receive((ServerId::local(), 1, attached()), cx);
+        model.select_tab(first_tab, cx);
+        model.receive((ServerId::local(), 1, attached()), cx);
+        let pane = model.terminal(&panes[0]).expect("terminal").view.read(cx);
+        assert!(pane.channel().is_some());
+        assert!(pane.scroll.view.is_none());
     });
 }
 
