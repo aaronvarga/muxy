@@ -29,8 +29,11 @@ Read [docs/product](docs/product/README.md) and [docs/tech](docs/tech/README.md)
 ```bash
 git clone https://github.com/muxy-app/muxy.git
 cd muxy
-cargo build --workspace   # verify everything compiles
 ```
+
+On macOS, build the whole workspace with `cargo build --workspace`. On Linux,
+build the CLI and server with `cargo build -p muxy-cli -p muxy-server`; the
+desktop app is macOS only.
 
 ### Running
 
@@ -39,13 +42,16 @@ cargo run -p muxy-app     # desktop app (macOS)
 cargo run -p muxy-cli     # muxy terminal UI
 ```
 
-Build the whole workspace first, so `muxy-server` sits next to the binary you run. Development builds keep their data in a separate `Muxy Dev` profile.
+Build as in [Setup](#setup) first, so `muxy-server` sits next to the binary you
+run.
+Development builds keep their data in a separate `Muxy Dev` profile (`muxy-dev`
+on Linux).
 
 ## Development Workflow
 
 1. Fork the repository and create a branch from `main`
 2. Make your changes
-3. Run checks before committing:
+3. Run checks before committing (on Linux, see [Checks](#checks)):
 
 ```bash
 cargo fmt --all
@@ -65,7 +71,7 @@ cargo xtest               # all tests
 
 ## Checks
 
-All PRs must pass the same checks CI runs:
+All PRs must pass CI. Run its main checks locally:
 
 ```bash
 cargo fmt --all --check
@@ -73,6 +79,11 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
+
+On Linux, CI checks only the CLI, the server, and the crates they depend on,
+through `scripts/check-headless.py`. It needs glibc 2.35; elsewhere, run Clippy
+and tests with `-p` for each package that
+`python3 scripts/check-headless.py --packages` lists, instead of `--workspace`.
 
 ## Pull Request Guidelines
 

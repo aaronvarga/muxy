@@ -20,7 +20,9 @@ flowchart LR
 - Stopping or restarting it ends every terminal. Saved screens and history are
   kept. Use the status bar, **Settings → Server**, or
   `muxy server stop --force`.
-- Nothing restarts it automatically.
+- Muxy never restarts it on its own while terminals are running. After an
+  update, the desktop app replaces this computer's server once no terminals are
+  running.
 
 ## Sessions
 
