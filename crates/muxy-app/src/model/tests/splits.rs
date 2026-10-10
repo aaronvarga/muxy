@@ -107,6 +107,50 @@ fn zoom_and_tab_switch_detach_only_hidden_leaves_and_restore_all(cx: &mut TestAp
 }
 
 #[gpui::test]
+fn a_hidden_tab_comes_back_scrolled_where_it_was_left(cx: &mut TestAppContext) {
+    let (state, first_tab, panes) = split_state();
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        let top_row = |model: &AppModel, pane: PaneId, cx: &gpui::App| {
+            let pane = model.terminal(&pane).expect("terminal").view.read(cx);
+            let grid = pane.displayed_grid().expect("grid");
+            grid.content_row(pane.visible_start(grid))
+                .expect("row")
+                .to_vec()
+        };
+        let scrolled = model.terminal(&panes[0]).expect("terminal").view.clone();
+        scrolled.update(cx, |pane, cx| pane.set_viewport(attachment().grid.size, cx));
+        attach_panes(model, &panes, cx);
+        scrolled.update(cx, |pane, cx| {
+            let grid = pane.grid.as_mut().expect("grid");
+            grid.history = (0..10)
+                .map(|index| muxy_protocol::Row {
+                    index,
+                    runs: vec![muxy_protocol::Run {
+                        text: index.to_string(),
+                        width: 1,
+                        style: muxy_protocol::Style::default(),
+                    }],
+                })
+                .collect();
+            grid.history_total = 10;
+            pane.scroll_rows(4.0, cx);
+        });
+        let left = top_row(model, panes[0], cx);
+        assert_eq!(left[0].text, "6");
+        model.new_tab(cx);
+        assert_eq!(model.grids.len(), 1);
+        model.select_tab(first_tab, cx);
+        assert_eq!(top_row(model, panes[0], cx), left);
+        attach_panes(model, &panes, cx);
+        assert_eq!(top_row(model, panes[0], cx), left);
+        assert_eq!(top_row(model, panes[1], cx)[0].text, "final marker");
+        assert!(model.scrolls.is_empty());
+    });
+}
+
+#[gpui::test]
 fn closing_one_pane_discards_only_its_session_and_last_closes_tab(cx: &mut TestAppContext) {
     let (state, _, panes) = split_state();
     let (boot, requests) = stub_boot(state);

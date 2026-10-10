@@ -48,6 +48,7 @@ use crate::boot::{Boot, Update, Work, missing_session};
 use crate::views::overlays::Overlay;
 use crate::views::terminal::colors::Palette;
 use crate::views::terminal::pane::{PaneEvent, PaneState, TerminalPane};
+use crate::views::terminal::scroll::Scroll;
 use muxy_ui::theme::{Metrics, Theme};
 use muxy_ui::tr;
 
@@ -187,6 +188,7 @@ pub(crate) struct AppModel {
     retained: HashSet<PaneId>,
     loaded: HashSet<PaneId>,
     snapshots: HashMap<PaneId, RunGrid>,
+    scrolls: HashMap<PaneId, Scroll>,
     pub(crate) window_active: bool,
     #[cfg(target_os = "macos")]
     notifications: Option<muxy_ui::notifications::Notifications>,
@@ -540,6 +542,7 @@ impl AppModel {
             retained: HashSet::new(),
             loaded: HashSet::new(),
             snapshots: HashMap::new(),
+            scrolls: HashMap::new(),
             window_active: window.is_window_active(),
             #[cfg(target_os = "macos")]
             notifications: Self::start_notifications(cx),
@@ -1550,8 +1553,14 @@ impl AppModel {
                 {
                     self.send(server, Work::Detach(channel), cx);
                 }
-                if let Some(grid) = pane.view.update(cx, |pane, _| pane.grid.take()) {
+                let (grid, scroll) = pane.view.update(cx, |pane, _| {
+                    (pane.grid.take(), std::mem::take(&mut pane.scroll))
+                });
+                if let Some(grid) = grid {
                     self.snapshots.insert(id, grid);
+                    if scroll.view.is_some() {
+                        self.scrolls.insert(id, scroll);
+                    }
                 }
                 self.loaded.remove(&id);
             }
@@ -1576,6 +1585,7 @@ impl AppModel {
         self.font_sizes.retain(|id, _| panes.contains(id));
         self.initial_directories.retain(|id, _| panes.contains(id));
         self.snapshots.retain(|id, _| panes.contains(id));
+        self.scrolls.retain(|id, _| panes.contains(id));
         self.retained.retain(|id| panes.contains(id));
         self.loaded.retain(|id| panes.contains(id));
         for id in visible {
@@ -1597,6 +1607,7 @@ impl AppModel {
         }
         let open_context = self.opener_context(id);
         let snapshot = self.snapshots.remove(&id);
+        let scroll = self.scrolls.remove(&id).unwrap_or_default();
         let state = self.pane_state(id);
         let view = cx.new(|cx| {
             let mut pane = TerminalPane::new(self.palette, terminal, cx);
@@ -1607,6 +1618,9 @@ impl AppModel {
             pane.open_context = open_context;
             pane.grid = snapshot;
             pane.set_state(state, cx);
+            if state == PaneState::Live {
+                pane.scroll = scroll;
+            }
             pane
         });
         let subscription = cx.subscribe(&view, move |model, _, event, cx| match event {

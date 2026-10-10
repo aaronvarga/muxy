@@ -89,6 +89,7 @@ pub(crate) struct TerminalPane {
     selection_pointer: Option<gpui::Point<gpui::Pixels>>,
     selection_scroll: Option<Task<()>>,
     pub(crate) input_modes: InputModes,
+    input_modes_reported: bool,
     pub(crate) composition: super::ime::Composition,
     pub(super) keyboard: input::Keyboard,
     server_input: bool,
@@ -183,6 +184,7 @@ impl TerminalPane {
             selection_pointer: None,
             selection_scroll: None,
             input_modes: InputModes::default(),
+            input_modes_reported: false,
             composition: super::ime::Composition::default(),
             keyboard: input::Keyboard::default(),
             server_input: false,
@@ -276,7 +278,13 @@ impl TerminalPane {
         let resized = self.viewport.filter(|size| *size != attachment.grid.size);
         self.reset_input();
         self.clear_selection();
-        self.scroll.reset();
+        let history = if resized.is_none() && self.keeps_scroll(&attachment.grid) {
+            self.scroll
+                .reattached(usize::from(attachment.grid.size.rows))
+        } else {
+            self.scroll.reset();
+            None
+        };
         self.saved_history = None;
         self.sent_cell_size = None;
         self.attachment = Some((server, attachment.channel));
@@ -294,8 +302,24 @@ impl TerminalPane {
         {
             grid.resize(size);
         }
+        if let Some(request) = history {
+            self.request_history(request, cx);
+        }
         cx.notify();
         resized
+    }
+
+    fn keeps_scroll(&self, live: &RunGrid) -> bool {
+        let output_changed = || {
+            self.grid
+                .as_ref()
+                .is_none_or(|grid| grid.rows != live.rows || grid.cursor != live.cursor)
+        };
+        self.scroll
+            .view
+            .as_ref()
+            .is_some_and(|view| view.size == live.size)
+            && !(self.terminal.options.scroll_on_output && output_changed())
     }
 
     pub(crate) fn apply(&mut self, frame: &ScreenFrame, cx: &mut Context<Self>) {
@@ -602,6 +626,7 @@ impl TerminalPane {
                 return;
             }
             MetadataEvent::InputModes(modes) => {
+                let first = !std::mem::replace(&mut self.input_modes_reported, true);
                 if self.state == PaneState::Live && self.input_modes != modes {
                     let was_reporting = self.reports_wheel();
                     if !modes.mouse_tracking {
@@ -612,7 +637,7 @@ impl TerminalPane {
                     }
                     self.wheel_remainder = 0.0;
                     self.input_modes = modes;
-                    if !was_reporting && self.reports_wheel() {
+                    if !first && !was_reporting && self.reports_wheel() {
                         self.clear_selection();
                         self.scroll.bottom();
                     }
@@ -732,6 +757,7 @@ impl TerminalPane {
         self.server_input = false;
         self.link_hover = super::links::Hover::default();
         self.input_modes = InputModes::default();
+        self.input_modes_reported = false;
         self.held_buttons.clear();
         self.last_mouse = None;
         self.wheel_remainder = 0.0;
@@ -2363,6 +2389,60 @@ mod tests {
                 );
             }
         });
+    }
+
+    #[gpui::test]
+    fn attaching_again_keeps_a_scrolled_view_unless_the_terminal_moved_under_it(
+        cx: &mut TestAppContext,
+    ) {
+        let pane = cx.new(|cx| {
+            TerminalPane::new(
+                Palette::new(true),
+                muxy_app_core::settings::TerminalSettings::default(),
+                cx,
+            )
+        });
+        for (resized, scroll_on_output, output, kept) in [
+            (false, false, true, true),
+            (false, true, false, true),
+            (false, true, true, false),
+            (true, false, false, false),
+        ] {
+            pane.update(cx, |pane, cx| {
+                prepare_mouse(pane);
+                pane.terminal.options.scroll_on_output = scroll_on_output;
+                pane.scroll_rows(1.0, cx);
+                let mut live = grid();
+                if output {
+                    live.rows[0] = row(0, "new output").runs;
+                }
+                if resized {
+                    live.size.cols += 1;
+                    pane.viewport = Some(live.size);
+                }
+                pane.attach(
+                    ServerId::local(),
+                    Attachment {
+                        channel: ChannelId(2),
+                        server_input: false,
+                        grid: live,
+                        title: String::new(),
+                        directory: ServerPath(Vec::new()),
+                        process: None,
+                    },
+                    cx,
+                );
+                let reporting = InputModes {
+                    alternate_scroll: true,
+                    ..InputModes::default()
+                };
+                pane.metadata(MetadataEvent::InputModes(reporting), cx);
+                assert_eq!(pane.scroll.view.is_some(), kept);
+                pane.metadata(MetadataEvent::InputModes(InputModes::default()), cx);
+                pane.metadata(MetadataEvent::InputModes(reporting), cx);
+                assert!(pane.scroll.view.is_none());
+            });
+        }
     }
 
     #[gpui::test]
