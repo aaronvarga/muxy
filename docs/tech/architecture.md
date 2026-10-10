@@ -128,9 +128,9 @@ flowchart LR
   any history it has fetched.
 - It repaints a pane only when a frame arrives or the view changes: one text
   line per row and one rectangle per color run.
-- Hidden terminal panes detach but keep their last screen in memory, and the
-  server still counts them as showing their session. They attach again when
-  shown, displaying cached content first, even while offline.
+- Hidden terminal panes detach but keep their last screen and scroll position
+  in memory, and the server still counts them as showing their session. They
+  attach again when shown, displaying cached content first, even while offline.
 - The UI is built from `muxy-ui` components. Every app shortcut comes from one
   catalog, resolved through the keymap. Terminal preferences and key
   bindings live in `terminal.toml`, and the Quick Terminal's global shortcut is its own setting.
