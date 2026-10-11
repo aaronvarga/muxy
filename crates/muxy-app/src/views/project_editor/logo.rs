@@ -11,7 +11,7 @@ use muxy_ui::tr;
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -206,29 +206,35 @@ impl AppModel {
     }
 
     pub(crate) fn choose_project_logo(&mut self, project: ProjectId, cx: &mut Context<Self>) {
-        if !self
+        self.choose_project_logo_with(project, prompt, cx);
+    }
+
+    pub(crate) fn choose_project_logo_with<F>(
+        &mut self,
+        project: ProjectId,
+        prompt: impl FnOnce(Option<&Path>, &mut Context<Self>) -> F,
+        cx: &mut Context<Self>,
+    ) where
+        F: Future<Output = Result<Option<PathBuf>, String>> + 'static,
+    {
+        let Some(target) = self
             .state
             .project(project)
-            .is_some_and(|project| project.status() == ProjectStatus::Available)
-        {
+            .filter(|project| project.status() == ProjectStatus::Available)
+        else {
             return;
-        }
-        let result = cx.prompt_for_paths(gpui::PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some(tr!("Choose Logo")),
-        });
+        };
+        let directory = target
+            .server_id
+            .is_local()
+            .then_some(target.directory.as_path());
+        let result = prompt(directory, cx);
         self.project_logo_task = Some(cx.spawn(async move |model, cx| {
             let path = match result.await {
-                Ok(Ok(Some(paths))) => paths.into_iter().next(),
-                Ok(Ok(None)) => None,
-                result => {
+                Ok(path) => path,
+                Err(error) => {
                     let _ = model.update(cx, |model, cx| {
-                        model.fail(
-                            tr!("Could not choose logo: %@", format!("{result:?}")).to_string(),
-                            cx,
-                        );
+                        model.fail(tr!("Could not choose logo: %@", error).to_string(), cx);
                     });
                     None
                 }
@@ -301,6 +307,35 @@ impl AppModel {
             }
         }
     }
+}
+
+fn prompt(
+    directory: Option<&Path>,
+    cx: &mut Context<AppModel>,
+) -> gpui::Task<Result<Option<PathBuf>, String>> {
+    if let Some(directory) = directory {
+        let (sender, receiver) = async_channel::bounded(1);
+        let dialog = muxy_ui::dialog::choose_file(&tr!("Choose Logo"), directory, move |path| {
+            let _ = sender.try_send(path);
+        });
+        return cx.spawn(async move |_, _| {
+            let _dialog = dialog.map_err(|error| error.to_string())?;
+            receiver.recv().await.map_err(|error| error.to_string())
+        });
+    }
+    let result = cx.prompt_for_paths(gpui::PathPromptOptions {
+        files: true,
+        directories: false,
+        multiple: false,
+        prompt: Some(tr!("Choose Logo")),
+    });
+    cx.spawn(async move |_, _| {
+        result
+            .await
+            .map_err(|error| error.to_string())?
+            .map(|paths| paths.and_then(|paths| paths.into_iter().next()))
+            .map_err(|error| error.to_string())
+    })
 }
 
 fn preview(

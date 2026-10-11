@@ -2,6 +2,76 @@ use super::*;
 use muxy_protocol::ErrorCode;
 
 #[gpui::test]
+fn logo_picker_uses_the_target_project_directory_and_cancel_keeps_its_logo(
+    cx: &mut TestAppContext,
+) {
+    let (mut state, first, second, _, _) = two_projects();
+    let logo = include_bytes!("../../../../muxy-protocol/tests/fixtures/project-logo.png");
+    state
+        .set_project_logo(first, Some(logo.as_slice().into()))
+        .expect("logo");
+    let projects = state.projects().to_vec();
+    let directory = state
+        .project(first)
+        .expect("target project")
+        .directory
+        .clone();
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        assert_eq!(model.state.current_project().id, second);
+        model.choose_project_logo_with(
+            first,
+            |start, _| {
+                assert_eq!(start, Some(directory.as_path()));
+                std::future::ready(Ok(None))
+            },
+            cx,
+        );
+        assert!(model.project_logo_task.is_some());
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.projects(), projects);
+        assert_eq!(model.state.current_project().id, second);
+        assert!(model.overlay.is_none());
+        assert!(model.error.is_none());
+    });
+}
+
+#[gpui::test]
+fn logo_picker_does_not_use_a_remote_project_path_even_if_it_exists_locally(
+    cx: &mut TestAppContext,
+) {
+    let mut state = AppState::bootstrap().expect("state");
+    let server = ServerId::new();
+    state
+        .apply_catalog(server, &servers::page(2, ProjectId::new(), &[]))
+        .expect("remote catalog");
+    let project = state
+        .add_project(server, std::env::current_dir().expect("cwd"))
+        .expect("remote project");
+    let (boot, _requests, _remotes) = remote_boot(state, vec![servers::entry(server, "box")]);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        model.choose_project_logo_with(
+            project,
+            |directory, _| {
+                assert!(directory.is_none());
+                std::future::ready(Ok(None))
+            },
+            cx,
+        );
+        assert!(model.project_logo_task.is_some());
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert!(model.overlay.is_none());
+        assert!(model.error.is_none());
+    });
+}
+
+#[gpui::test]
 fn rejected_project_intent_advances_fifo_but_storage_failure_preserves_it(cx: &mut TestAppContext) {
     let (state, _, _, _, _) = two_projects();
     let (boot, requests) = stub_boot(state);
