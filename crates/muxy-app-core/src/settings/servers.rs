@@ -16,7 +16,10 @@ pub struct ServerEntry {
     pub name: String,
     /// An SSH destination: a `~/.ssh/config` alias, `user@host`, or
     /// `ssh://user@host:port`. It is fully checked when connecting.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub ssh: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_command: Option<String>,
     /// The private key to log in with, instead of ssh's own choice.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identity_file: Option<String>,
@@ -31,9 +34,14 @@ impl ServerEntry {
             id: ServerId::new(),
             name,
             ssh,
+            ssh_command: None,
             identity_file: None,
             password_login: false,
         }
+    }
+
+    pub fn destination(&self) -> &str {
+        self.ssh_command.as_deref().unwrap_or(&self.ssh)
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -52,7 +60,16 @@ impl ServerEntry {
                 "enter a name of 1–256 bytes without control characters",
             ));
         }
-        if self.ssh.trim().is_empty() || self.ssh.chars().any(char::is_control) {
+        if let Some(command) = &self.ssh_command {
+            if !self.ssh.is_empty() || self.identity_file.is_some() || self.password_login {
+                return Err(Error::new(
+                    "servers",
+                    "custom commands cannot be combined with an SSH destination, identity file, or password login",
+                ));
+            }
+            muxy_core::executable::command_arguments(command)
+                .map_err(|error| Error::new("servers", error))?;
+        } else if self.ssh.trim().is_empty() || self.ssh.chars().any(char::is_control) {
             return Err(Error::new(
                 "servers",
                 "enter an SSH destination without control characters",

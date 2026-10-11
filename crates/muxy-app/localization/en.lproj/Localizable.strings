@@ -469,6 +469,7 @@
 "Cursor shape" = "Cursor shape";
 "Cursor text color" = "Cursor text color";
 "Cursor thickness" = "Cursor thickness";
+"Custom command" = "Custom command";
 "Custom commands shell terminal shortcuts" = "Custom commands shell terminal shortcuts";
 "Cut" = "Cut";
 "Cyan" = "Cyan";
@@ -1057,7 +1058,9 @@
 "Run the teardown commands shown above" = "Run the teardown commands shown above";
 "Run these commands after creating the worktree" = "Run these commands after creating the worktree";
 "Running" = "Running";
+"Runs a local program with Muxy's remote command appended. It must connect without prompts or a TTY. Use an absolute program path if it isn't on Muxy's PATH." = "Runs a local program with Muxy's remote command appended. It must connect without prompts or a TTY. Use an absolute program path if it isn't on Muxy's PATH.";
 "SSH can also try your other keys. Edit or browse to use a specific key." = "SSH can also try your other keys. Edit or browse to use a specific key.";
+"SSH command" = "SSH command";
 "SSH connected. Install muxy-server to finish setting up this server." = "SSH connected. Install muxy-server to finish setting up this server.";
 "SSH host" = "SSH host";
 "Save" = "Save";

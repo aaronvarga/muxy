@@ -4,6 +4,57 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+pub fn command_arguments(source: &str) -> io::Result<Vec<String>> {
+    let invalid = |message| io::Error::new(io::ErrorKind::InvalidInput, message);
+    if source.chars().any(char::is_control) {
+        return Err(invalid("Commands must not contain control characters"));
+    }
+    let mut arguments = Vec::new();
+    let mut word = String::new();
+    let mut started = false;
+    let mut quote = None;
+    let mut characters = source.chars();
+    while let Some(character) = characters.next() {
+        match (quote, character) {
+            (Some('\''), '\'') | (Some('"'), '"') => quote = None,
+            (None, '\'' | '"') => {
+                quote = Some(character);
+                started = true;
+            }
+            (None | Some('"'), '\\') => {
+                let escaped = characters
+                    .next()
+                    .ok_or_else(|| invalid("Commands must not end with an unescaped backslash"))?;
+                if quote == Some('"') && !matches!(escaped, '"' | '\\' | '$' | '`') {
+                    word.push('\\');
+                }
+                word.push(escaped);
+                started = true;
+            }
+            (None, character) if character.is_whitespace() => {
+                if started {
+                    arguments.push(std::mem::take(&mut word));
+                    started = false;
+                }
+            }
+            _ => {
+                word.push(character);
+                started = true;
+            }
+        }
+    }
+    if quote.is_some() {
+        return Err(invalid("Close the quote in the command"));
+    }
+    if started {
+        arguments.push(word);
+    }
+    if arguments.first().is_none_or(String::is_empty) {
+        return Err(invalid("Enter a command with a non-empty program name"));
+    }
+    Ok(arguments)
+}
+
 pub fn current_path() -> io::Result<std::path::PathBuf> {
     // macOS current_exe can retain the launch symlink after its target changes.
     #[cfg(target_os = "macos")]

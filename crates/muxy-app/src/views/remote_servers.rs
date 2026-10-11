@@ -28,6 +28,8 @@ pub(crate) struct ServerForm {
     device: Option<ServerId>,
     name: Entity<TextInput>,
     host: Entity<TextInput>,
+    command: Entity<TextInput>,
+    custom_command: bool,
     user: Entity<TextInput>,
     port: Entity<TextInput>,
     identity: Entity<TextInput>,
@@ -43,13 +45,24 @@ impl ServerForm {
     fn advance_focus(&self, backwards: bool, window: &mut Window, cx: &gpui::App) {
         let inputs = [
             &self.name,
-            &self.host,
+            if self.custom_command {
+                &self.command
+            } else {
+                &self.host
+            },
             &self.user,
             &self.port,
             &self.identity,
             &self.password,
         ];
-        let inputs = &inputs[..if self.password_login { 6 } else { 5 }];
+        let count = if self.custom_command {
+            2
+        } else if self.password_login {
+            6
+        } else {
+            5
+        };
+        let inputs = &inputs[..count];
         let current = inputs
             .iter()
             .position(|input| input.focus_handle(cx).is_focused(window));
@@ -67,6 +80,7 @@ impl ServerForm {
         DeviceForm {
             name: text(&self.name),
             host: text(&self.host),
+            ssh_command: self.custom_command.then(|| text(&self.command)),
             user: text(&self.user),
             port: text(&self.port),
             identity_file: if self.automatic_identity {
@@ -459,7 +473,7 @@ fn server_command(server: &RemoteServer, model: gpui::WeakEntity<AppModel>) -> C
         );
         actions
     })
-    .keywords(server.entry.ssh.clone())
+    .keywords(server.entry.destination().to_owned())
 }
 
 fn input(
@@ -540,6 +554,9 @@ impl AppModel {
     pub(crate) fn open_server_form(&mut self, device: Option<ServerId>, cx: &mut Context<Self>) {
         self.clear_server_probe();
         let entry = device.and_then(|id| self.settings.server(id).cloned());
+        let custom_command = entry
+            .as_ref()
+            .is_some_and(|entry| entry.ssh_command.is_some());
         let automatic_identity = entry
             .as_ref()
             .is_none_or(|entry| entry.identity_file.is_none());
@@ -558,6 +575,15 @@ impl AppModel {
             cx,
             tr_key!("host, address, or ~/.ssh/config alias"),
             &host,
+        );
+        let command = input(
+            self,
+            cx,
+            "swiftvm ssh my-vm",
+            entry
+                .as_ref()
+                .and_then(|entry| entry.ssh_command.as_deref())
+                .unwrap_or_default(),
         );
         let user = input(self, cx, tr_key!("optional"), &user);
         let port = input(self, cx, "22", &port);
@@ -580,7 +606,7 @@ impl AppModel {
                 .secure()
                 .with_placeholder_key(tr_key!("Asked when connecting if empty"))
         });
-        let subscriptions = [&name, &host, &user, &port, &identity, &password]
+        let subscriptions = [&name, &host, &command, &user, &port, &identity, &password]
             .into_iter()
             .map(|input| {
                 cx.subscribe(input, |model, input, event, cx| match event {
@@ -603,12 +629,15 @@ impl AppModel {
                 })
             })
             .collect();
-        self.focus_later(host.focus_handle(cx), cx);
+        let focus = if custom_command { &command } else { &host };
+        self.focus_later(focus.focus_handle(cx), cx);
         self.overlay_subscription = None;
         self.overlay = Some(Overlay::ServerForm(Box::new(ServerForm {
             device,
             name,
             host,
+            command,
+            custom_command,
             user,
             port,
             identity,
@@ -627,7 +656,7 @@ impl AppModel {
         let Some(Overlay::ServerForm(form)) = &mut self.overlay else {
             return;
         };
-        if !form.automatic_identity {
+        if form.custom_command || !form.automatic_identity {
             return;
         }
         form.identity_task = None;
@@ -664,7 +693,7 @@ impl AppModel {
         let Some(Overlay::ServerForm(form)) = &mut self.overlay else {
             return;
         };
-        if !form.automatic_identity || form.identity != *identity {
+        if form.custom_command || !form.automatic_identity || form.identity != *identity {
             return;
         }
         form.identity_task = None;
@@ -729,6 +758,24 @@ impl AppModel {
         }
     }
 
+    fn toggle_custom_command(&mut self, cx: &mut Context<Self>) {
+        self.clear_server_probe();
+        if let Some(Overlay::ServerForm(form)) = &mut self.overlay {
+            form.custom_command = !form.custom_command;
+            form.identity_task = None;
+            form.error = None;
+            let focus = if form.custom_command {
+                &form.command
+            } else {
+                &form.host
+            }
+            .focus_handle(cx);
+            self.focus_later(focus, cx);
+            self.autofill_server_identity(cx);
+            cx.notify();
+        }
+    }
+
     fn toggle_password_login(&mut self, cx: &mut Context<Self>) {
         self.clear_server_probe();
         if let Some(Overlay::ServerForm(form)) = &mut self.overlay {
@@ -738,11 +785,9 @@ impl AppModel {
     }
 
     fn server_form_installing(&self, form: &DeviceForm) -> bool {
-        crate::model::join_destination(&form.host, &form.user, &form.port)
-            .ok()
-            .is_some_and(|destination| {
-                self.server_probe(&destination) == Some(&ConnectionTest::Installing)
-            })
+        form.destination().ok().is_some_and(|destination| {
+            self.server_probe(&destination) == Some(&ConnectionTest::Installing)
+        })
     }
 
     fn confirm_install_server_form(&mut self, window: &Window, cx: &mut Context<Self>) {
@@ -753,9 +798,7 @@ impl AppModel {
             return;
         }
         let (device, submitted, host) = (form.device, form.submitted(cx), form.host.clone());
-        let Ok(destination) =
-            crate::model::join_destination(&submitted.host, &submitted.user, &submitted.port)
-        else {
+        let Ok(destination) = submitted.destination() else {
             return;
         };
         if !matches!(
@@ -940,10 +983,17 @@ fn primary(
 fn connection_status(
     probe: Option<&ConnectionTest>,
     finding_identity: bool,
+    custom_command: bool,
     theme: &muxy_ui::theme::Theme,
 ) -> (gpui::SharedString, Hsla) {
     match probe {
         None if finding_identity => (tr!("Finding SSH key…"), theme.fg_muted),
+        None if custom_command => (
+            tr!(
+                "Runs a local program with Muxy's remote command appended. It must connect without prompts or a TTY. Use an absolute program path if it isn't on Muxy's PATH."
+            ),
+            theme.fg_muted,
+        ),
         None => (
             tr!("Muxy uses your SSH config, keys, and agent. A password is never saved."),
             theme.fg_muted,
@@ -990,9 +1040,7 @@ pub(crate) fn render_form(
     let theme = &model.theme;
     let style = Style { theme, metrics: &m };
     let submitted = form.submitted(cx);
-    let destination =
-        crate::model::join_destination(&submitted.host, &submitted.user, &submitted.port)
-            .unwrap_or_else(|_| submitted.host.trim().to_owned());
+    let destination = submitted.probe_key();
     let probe = model.server_probe(&destination);
     let installing = probe == Some(&ConnectionTest::Installing);
     let testing = installing || probe == Some(&ConnectionTest::Testing);
@@ -1000,8 +1048,18 @@ pub(crate) fn render_form(
         probe,
         Some(ConnectionTest::NotInstalled(_) | ConnectionTest::InstallFailed(_))
     );
-    let has_host = !submitted.host.trim().is_empty();
-    let (status, color) = connection_status(probe, form.identity_task.is_some(), theme);
+    let has_destination = !submitted
+        .ssh_command
+        .as_deref()
+        .unwrap_or(&submitted.host)
+        .trim()
+        .is_empty();
+    let (status, color) = connection_status(
+        probe,
+        form.identity_task.is_some(),
+        form.custom_command,
+        theme,
+    );
     let text = |id: &str, input: &Entity<TextInput>| controls::text_field(style, id, input, None);
     modal(model, window, "server-form")
         .on_key_down(
@@ -1030,12 +1088,7 @@ pub(crate) fn render_form(
             model,
         ))
         .child(field(&tr!("Name"), text("server-name", &form.name), model))
-        .child(field(
-            &tr!("SSH host"),
-            text("server-host", &form.host),
-            model,
-        ))
-        .child(login(form, model, cx))
+        .child(connection_fields(form, model, cx))
         .child(
             div()
                 .debug_selector(|| "server-form-probe".into())
@@ -1067,8 +1120,8 @@ pub(crate) fn render_form(
             },
         )
         .child(form_actions(
-            has_host && !testing && form.identity_task.is_none(),
-            has_host && !installing && form.identity_task.is_none(),
+            has_destination && !testing && form.identity_task.is_none(),
+            has_destination && !installing && form.identity_task.is_none(),
             model,
             cx,
         ))
@@ -1088,6 +1141,51 @@ fn install_offer(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     )
     .debug_selector(|| "server-install".into())
     .into_any_element()
+}
+
+fn connection_fields(form: &ServerForm, model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
+    let m = model.metrics;
+    let style = Style {
+        theme: &model.theme,
+        metrics: &m,
+    };
+    let text = |id: &str, input: &Entity<TextInput>| controls::text_field(style, id, input, None);
+    div()
+        .flex()
+        .flex_col()
+        .gap(m.scaled(14.0))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(m.spacing3())
+                .child(controls::toggle(
+                    style,
+                    "server-custom-command",
+                    form.custom_command,
+                    cx.listener(|model, _, _, cx| model.toggle_custom_command(cx)),
+                ))
+                .child(
+                    div()
+                        .text_size(m.font_footnote())
+                        .child(tr!("Custom command")),
+                ),
+        )
+        .when(form.custom_command, |view| {
+            view.child(field(
+                &tr!("SSH command"),
+                text("server-command", &form.command),
+                model,
+            ))
+        })
+        .when(!form.custom_command, |view| {
+            view.child(field(
+                &tr!("SSH host"),
+                text("server-host", &form.host),
+                model,
+            ))
+            .child(login(form, model, cx))
+        })
 }
 
 /// User, port, key file, and password login.

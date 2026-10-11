@@ -183,6 +183,20 @@ impl Workers {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn with_run(
+        self,
+        run: impl Fn(&SshTarget, &str, Option<&std::path::Path>) -> Result<String, String>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self {
+            run: Arc::new(run),
+            ..self
+        }
+    }
+
     pub(crate) fn start(&self, server: ServerId, target: Target) -> std::io::Result<Worker> {
         (self.start)(server, target)
     }

@@ -38,7 +38,7 @@ pub(crate) fn command(cx: &Context<AppModel>) -> Command<Handler> {
             let home: Handler = Rc::new(move |model, _, cx| model.new_remote_home_tab(server, cx));
             commands.register(
                 Command::new(format!("server-{server}"), entry.name.clone(), home)
-                    .keywords(entry.ssh.clone())
+                    .keywords(entry.destination().to_owned())
                     .badge(remote.clone()),
             );
             for project in projects(model, server).into_iter().filter(|p| !p.home) {

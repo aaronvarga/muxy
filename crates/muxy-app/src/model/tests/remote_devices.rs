@@ -5,6 +5,7 @@ use crate::picker::remote::RemoteFolders;
 use crate::views::settings::SettingsEvent;
 use muxy_app_core::settings::{ServerEntry, Settings};
 
+mod commands;
 mod forms;
 mod picker;
 

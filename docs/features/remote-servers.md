@@ -41,6 +41,48 @@ On Linux hosts that end your processes when you log out, run
 - The status bar shows the current project's server, with connect, restart, and
   stop.
 
+### Custom SSH commands
+
+If a VM manager or another tool handles SSH for you, turn on **Custom command**
+in **Add Server…** (or **Edit…**) and enter its command prefix, for example:
+
+```text
+swiftvm ssh my-vm
+```
+
+Muxy runs that local program directly and appends its remote command as **one
+argument**. The prefix must include the target machine and any flags or `--`
+separator your tool needs. Muxy does not add SSH flags, a host, or a port in this
+mode. The same prefix is used for Test Connection, installation, normal
+connections, and reconnects.
+
+- The tool must accept a remote shell command as its last argument and relay
+  stdin/stdout unchanged **without allocating a TTY**. Interactive-shell-only
+  tools are not supported. Add your tool's non-interactive/no-TTY flags if needed.
+- Authentication and host-key verification belong to the tool. Set them up in a
+  terminal first; Muxy's password and identity-file controls do not apply here.
+- Single/double quotes and backslashes group arguments, so paths and VM names
+  can contain spaces. Shell variables, `~`, wildcards, pipelines, redirects,
+  aliases, and command substitutions are not expanded. Use an absolute program
+  path if the tool is not on the desktop app's `PATH`.
+- Only configure commands you trust: they run locally with your permissions on
+  connection and reconnection. Do not put passwords or tokens in the command;
+  it is saved in plain text in `settings.toml`.
+
+For tools with a different argument convention, use an executable wrapper
+script that accepts the last argument as the remote command and forwards it
+without changing stdin/stdout. The remote computer still needs Muxy and the
+same OS requirements listed above.
+
+A custom-command entry in `settings.toml` uses `ssh_command` instead of `ssh`:
+
+```toml
+[[servers]]
+id = "6f9619ff-8b86-4011-b42d-00c04fc964ff" # use a unique UUID
+name = "Development VM"
+ssh_command = "swiftvm ssh my-vm"
+```
+
 ## From a shell
 
 Put `--host` first to use another computer's server:

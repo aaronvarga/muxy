@@ -123,6 +123,7 @@ pub(crate) struct DeviceForm {
     /// A host or `~/.ssh/config` alias, or a whole destination when the user
     /// and port fields are empty.
     pub(crate) host: String,
+    pub(crate) ssh_command: Option<String>,
     pub(crate) user: String,
     pub(crate) port: String,
     pub(crate) identity_file: String,
@@ -133,20 +134,37 @@ pub(crate) struct DeviceForm {
 }
 
 impl DeviceForm {
+    pub(crate) fn destination(&self) -> Result<String, String> {
+        match &self.ssh_command {
+            Some(command) => Ok(command.trim().to_owned()),
+            None => join_destination(&self.host, &self.user, &self.port),
+        }
+    }
+
+    pub(crate) fn probe_key(&self) -> String {
+        self.destination()
+            .unwrap_or_else(|_| self.host.trim().to_owned())
+    }
+
     /// The settings entry for this form: the device `id`, or a new one.
     fn entry(&self, id: Option<ServerId>) -> Result<ServerEntry, String> {
-        let ssh = join_destination(&self.host, &self.user, &self.port)?;
+        let destination = self.destination()?;
         let name = match self.name.trim() {
-            "" => ssh.clone(),
+            "" => destination.clone(),
             name => name.to_owned(),
         };
-        let mut entry = ServerEntry::new(name, ssh);
+        let mut entry = ServerEntry::new(name, String::new());
+        if self.ssh_command.is_some() {
+            entry.ssh_command = Some(destination);
+        } else {
+            entry.ssh = destination;
+            entry.identity_file =
+                Some(self.identity_file.trim().to_owned()).filter(|path| !path.is_empty());
+            entry.password_login = self.password_login;
+        }
         if let Some(id) = id {
             entry.id = id;
         }
-        entry.identity_file =
-            Some(self.identity_file.trim().to_owned()).filter(|path| !path.is_empty());
-        entry.password_login = self.password_login;
         entry.validate().map_err(|error| error.to_string())?;
         Ok(entry)
     }
@@ -275,7 +293,8 @@ impl AppModel {
         }
         let entry = form.entry(id)?;
         let server = entry.id;
-        if form.password_login && !form.password.is_empty() {
+        let password_login = entry.password_login;
+        if password_login && !form.password.is_empty() {
             self.servers
                 .passwords
                 .set(server, form.password.clone())
@@ -293,7 +312,7 @@ impl AppModel {
             }
             return Err(error.to_string());
         }
-        if !form.password_login {
+        if !password_login {
             self.servers.passwords.forget(server);
         }
         self.sync_servers(cx);
@@ -367,7 +386,7 @@ impl AppModel {
         form: &DeviceForm,
         cx: &mut Context<Self>,
     ) {
-        let Ok(destination) = join_destination(&form.host, &form.user, &form.port) else {
+        let Ok(destination) = form.destination() else {
             return;
         };
         let Some(ConnectionTest::UntrustedHost(prompt)) = self.server_probe(&destination) else {
@@ -404,14 +423,13 @@ impl AppModel {
         let entry = match form.entry(id) {
             Ok(entry) => entry,
             Err(error) => {
-                let tried = join_destination(&form.host, &form.user, &form.port)
-                    .unwrap_or_else(|_| form.host.trim().to_owned());
+                let tried = form.probe_key();
                 self.server_probe = Some((tried, ConnectionTest::Failed(error)));
                 self.sync_preferences(cx);
                 return;
             }
         };
-        let destination = entry.ssh.clone();
+        let destination = entry.destination().to_owned();
         let target = match self.test_target(id, &entry, form, trusted_host) {
             Ok(target) => target,
             Err(error) => {
@@ -445,7 +463,9 @@ impl AppModel {
                     Err(crate::boot::ProbeFailure::Other(error)) => ConnectionTest::Failed(error),
                 },
             };
-            if let Some(prompt) = crate::askpass::Passwords::finish_test(&answers, &once) {
+            if let Some(once) = once
+                && let Some(prompt) = crate::askpass::Passwords::finish_test(&answers, &once)
+            {
                 return ConnectionTest::UntrustedHost(prompt);
             }
             result
@@ -471,14 +491,13 @@ impl AppModel {
         entry: &ServerEntry,
         form: &DeviceForm,
         trusted_host: Option<String>,
-    ) -> Result<(SshTarget, String), String> {
-        let mut target = SshTarget::new(&entry.ssh)
-            .map_err(|error| error.to_string())?
-            .with_host_key_prompt();
-        if let Some(identity) = &entry.identity_file {
-            target = target.with_identity(identity);
+    ) -> Result<(SshTarget, Option<String>), String> {
+        let target = super::servers::ssh_target(entry).map_err(|error| error.to_string())?;
+        if target.is_custom_command() {
+            return Ok((target, None));
         }
-        let (password, login) = if form.password_login {
+        let target = target.with_host_key_prompt();
+        let (password, login) = if entry.password_login {
             let password = if form.password.is_empty() {
                 id.and_then(|id| self.servers.passwords.password(id))
             } else {
@@ -497,7 +516,7 @@ impl AppModel {
             .passwords
             .for_test(password, login, trusted_host)
             .map_err(|error| error.to_string())?;
-        Ok((target.with_askpass(askpass), token))
+        Ok((target.with_askpass(askpass), Some(token)))
     }
 
     pub(crate) fn confirm_forget_server(

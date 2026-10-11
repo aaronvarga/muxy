@@ -79,6 +79,17 @@ pub(crate) struct Servers {
     remotes: BTreeMap<ServerId, Runtime>,
 }
 
+pub(super) fn ssh_target(entry: &ServerEntry) -> std::io::Result<SshTarget> {
+    if let Some(command) = &entry.ssh_command {
+        return SshTarget::custom_command(command);
+    }
+    let mut target = SshTarget::new(&entry.ssh)?;
+    if let Some(identity) = &entry.identity_file {
+        target = target.with_identity(identity);
+    }
+    Ok(target)
+}
+
 impl Servers {
     /// Boot already asked the local worker to connect, as generation 1.
     /// ssh asks for passwords on `askpass`, a socket path.
@@ -131,7 +142,7 @@ impl Servers {
             self.workers.start(entry.id, Target::Ssh(target))
         }) {
             Ok(work) => runtime.work = Some(work),
-            Err(error) => runtime.error = Some(format!("{}: {error}", entry.ssh)),
+            Err(error) => runtime.error = Some(format!("{}: {error}", entry.destination())),
         }
         self.remotes.insert(entry.id, runtime);
     }
@@ -139,10 +150,7 @@ impl Servers {
     /// How ssh reaches `entry`: its key file, and asking the app for a
     /// password when it logs in with one.
     pub(super) fn target(&mut self, entry: &ServerEntry) -> std::io::Result<SshTarget> {
-        let mut target = SshTarget::new(&entry.ssh)?;
-        if let Some(identity) = &entry.identity_file {
-            target = target.with_identity(identity);
-        }
+        let mut target = ssh_target(entry)?;
         if entry.password_login {
             let login = target.login()?;
             target = target.with_askpass(self.passwords.askpass(entry.id, login)?);

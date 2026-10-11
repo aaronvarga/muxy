@@ -93,6 +93,76 @@ fn ssh_starts_the_remote_server_and_carries_a_terminal() -> Result {
 }
 
 #[test]
+fn custom_commands_carry_terminals_uploads_and_reconnect_without_losing_sessions() -> Result {
+    use std::io::Write;
+
+    let remote = FakeRemote::with_script(
+        r#"
+        [ "$#" -eq 4 ] && [ "$1" = ssh ] && [ "$2" = 'dev vm' ] && [ "$3" = -- ] || exit 90
+        echo $$ > "$HOME/command.pid"
+    "#,
+    )?;
+    let program = remote.home().join("VM Tool");
+    symlink(remote.ssh(), &program)?;
+    let target = muxy_client::SshTarget::custom_command(&format!(
+        "'{}' ssh 'dev vm' --",
+        program.display()
+    ))?;
+    assert!(matches!(
+        Client::connect_ssh(&target, Start::Never),
+        Err(ClientError::Remote {
+            reason: RemoteReason::NotRunning,
+            ..
+        })
+    ));
+    assert!(!remote.socket().exists());
+    let client = Client::connect_ssh(&target, Start::IfNeeded)?;
+    let events = client.events().ok_or("events already taken")?;
+    let session = client.create_session(&remote.home(), SIZE)?;
+    let attachment = client.attach(session.id, SIZE)?;
+    client.send_input(attachment.channel, b"echo custom-$((40+2))\n")?;
+    output_contains(&client, &events, attachment.channel, "custom-42")?;
+    let process = fs::read_to_string(remote.home().join("command.pid"))?;
+    drop(client);
+    assert!(
+        !Command::new("kill")
+            .args(["-0", process.trim()])
+            .stderr(Stdio::null())
+            .status()?
+            .success()
+    );
+
+    let reconnected = Client::connect_ssh(&target, Start::Never)?;
+    assert_eq!(reconnected.list_sessions()?, vec![session.clone()]);
+    let events = reconnected.events().ok_or("events already taken")?;
+    let attachment = reconnected.attach(session.id, SIZE)?;
+    reconnected.send_input(attachment.channel, b"echo resumed-$((20+22))\n")?;
+    output_contains(&reconnected, &events, attachment.channel, "resumed-42")?;
+    reconnected.end_session(session.id)?;
+
+    let mut upload = target
+        .command("cat")?
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    let bytes: Vec<u8> = (0..=255).collect();
+    upload
+        .stdin
+        .take()
+        .ok_or("upload stdin")?
+        .write_all(&bytes)?;
+    let output = upload.wait_with_output()?;
+    assert!(output.status.success());
+    assert_eq!(output.stdout, bytes);
+    let output = target
+        .command("printf '%s' \"remote 'quoted' value\"")?
+        .output()?;
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"remote 'quoted' value");
+    Ok(())
+}
+
+#[test]
 fn muxy_is_found_in_the_installers_folder_or_reported_missing() -> Result {
     let remote = FakeRemote::with_script("export PATH=/usr/bin:/bin")?;
     assert_eq!(

@@ -1,5 +1,5 @@
-//! Servers on other computers, reached through the system's ssh, which runs
-//! the bridge there.
+//! Servers on other computers, reached through ssh or a custom command that
+//! runs the bridge there.
 
 use std::collections::VecDeque;
 use std::ffi::OsString;
@@ -36,11 +36,12 @@ const OPTIONS: [&str; 6] = [
 ];
 
 /// A computer to reach with ssh: an `ssh_config` alias, `user@host`, or
-/// `ssh://user@host:port`.
+/// `ssh://user@host:port`, or a custom command prefix.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct SshTarget {
     destination: String,
     program: Option<PathBuf>,
+    custom_arguments: Option<Vec<String>>,
     identity: Option<PathBuf>,
     askpass: Option<Askpass>,
     host_key_prompt: bool,
@@ -75,10 +76,30 @@ impl SshTarget {
         Ok(Self {
             destination: destination.into(),
             program: None,
+            custom_arguments: None,
             identity: None,
             askpass: None,
             host_key_prompt: false,
         })
+    }
+
+    pub fn custom_command(source: &str) -> io::Result<Self> {
+        let mut arguments = muxy_core::executable::command_arguments(source)?.into_iter();
+        let program = arguments
+            .next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Enter a command"))?;
+        Ok(Self {
+            destination: source.trim().into(),
+            program: Some(program.into()),
+            custom_arguments: Some(arguments.collect()),
+            identity: None,
+            askpass: None,
+            host_key_prompt: false,
+        })
+    }
+
+    pub fn is_custom_command(&self) -> bool {
+        self.custom_arguments.is_some()
     }
 
     /// Logs in with this private key file only.
@@ -133,6 +154,12 @@ impl SshTarget {
     }
 
     fn config(&self) -> io::Result<String> {
+        if self.is_custom_command() {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Custom commands manage their own SSH settings and authentication",
+            ));
+        }
         let program = program(self.program.as_deref(), std::env::var_os("MUXY_SSH"))?;
         let output = Command::new(program)
             .args(["-G", "--", &self.destination])
@@ -159,13 +186,16 @@ impl SshTarget {
         Ok(command)
     }
 
-    fn arguments(&self, start: Start) -> Vec<OsString> {
-        self.arguments_for(bridge::command(start))
-    }
-
     /// Prompts only reach an askpass program, since nobody may be there to
     /// answer them.
     fn arguments_for(&self, remote: &str) -> Vec<OsString> {
+        if let Some(arguments) = &self.custom_arguments {
+            return arguments
+                .iter()
+                .map(OsString::from)
+                .chain([remote.into()])
+                .collect();
+        }
         let mut arguments: Vec<OsString> = vec!["-T".into()];
         let prompts: &[&str] = if self.askpass.is_some() {
             &["BatchMode=no", "NumberOfPasswordPrompts=1"]
@@ -199,6 +229,9 @@ impl SshTarget {
     /// `SSH_ASKPASS_REQUIRE=force` makes ssh use the program even without
     /// a display or a terminal.
     fn environment(&self) -> Vec<(OsString, OsString)> {
+        if self.is_custom_command() {
+            return Vec::new();
+        }
         let Some(askpass) = &self.askpass else {
             return Vec::new();
         };
@@ -279,12 +312,9 @@ impl Client {
     /// program, so logging in otherwise needs ssh-agent, a key, or a
     /// certificate. The host's key must already be trusted.
     pub fn connect_ssh(target: &SshTarget, start: Start) -> Result<Self, ClientError> {
-        let program = program(target.program.as_deref(), std::env::var_os("MUXY_SSH"))?;
-        let mut command = Command::new(&program);
-        command
-            .args(target.arguments(start))
-            .envs(target.environment())
-            .stderr(Stdio::piped());
+        let mut command = target.command(bridge::command(start))?;
+        let program = PathBuf::from(command.get_program());
+        command.stderr(Stdio::piped());
         let mut stream = ChildStream::spawn(command).map_err(|error| {
             if error.kind() == io::ErrorKind::NotFound {
                 ClientError::Remote {
@@ -388,9 +418,70 @@ mod tests {
     use super::*;
 
     #[test]
+    fn custom_commands_do_not_inherit_ssh_arguments_or_credentials() -> io::Result<()> {
+        let target = SshTarget::custom_command("vm ssh 'dev box' --")?
+            .with_identity("/private/key")
+            .with_host_key_prompt()
+            .with_askpass(Askpass {
+                program: "/private/askpass".into(),
+                environment: vec![("TOKEN".into(), "secret".into())],
+            });
+        let remote = bridge::command(Start::Never);
+        let command = target.command(remote)?;
+        assert_eq!(command.get_program(), "vm");
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            ["ssh", "dev box", "--", remote]
+        );
+        assert_eq!(command.get_envs().count(), 0);
+        assert_eq!(
+            target.login().err().map(|error| error.kind()),
+            Some(io::ErrorKind::Unsupported)
+        );
+        assert_eq!(
+            target.default_identity().err().map(|error| error.kind()),
+            Some(io::ErrorKind::Unsupported)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn custom_command_arguments_are_not_evaluated_by_a_local_shell() -> io::Result<()> {
+        let target = SshTarget::custom_command(
+            r"/usr/bin/printf '%s\n' '$(exit 91)' '$HOME' '*' '; exit 92'",
+        )?;
+        let remote = "sh -c 'printf \"%s\" \"$HOME\"'; exit 93";
+        let output = target.command(remote)?.output()?;
+        assert!(output.status.success());
+        assert_eq!(
+            output.stdout,
+            format!("$(exit 91)\n$HOME\n*\n; exit 92\n{remote}\n").as_bytes()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_missing_custom_program_is_not_a_missing_remote_installation() -> io::Result<()> {
+        let directory = tempfile::tempdir()?;
+        let source = format!(
+            "'{}' ssh box",
+            directory.path().join("missing-vm").display()
+        );
+        let target = SshTarget::custom_command(&source)?;
+        assert!(
+            matches!(Client::connect_ssh(&target, Start::IfNeeded), Err(ClientError::Remote {
+            reason: RemoteReason::SshMissing,
+            destination,
+            detail,
+        }) if destination == source && detail.ends_with("missing-vm"))
+        );
+        Ok(())
+    }
+
+    #[test]
     fn host_key_prompts_keep_verification_and_disable_shared_connections() -> io::Result<()> {
         let target = SshTarget::new("ssh://dev@box:2222")?.with_host_key_prompt();
-        let args = target.arguments(Start::IfNeeded);
+        let args = target.arguments_for(bridge::command(Start::IfNeeded));
         for option in [
             "StrictHostKeyChecking=ask",
             "FingerprintHash=sha256",

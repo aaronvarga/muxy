@@ -7,6 +7,7 @@ pub(super) fn entry(id: ServerId, name: &str) -> ServerEntry {
         id,
         name: name.into(),
         ssh: "dev@box".into(),
+        ssh_command: None,
         identity_file: None,
         password_login: false,
     }
