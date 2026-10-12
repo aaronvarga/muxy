@@ -252,7 +252,7 @@ fn a_phone_pairs_opens_a_shell_and_types() -> TestResult {
     let session = connection.create_session(home.id.clone(), 40, 6)?;
     let terminal = connection.attach(session.id, 40, 6)?;
     assert_eq!(terminal.screen().columns, 40);
-    terminal.send_input(b"echo mobile-$((40+2))".to_vec())?;
+    terminal.send_input(b"printf '\\nmobile-%d\\n' $((40+2))".to_vec())?;
     terminal.send_key(Key::Enter, Modifiers::default())?;
     let text = || -> Vec<String> {
         terminal
@@ -399,7 +399,7 @@ fn terminals_attached_at_the_same_time_all_receive_their_screens() -> TestResult
     .into_iter()
     .collect::<Result<_, _>>()?;
     for (index, terminal) in terminals.iter().enumerate() {
-        terminal.send_input(format!("echo ready-{index}\r").into_bytes())?;
+        terminal.send_input(format!("printf '\\nready-%d\\n' {index}\r").into_bytes())?;
     }
     let mut ready = vec![false; terminals.len()];
     let deadline = Instant::now() + TIMEOUT;
@@ -436,10 +436,18 @@ fn taps_and_scrolling_reach_a_program_that_tracks_the_mouse() -> TestResult {
     let terminal = connection.attach(session.id, 40, 6)?;
     assert!(!terminal.screen().mouse_tracking);
     // Button tracking with SGR reports, printed as soon as each one arrives.
-    terminal
-        .send_input(b"stty -icanon -echo; printf '\\033[?1000h\\033[?1006h'; cat -v\r".to_vec())?;
+    terminal.send_input(
+        b"PS1='mouse-ready> '; stty -icanon -echo; printf '\\033[?1000h\\033[?1006h'; cat -v\r"
+            .to_vec(),
+    )?;
     wait_for(&events, |event| {
         metadata_changed(event, session.id) && terminal.screen().mouse_tracking
+    })
+    .map_err(|error| {
+        format!(
+            "enable mouse reporting: {error}; {:?}",
+            texts(&terminal.screen().lines)
+        )
     })?;
     terminal.click(MouseButton::Left, 2, 4, Modifiers::default())?;
     terminal.scroll(ScrollDirection::Up, 2, 4)?;
@@ -447,6 +455,12 @@ fn taps_and_scrolling_reach_a_program_that_tracks_the_mouse() -> TestResult {
         texts(&terminal.screen().lines)
             .iter()
             .any(|line| line.contains("^[[<0;5;3M^[[<0;5;3m^[[<64;5;3M"))
+    })
+    .map_err(|error| {
+        format!(
+            "read mouse reports: {error}; {:?}",
+            texts(&terminal.screen().lines)
+        )
     })?;
 
     // Attaching again shows the mode the program already turned on.
@@ -458,9 +472,20 @@ fn taps_and_scrolling_reach_a_program_that_tracks_the_mouse() -> TestResult {
         ..Modifiers::default()
     };
     terminal.send_key(Key::Character { text: "c".into() }, control)?;
+    wait_until(&events, || {
+        texts(&terminal.screen().lines)
+            .iter()
+            .any(|line| line.trim() == "mouse-ready>")
+    })?;
     terminal.send_input(b"printf '\\033[?1000l'\r".to_vec())?;
     wait_for(&events, |event| {
         metadata_changed(event, session.id) && !terminal.screen().mouse_tracking
+    })
+    .map_err(|error| {
+        format!(
+            "disable mouse reporting: {error}; {:?}",
+            texts(&terminal.screen().lines)
+        )
     })?;
     connection.end_session(session.id)?;
     Ok(())

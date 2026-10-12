@@ -59,8 +59,17 @@ impl Default for ComposerSettings {
             broadcast: false,
             clear_after_sending: false,
             clear_on_close: false,
-            image_strategy: ImageSubmissionStrategy::Clipboard,
-            font_family: "SF Mono".into(),
+            image_strategy: if cfg!(target_os = "macos") {
+                ImageSubmissionStrategy::Clipboard
+            } else {
+                ImageSubmissionStrategy::InlinePath
+            },
+            font_family: if cfg!(target_os = "macos") {
+                "SF Mono"
+            } else {
+                "monospace"
+            }
+            .into(),
             line_height: 1.2,
             language: String::new(),
             voice_auto_send: false,

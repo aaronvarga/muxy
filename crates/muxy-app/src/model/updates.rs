@@ -1,5 +1,5 @@
 mod status;
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod tests;
 
 use std::time::Duration;
@@ -76,6 +76,11 @@ impl Updater {
 
 impl AppModel {
     pub(super) fn start_update_checks(&mut self, cx: &mut Context<Self>) {
+        if !cfg!(target_os = "macos") {
+            self.updates.unavailable =
+                Some(tr!("Automatic updates are not available on Linux yet.").to_string());
+            return;
+        }
         if Version::current().is_none() {
             self.updates.unavailable = Some(
                 tr!(

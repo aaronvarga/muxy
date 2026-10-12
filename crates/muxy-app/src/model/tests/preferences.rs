@@ -59,26 +59,42 @@ fn settings_fields_save_on_blur_window_close_and_quit(cx: &mut TestAppContext) {
     cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
     let (view, settings) = settings_window(boot, cx);
     click_preference(settings, "settings-field-width");
-    settings.simulate_keystrokes("cmd-a 1 2 0 0");
+    settings.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-a 1 2 0 0"
+    } else {
+        "ctrl-a 1 2 0 0"
+    });
     click_preference(settings, "settings-field-height");
     view.read_with(settings, |model, _| {
         assert_eq!(model.settings.window.default_size[0], 1200.0);
     });
-    settings.simulate_keystrokes("cmd-a 8 0 0");
+    settings.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-a 8 0 0"
+    } else {
+        "ctrl-a 8 0 0"
+    });
     let main = view.read_with(settings, |model, _| model.window);
-    assert!(settings.simulate_close());
+    settings.dispatch_action(crate::views::settings::CloseSettings);
     view.read_with(cx, |model, _| {
         assert!(model.settings_window.is_none());
         assert_eq!(model.settings.window.default_size[1], 800.0);
     });
     let main = VisualTestContext::from_window(main, cx).into_mut();
-    main.simulate_keystrokes("cmd-,");
+    main.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-,"
+    } else {
+        "ctrl-shift-,"
+    });
     let handle = view.read_with(main, |model, _| {
         model.settings_window.as_ref().expect("settings").window
     });
     let settings = VisualTestContext::from_window(handle.into(), main).into_mut();
     click_preference(settings, "settings-field-width");
-    settings.simulate_keystrokes("cmd-a 1 3 0 0");
+    settings.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-a 1 3 0 0"
+    } else {
+        "ctrl-a 1 3 0 0"
+    });
     view.update(settings, AppModel::quit);
     view.read_with(settings, |model, _| {
         assert_eq!(model.settings.window.default_size[0], 1300.0);

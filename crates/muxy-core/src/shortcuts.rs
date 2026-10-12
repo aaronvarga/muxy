@@ -214,16 +214,26 @@ impl ShortcutId {
     }
 }
 
+macro_rules! platform_keys {
+    ($mac:expr, $linux:expr) => {
+        if cfg!(target_os = "macos") {
+            $mac
+        } else {
+            $linux
+        }
+    };
+}
+
 pub const ALL: &[Shortcut] = &[
     Shortcut {
         id: "new_tab",
-        keys: &["cmd-t"],
+        keys: platform_keys!(&["cmd-t"], &["ctrl-shift-t"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "existing_terminals",
-        keys: &["cmd-alt-t"],
+        keys: platform_keys!(&["cmd-alt-t"], &["ctrl-shift-alt-t"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
@@ -235,145 +245,148 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "close_tab",
-        keys: &["cmd-shift-w"],
+        keys: platform_keys!(&["cmd-shift-w"], &["ctrl-alt-w"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
     Shortcut {
         id: "split_right",
-        keys: &["cmd-d"],
+        keys: platform_keys!(&["cmd-d"], &["ctrl-shift-d"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "split_down",
-        keys: &["cmd-shift-d"],
+        keys: platform_keys!(&["cmd-shift-d"], &["ctrl-alt-d"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_left",
-        keys: &["cmd-alt-left"],
+        keys: platform_keys!(&["cmd-alt-left"], &["ctrl-shift-alt-left"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_right",
-        keys: &["cmd-alt-right"],
+        keys: platform_keys!(&["cmd-alt-right"], &["ctrl-shift-alt-right"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_up",
-        keys: &["cmd-alt-up"],
+        keys: platform_keys!(&["cmd-alt-up"], &["ctrl-shift-alt-up"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_down",
-        keys: &["cmd-alt-down"],
+        keys: platform_keys!(&["cmd-alt-down"], &["ctrl-shift-alt-down"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "toggle_zoom_pane",
-        keys: &["cmd-shift-enter"],
+        keys: platform_keys!(&["cmd-shift-enter"], &["ctrl-shift-enter"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "equalize_splits",
-        keys: &["cmd-ctrl-="],
+        keys: platform_keys!(&["cmd-ctrl-="], &["ctrl-alt-="]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "close_pane",
-        keys: &["cmd-w"],
+        keys: platform_keys!(&["cmd-w"], &["ctrl-shift-w"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
     Shortcut {
         id: "next_tab",
-        keys: &["cmd-]", "ctrl-tab"],
+        keys: platform_keys!(&["cmd-]", "ctrl-tab"], &["ctrl-shift-]", "ctrl-tab"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "previous_tab",
-        keys: &["cmd-[", "ctrl-shift-tab"],
+        keys: platform_keys!(
+            &["cmd-[", "ctrl-shift-tab"],
+            &["ctrl-shift-[", "ctrl-shift-tab"]
+        ),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "previous_project",
-        keys: &["ctrl-[", "cmd-alt-["],
+        keys: platform_keys!(&["ctrl-[", "cmd-alt-["], &["ctrl-[", "ctrl-shift-alt-["]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "next_project",
-        keys: &["ctrl-]", "cmd-alt-]"],
+        keys: platform_keys!(&["ctrl-]", "cmd-alt-]"], &["ctrl-]", "ctrl-shift-alt-]"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "add_project",
-        keys: &["cmd-o"],
+        keys: platform_keys!(&["cmd-o"], &["ctrl-shift-o"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab1",
-        keys: &["cmd-1"],
+        keys: platform_keys!(&["cmd-1"], &["ctrl-shift-1"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab2",
-        keys: &["cmd-2"],
+        keys: platform_keys!(&["cmd-2"], &["ctrl-shift-2"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab3",
-        keys: &["cmd-3"],
+        keys: platform_keys!(&["cmd-3"], &["ctrl-shift-3"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab4",
-        keys: &["cmd-4"],
+        keys: platform_keys!(&["cmd-4"], &["ctrl-shift-4"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab5",
-        keys: &["cmd-5"],
+        keys: platform_keys!(&["cmd-5"], &["ctrl-shift-5"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab6",
-        keys: &["cmd-6"],
+        keys: platform_keys!(&["cmd-6"], &["ctrl-shift-6"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab7",
-        keys: &["cmd-7"],
+        keys: platform_keys!(&["cmd-7"], &["ctrl-shift-7"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab8",
-        keys: &["cmd-8"],
+        keys: platform_keys!(&["cmd-8"], &["ctrl-shift-8"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab9",
-        keys: &["cmd-9"],
+        keys: platform_keys!(&["cmd-9"], &["ctrl-shift-9"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
@@ -433,7 +446,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "copy",
-        keys: &["cmd-c"],
+        keys: platform_keys!(&["cmd-c"], &["ctrl-shift-c"]),
         contexts: &[
             Some(WORKSPACE_CLIPBOARD_CONTEXT),
             Some("QuickTerminal && !TextInput && !TerminalSearchInput"),
@@ -445,7 +458,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "paste",
-        keys: &["cmd-v"],
+        keys: platform_keys!(&["cmd-v"], &["ctrl-shift-v"]),
         contexts: &[
             Some(WORKSPACE_CLIPBOARD_CONTEXT),
             Some("QuickTerminal && !TextInput && !TerminalSearchInput"),
@@ -457,31 +470,34 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "find",
-        keys: &["cmd-f"],
+        keys: platform_keys!(&["cmd-f"], &["ctrl-shift-f"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
     Shortcut {
         id: "find_next",
-        keys: &["cmd-g"],
+        keys: platform_keys!(&["cmd-g"], &["ctrl-shift-g"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
     Shortcut {
         id: "find_previous",
-        keys: &["cmd-shift-g"],
+        keys: platform_keys!(&["cmd-shift-g"], &["ctrl-alt-g"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
     Shortcut {
         id: "scroll_to_bottom",
-        keys: &["cmd-end"],
+        keys: platform_keys!(&["cmd-end"], &["ctrl-shift-end"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
     Shortcut {
         id: "increase_font_size",
-        keys: &["cmd-+", "cmd-=", "cmd-shift-="],
+        keys: platform_keys!(
+            &["cmd-+", "cmd-=", "cmd-shift-="],
+            &["ctrl-shift-+", "ctrl-shift-=", "ctrl-alt-shift-="]
+        ),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[
             &[Some("WorkspaceTabs"), Some("QuickTerminal")],
@@ -491,73 +507,73 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "decrease_font_size",
-        keys: &["cmd--"],
+        keys: platform_keys!(&["cmd--"], &["ctrl-shift--"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
     Shortcut {
         id: "new_home_tab",
-        keys: &["cmd-n"],
+        keys: platform_keys!(&["cmd-n"], &["ctrl-shift-n"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "new_tab_in_project",
-        keys: &["cmd-shift-n"],
+        keys: platform_keys!(&["cmd-shift-n"], &["ctrl-alt-n"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "toggle_sidebar",
-        keys: &["cmd-b"],
+        keys: platform_keys!(&["cmd-b"], &["ctrl-shift-b"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "toggle_full_screen",
-        keys: &["cmd-ctrl-f"],
+        keys: platform_keys!(&["cmd-ctrl-f"], &["f11"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "toggle_theme_picker",
-        keys: &["cmd-shift-k"],
+        keys: platform_keys!(&["cmd-shift-k"], &["ctrl-alt-k"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "navigate_back",
-        keys: &["cmd-ctrl-left"],
+        keys: platform_keys!(&["cmd-ctrl-left"], &["ctrl-shift-left"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "navigate_forward",
-        keys: &["cmd-ctrl-right"],
+        keys: platform_keys!(&["cmd-ctrl-right"], &["ctrl-shift-right"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "quit",
-        keys: &["cmd-q"],
+        keys: platform_keys!(&["cmd-q"], &["ctrl-shift-q"]),
         contexts: &[None],
         key_contexts: &[&[None]],
     },
     Shortcut {
         id: "hide_app",
-        keys: &["cmd-h"],
+        keys: platform_keys!(&["cmd-h"], &["ctrl-shift-h"]),
         contexts: &[None],
         key_contexts: &[&[None]],
     },
     Shortcut {
         id: "hide_others",
-        keys: &["cmd-alt-h"],
+        keys: platform_keys!(&["cmd-alt-h"], &["ctrl-shift-alt-h"]),
         contexts: &[None],
         key_contexts: &[&[None]],
     },
     Shortcut {
         id: "minimize",
-        keys: &["cmd-m"],
+        keys: platform_keys!(&["cmd-m"], &["ctrl-shift-m"]),
         contexts: &[None],
         key_contexts: &[&[None]],
     },
@@ -627,7 +643,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.word_left",
-        keys: &["alt-left"],
+        keys: platform_keys!(&["alt-left"], &["ctrl-left"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -643,7 +659,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.word_right",
-        keys: &["alt-right"],
+        keys: platform_keys!(&["alt-right"], &["ctrl-right"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -659,7 +675,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.home",
-        keys: &["cmd-left"],
+        keys: platform_keys!(&["cmd-left"], &["home"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -675,7 +691,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.end",
-        keys: &["cmd-right"],
+        keys: platform_keys!(&["cmd-right"], &["end"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -723,7 +739,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.select_word_left",
-        keys: &["shift-alt-left"],
+        keys: platform_keys!(&["shift-alt-left"], &["shift-ctrl-left"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -739,7 +755,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.select_word_right",
-        keys: &["shift-alt-right"],
+        keys: platform_keys!(&["shift-alt-right"], &["shift-ctrl-right"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -755,7 +771,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.select_home",
-        keys: &["shift-cmd-left"],
+        keys: platform_keys!(&["shift-cmd-left"], &["shift-home"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -771,7 +787,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.select_end",
-        keys: &["shift-cmd-right"],
+        keys: platform_keys!(&["shift-cmd-right"], &["shift-end"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -787,7 +803,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.select_all",
-        keys: &["cmd-a"],
+        keys: platform_keys!(&["cmd-a"], &["ctrl-a"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -807,7 +823,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.copy",
-        keys: &["cmd-c"],
+        keys: platform_keys!(&["cmd-c"], &["ctrl-c"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -823,7 +839,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.cut",
-        keys: &["cmd-x"],
+        keys: platform_keys!(&["cmd-x"], &["ctrl-x"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -839,7 +855,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.paste",
-        keys: &["cmd-v"],
+        keys: platform_keys!(&["cmd-v"], &["ctrl-v"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -855,7 +871,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.undo",
-        keys: &["cmd-z"],
+        keys: platform_keys!(&["cmd-z"], &["ctrl-z"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -871,7 +887,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.redo",
-        keys: &["shift-cmd-z"],
+        keys: platform_keys!(&["shift-cmd-z"], &["shift-ctrl-z"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -887,7 +903,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.document_start",
-        keys: &["home", "cmd-up"],
+        keys: platform_keys!(&["home", "cmd-up"], &["ctrl-home", "ctrl-up"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -906,7 +922,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.document_end",
-        keys: &["end", "cmd-down"],
+        keys: platform_keys!(&["end", "cmd-down"], &["ctrl-end", "ctrl-down"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -925,7 +941,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.show_character_palette",
-        keys: &["ctrl-cmd-space"],
+        keys: platform_keys!(&["ctrl-cmd-space"], &["ctrl-space"]),
         contexts: &[
             Some("TextInput"),
             Some("BareInput"),
@@ -971,7 +987,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.delete_word",
-        keys: &["alt-backspace"],
+        keys: platform_keys!(&["alt-backspace"], &["ctrl-backspace"]),
         contexts: &[
             Some("MultilineInput"),
             Some("TextInput"),
@@ -1009,13 +1025,13 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "text_input.select_document_start",
-        keys: &["shift-cmd-up"],
+        keys: platform_keys!(&["shift-cmd-up"], &["ctrl-shift-home"]),
         contexts: &[Some("MultilineInput")],
         key_contexts: &[&[Some("MultilineInput")]],
     },
     Shortcut {
         id: "text_input.select_document_end",
-        keys: &["shift-cmd-down"],
+        keys: platform_keys!(&["shift-cmd-down"], &["ctrl-shift-end"]),
         contexts: &[Some("MultilineInput")],
         key_contexts: &[&[Some("MultilineInput")]],
     },
@@ -1051,7 +1067,10 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "popover.secondary_confirm",
-        keys: &["alt-enter", "cmd-enter"],
+        keys: platform_keys!(
+            &["alt-enter", "cmd-enter"],
+            &["alt-enter", "ctrl-shift-enter"]
+        ),
         contexts: &[Some("Picker")],
         key_contexts: &[&[Some("Picker")], &[Some("Picker")]],
     },
@@ -1159,7 +1178,10 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "previous_prompt",
-        keys: &["cmd-up", "cmd-shift-up"],
+        keys: platform_keys!(
+            &["cmd-up", "cmd-shift-up"],
+            &["ctrl-shift-up", "ctrl-alt-shift-up"]
+        ),
         contexts: &[
             Some(WORKSPACE_CLIPBOARD_CONTEXT),
             Some("QuickTerminal && !TextInput && !TerminalSearchInput"),
@@ -1177,7 +1199,10 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "next_prompt",
-        keys: &["cmd-down", "cmd-shift-down"],
+        keys: platform_keys!(
+            &["cmd-down", "cmd-shift-down"],
+            &["ctrl-shift-down", "ctrl-alt-shift-down"]
+        ),
         contexts: &[
             Some(WORKSPACE_CLIPBOARD_CONTEXT),
             Some("QuickTerminal && !TextInput && !TerminalSearchInput"),
@@ -1204,25 +1229,25 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "open_settings",
-        keys: &["cmd-,"],
+        keys: platform_keys!(&["cmd-,"], &["ctrl-shift-,"]),
         contexts: &[None],
         key_contexts: &[&[None]],
     },
     Shortcut {
         id: "settings.close",
-        keys: &["cmd-w"],
+        keys: platform_keys!(&["cmd-w"], &["ctrl-shift-w"]),
         contexts: &[Some("SettingsWindow")],
         key_contexts: &[&[Some("SettingsWindow")]],
     },
     Shortcut {
         id: "settings.search",
-        keys: &["cmd-f"],
+        keys: platform_keys!(&["cmd-f"], &["ctrl-shift-f"]),
         contexts: &[Some("SettingsWindow")],
         key_contexts: &[&[Some("SettingsWindow")]],
     },
     Shortcut {
         id: "settings.focus_navbar",
-        keys: &["cmd-shift-e"],
+        keys: platform_keys!(&["cmd-shift-e"], &["ctrl-shift-e"]),
         contexts: &[Some("SettingsWindow")],
         key_contexts: &[&[Some("SettingsWindow")]],
     },
@@ -1246,25 +1271,25 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "toggle_command_palette",
-        keys: &["cmd-shift-p"],
+        keys: platform_keys!(&["cmd-shift-p"], &["ctrl-shift-p"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "toggle_composer",
-        keys: &["cmd-i"],
+        keys: platform_keys!(&["cmd-i"], &["ctrl-shift-i"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "composer.submit",
-        keys: &["cmd-enter"],
+        keys: platform_keys!(&["cmd-enter"], &["ctrl-enter"]),
         contexts: &[Some("Composer")],
         key_contexts: &[&[Some("Composer")]],
     },
     Shortcut {
         id: "composer.insert",
-        keys: &["cmd-shift-enter"],
+        keys: platform_keys!(&["cmd-shift-enter"], &["ctrl-shift-enter"]),
         contexts: &[Some("Composer")],
         key_contexts: &[&[Some("Composer")]],
     },
@@ -1282,7 +1307,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "toggle_voice_recording",
-        keys: &["cmd-shift-i"],
+        keys: platform_keys!(&["cmd-shift-i"], &["ctrl-alt-i"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },

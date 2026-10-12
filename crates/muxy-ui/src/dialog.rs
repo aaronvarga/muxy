@@ -18,19 +18,11 @@ use crate::tr;
     reason = "AppKit text delegates and target/action use Objective-C FFI."
 )]
 mod prompt;
-pub use prompt::{
-    ADDITIONAL_PROMPT_LIMIT, PromptCheckbox, PromptChoices, PromptConfirmation, PromptPicker,
-    PromptResponse, confirm_with_prompt,
+pub use crate::dialog_types::{
+    ADDITIONAL_PROMPT_LIMIT, ConfirmationResponse, ConsentResponse, DialogOptions, PromptCheckbox,
+    PromptChoices, PromptPicker, PromptResponse,
 };
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum ConfirmationResponse {
-    #[default]
-    Cancelled,
-    Confirmed {
-        dont_ask_again: bool,
-    },
-}
+pub use prompt::{PromptConfirmation, confirm_with_prompt};
 
 #[derive(Debug)]
 pub struct Confirmation {
@@ -50,16 +42,6 @@ impl Drop for Confirmation {
     }
 }
 
-/// A choice in an extension consent prompt.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ConsentResponse {
-    AllowAndRemember,
-    Allow,
-    Cancel,
-    DenyAndRemember,
-    Block,
-}
-
 fn consent_choice(response: NSModalResponse, block: bool) -> ConsentResponse {
     let index = response - NSAlertFirstButtonReturn;
     match (index, block) {
@@ -74,7 +56,8 @@ fn consent_choice(response: NSModalResponse, block: bool) -> ConsentResponse {
 /// Asks whether an extension may perform a gated action. Dropping the returned
 /// handle dismisses the sheet as a cancel.
 pub fn consent(
-    window: &gpui::Window,
+    window: &mut gpui::Window,
+    _cx: &mut gpui::App,
     title: &str,
     message: &str,
     block_label: &str,
@@ -144,8 +127,13 @@ fn parent_window(
     Ok(parent)
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Native confirmation fields and GPUI context"
+)]
 pub fn confirm(
-    window: &gpui::Window,
+    window: &mut gpui::Window,
+    _cx: &mut gpui::App,
     title: &str,
     message: &str,
     confirm_label: &str,
@@ -167,7 +155,8 @@ pub fn confirm(
 /// Asks for confirmation with a checkbox that starts unchecked. Reports
 /// whether the checkbox was checked, or `None` when declined or dismissed.
 pub fn confirm_with_checkbox(
-    window: &gpui::Window,
+    window: &mut gpui::Window,
+    _cx: &mut gpui::App,
     title: &str,
     message: &str,
     [confirm_label, decline_label]: [&str; 2],
@@ -296,15 +285,17 @@ impl Drop for FolderPicker {
 }
 
 pub fn choose_folder(
+    cx: &mut gpui::App,
     message: &str,
     directory: &std::path::Path,
     on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
 ) -> io::Result<FolderPicker> {
-    choose_folder_with(message, "", directory, on_complete)
+    choose_folder_with(cx, message, "", directory, on_complete)
 }
 
 /// A folder picker whose confirm button reads `prompt`, when it is not empty.
 pub fn choose_folder_with(
+    _cx: &mut gpui::App,
     message: &str,
     prompt: &str,
     directory: &std::path::Path,
@@ -315,6 +306,7 @@ pub fn choose_folder_with(
 
 /// A file picker that also shows hidden files, such as keys in `~/.ssh`.
 pub fn choose_file(
+    _cx: &mut gpui::App,
     message: &str,
     directory: &std::path::Path,
     on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
@@ -365,20 +357,9 @@ fn open_panel(
     Ok(FolderPicker { panel, completed })
 }
 
-/// A labelled native alert, confirmation, or text prompt.
-#[derive(Clone, Debug, Default)]
-pub struct DialogOptions {
-    pub title: String,
-    pub message: String,
-    pub buttons: Vec<String>,
-    pub default_button: Option<String>,
-    pub cancel_button: Option<String>,
-    pub input: Option<(String, String)>,
-    pub style: String,
-}
-
 pub fn present(
-    window: &gpui::Window,
+    window: &mut gpui::Window,
+    _cx: &mut gpui::App,
     options: DialogOptions,
     on_complete: impl FnOnce(Option<String>) + 'static,
 ) -> io::Result<Confirmation> {

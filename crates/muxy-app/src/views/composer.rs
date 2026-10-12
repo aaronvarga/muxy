@@ -81,7 +81,7 @@ impl Composer {
                 .with_placeholder_key(tr_key!("Type or speak…"))
                 .with_placeholder_font(".SystemUIFont")
                 .with_paste_delegate(move |_, cx| {
-                    let content = muxy_ui::pasteboard::read_content();
+                    let content = muxy_ui::pasteboard::read_content(cx);
                     if matches!(content, Ok(muxy_ui::pasteboard::Content::Text)) {
                         return false;
                     }

@@ -836,10 +836,14 @@ impl AppModel {
     fn choose_server_identity(&mut self, cx: &mut Context<Self>) {
         let (sender, receiver) = async_channel::bounded(1);
         let directory = std::env::home_dir().unwrap_or_default().join(".ssh");
-        let dialog =
-            muxy_ui::dialog::choose_file(&tr!("Choose a private key"), &directory, move |path| {
+        let dialog = muxy_ui::dialog::choose_file(
+            cx,
+            &tr!("Choose a private key"),
+            &directory,
+            move |path| {
                 let _ = sender.try_send(path);
-            });
+            },
+        );
         let dialog = match dialog {
             Ok(dialog) => dialog,
             Err(error) => {

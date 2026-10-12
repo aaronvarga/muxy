@@ -1,7 +1,11 @@
 use super::*;
-use crate::model::tests::{extensions::finish_extension, stub_boot};
+#[cfg(target_os = "macos")]
+use crate::model::tests::extensions::finish_extension;
+use crate::model::tests::stub_boot;
 use gpui::TestAppContext;
-use muxy_app_core::{AppState, ServerId};
+use muxy_app_core::AppState;
+#[cfg(target_os = "macos")]
+use muxy_app_core::ServerId;
 
 #[gpui::test]
 fn exec_consent_preflight_validates_sync_and_async_commands(cx: &mut TestAppContext) {
@@ -95,6 +99,7 @@ fn exec_consent_preflight_validates_sync_and_async_commands(cx: &mut TestAppCont
 }
 
 #[gpui::test]
+#[cfg(target_os = "macos")]
 fn expired_confirmation_does_not_persist_permission(cx: &mut TestAppContext) {
     let package = tempfile::tempdir().expect("extension folder");
     std::fs::write(
@@ -177,6 +182,7 @@ fn expired_confirmation_does_not_persist_permission(cx: &mut TestAppContext) {
 }
 
 /// Loads and enables an unpacked extension whose `muxy` manifest is `manifest`.
+#[cfg(target_os = "macos")]
 fn enabled<'a>(
     cx: &'a mut TestAppContext,
     name: &str,
@@ -192,6 +198,7 @@ fn enabled<'a>(
 }
 
 /// Like `enabled`, with extra package files as `(path, contents)`.
+#[cfg(target_os = "macos")]
 fn enabled_with<'a>(
     cx: &'a mut TestAppContext,
     name: &str,
@@ -237,6 +244,7 @@ fn enabled_with<'a>(
 }
 
 /// Sends one API call as the extension's script `id` and waits for its reply.
+#[cfg(target_os = "macos")]
 fn script_call(
     view: &Entity<AppModel>,
     cx: &mut gpui::VisualTestContext,
@@ -284,6 +292,7 @@ fn script_call(
 }
 
 #[gpui::test]
+#[cfg(target_os = "macos")]
 fn extension_events_stay_inside_the_extension(cx: &mut TestAppContext) {
     let (view, cx, _package, _requests) = enabled(
         cx,
@@ -368,6 +377,7 @@ fn extension_events_stay_inside_the_extension(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+#[cfg(target_os = "macos")]
 fn terminal_tabs_type_their_startup_command_once_attached(cx: &mut TestAppContext) {
     let (view, cx, _package, requests) = enabled(
         cx,
@@ -450,6 +460,7 @@ fn terminal_tabs_type_their_startup_command_once_attached(cx: &mut TestAppContex
 }
 
 /// Runs the app until `done` holds, failing after five seconds.
+#[cfg(target_os = "macos")]
 fn wait_for(
     view: &Entity<AppModel>,
     cx: &mut gpui::VisualTestContext,
@@ -467,6 +478,7 @@ fn wait_for(
     }
 }
 
+#[cfg(target_os = "macos")]
 fn logged(model: &AppModel, owner: &str, line: &str) -> bool {
     model
         .extensions
@@ -476,6 +488,7 @@ fn logged(model: &AppModel, owner: &str, line: &str) -> bool {
 }
 
 #[gpui::test]
+#[cfg(target_os = "macos")]
 fn background_scripts_follow_the_extension_not_the_connection(cx: &mut TestAppContext) {
     let manifest = r#"{"background": "background.js"}"#;
     let (view, cx, package, _requests) = enabled_with(
@@ -523,8 +536,10 @@ fn background_scripts_follow_the_extension_not_the_connection(cx: &mut TestAppCo
 
 /// Stands in for the native consent sheet, which reports a cancel when it
 /// closes without an answer.
+#[cfg(target_os = "macos")]
 struct ConsentSheet(async_channel::Sender<muxy_ui::dialog::ConsentResponse>);
 
+#[cfg(target_os = "macos")]
 impl Drop for ConsentSheet {
     fn drop(&mut self) {
         let _ = self.0.try_send(muxy_ui::dialog::ConsentResponse::Cancel);
@@ -532,6 +547,7 @@ impl Drop for ConsentSheet {
 }
 
 /// An `exec` call from script 1 of the `runner` extension.
+#[cfg(target_os = "macos")]
 fn runner_exec(model: &AppModel, argv: &Value, reply: std::sync::mpsc::SyncSender<String>) -> Call {
     Call {
         owner: "runner".into(),
@@ -546,6 +562,7 @@ fn runner_exec(model: &AppModel, argv: &Value, reply: std::sync::mpsc::SyncSende
 }
 
 /// Shows a consent sheet `id` for running `argv`, returning where its answer goes.
+#[cfg(target_os = "macos")]
 fn prompt_runner(
     view: &Entity<AppModel>,
     cx: &mut gpui::VisualTestContext,
@@ -565,6 +582,7 @@ fn prompt_runner(
 }
 
 #[gpui::test]
+#[cfg(target_os = "macos")]
 fn gated_decisions_are_recorded_in_the_audit_log(cx: &mut TestAppContext) {
     let (view, cx, _package, _requests) = enabled(
         cx,
@@ -669,6 +687,7 @@ fn gated_decisions_are_recorded_in_the_audit_log(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+#[cfg(target_os = "macos")]
 fn workspace_events_reach_permitted_extension_scripts(cx: &mut TestAppContext) {
     let (view, cx, _package, _requests) = enabled(
         cx,
@@ -718,6 +737,7 @@ fn workspace_events_reach_permitted_extension_scripts(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+#[cfg(target_os = "macos")]
 fn project_and_agent_lists_use_main_shapes(cx: &mut TestAppContext) {
     let mut state = AppState::bootstrap().expect("state");
     let project = state

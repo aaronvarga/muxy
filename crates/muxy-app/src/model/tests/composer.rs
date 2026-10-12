@@ -49,7 +49,11 @@ fn attached_composer(
             cx,
         );
     });
-    cx.simulate_keystrokes("cmd-i");
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-i"
+    } else {
+        "ctrl-shift-i"
+    });
     (view, cx, requests)
 }
 
@@ -76,7 +80,11 @@ fn composer_delivery_preserves_edits_and_failures_then_clears_confirmed_draft(
 ) {
     let (view, cx, requests) = attached_composer(cx);
     cx.simulate_input("first");
-    cx.simulate_keystrokes("cmd-enter");
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    });
     cx.run_until_parked();
     let (bytes, completion) = delivery(&requests);
     assert_eq!(bytes, b"\x15first\r");
@@ -84,7 +92,11 @@ fn composer_delivery_preserves_edits_and_failures_then_clears_confirmed_draft(
     completion.try_send(Ok(())).expect("ack");
     cx.run_until_parked();
     assert_eq!(composer_text(&view, cx), "first edited");
-    cx.simulate_keystrokes("cmd-shift-enter");
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-shift-enter"
+    } else {
+        "ctrl-shift-enter"
+    });
     cx.run_until_parked();
     let (bytes, completion) = delivery(&requests);
     assert_eq!(bytes, b"\x15first edited");
@@ -107,7 +119,11 @@ fn composer_delivery_preserves_edits_and_failures_then_clears_confirmed_draft(
                 .contains("Draft preserved")
         );
     });
-    cx.simulate_keystrokes("cmd-enter");
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    });
     cx.run_until_parked();
     delivery(&requests).1.try_send(Ok(())).expect("ack");
     cx.run_until_parked();
@@ -152,9 +168,17 @@ fn composer_broadcast_deduplicates_sessions_and_retains_partial_failure(cx: &mut
             );
         }
     });
-    cx.simulate_keystrokes("cmd-i");
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-i"
+    } else {
+        "ctrl-shift-i"
+    });
     cx.simulate_input("broadcast");
-    cx.simulate_keystrokes("cmd-enter");
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    });
     cx.run_until_parked();
     delivery(&requests).1.try_send(Ok(())).expect("first ack");
     cx.run_until_parked();

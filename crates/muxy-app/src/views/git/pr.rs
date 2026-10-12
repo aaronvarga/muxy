@@ -215,10 +215,18 @@ impl AppModel {
         let context = self.git.interaction;
         self.close_prompt = Some(cx.spawn(async move |this, cx| {
             let (send, receive) = async_channel::bounded(1);
-            let dialog = window.update(cx, |_, window, _| {
-                muxy_ui::dialog::confirm(window, &title, &message, &label, None, move |answer| {
-                    let _ = send.try_send(answer);
-                })
+            let dialog = window.update(cx, |_, window, cx| {
+                muxy_ui::dialog::confirm(
+                    window,
+                    cx,
+                    &title,
+                    &message,
+                    &label,
+                    None,
+                    move |answer| {
+                        let _ = send.try_send(answer);
+                    },
+                )
             });
             let confirmed = if let Ok(Ok(_dialog)) = dialog {
                 matches!(

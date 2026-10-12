@@ -6,8 +6,10 @@ use crate::tr;
 use muxy_core::quick_terminal::QuickTerminalShortcut;
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub struct SystemObservers;
 
+#[derive(Debug)]
 pub struct ShortcutRecorder;
 
 impl ShortcutRecorder {
@@ -16,7 +18,7 @@ impl ShortcutRecorder {
     }
 }
 
-pub struct UnsupportedShortcutBackendFactory;
+pub(super) struct UnsupportedShortcutBackendFactory;
 
 impl ShortcutBackendFactory for UnsupportedShortcutBackendFactory {
     fn create(&mut self, shortcut: &QuickTerminalShortcut) -> Option<Box<dyn ShortcutBackend>> {

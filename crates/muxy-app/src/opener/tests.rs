@@ -1,4 +1,6 @@
-use std::os::unix::{ffi::OsStringExt, fs::PermissionsExt};
+use std::os::unix::ffi::OsStringExt;
+#[cfg(target_os = "macos")]
+use std::os::unix::fs::PermissionsExt;
 
 use super::*;
 
@@ -19,6 +21,7 @@ impl Drop for Temp {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn context() -> OpenContext {
     OpenContext {
         project: muxy_app_core::ProjectId::new(),
@@ -37,6 +40,7 @@ fn file(path: impl Into<PathBuf>) -> FileLocation {
     }
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 fn editor_selection_and_failed_launch_fall_back_without_losing_context() {
     let editors = [
@@ -106,6 +110,7 @@ fn editor_selection_and_failed_launch_fall_back_without_losing_context() {
     assert!(resolve("https://example.com", &remote.context).is_some());
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 fn editor_cli_arguments_are_lossless_and_directories_are_not_line_locations() {
     let temp = Temp::new();
@@ -216,4 +221,36 @@ fn a_timed_out_opener_is_reaped_and_the_worker_accepts_later_work() {
             .expect("probe")
             .success()
     );
+}
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn linux_openers_preserve_literal_paths_and_use_the_file_manager_for_reveal() {
+    let temp = Temp::new();
+    let directory = temp.0.join("project space");
+    std::fs::create_dir(&directory).expect("project");
+    let location = file(PathBuf::from(OsString::from_vec(
+        b"/tmp/$(touch injected) '\xff.rs".to_vec(),
+    )));
+    let editor = Editor {
+        bundle: "com.microsoft.VSCode".into(),
+        path: "/usr/bin/code".into(),
+        rank: 0,
+    };
+    let command = editor.command(&location, &directory);
+    assert_eq!(command.program, Path::new("/usr/bin/code"));
+    assert_eq!(
+        command.args,
+        [
+            directory.as_os_str().to_owned(),
+            "--goto".into(),
+            OsString::from_vec(b"/tmp/$(touch injected) '\xff.rs:12:3".to_vec())
+        ]
+    );
+    assert_eq!(
+        Launch::system([location.path.as_os_str().to_owned()]).program,
+        Path::new("xdg-open")
+    );
+    assert_eq!(finder(&location.path).args, [OsString::from("/tmp")]);
+    assert_eq!(finder(&directory).args, [directory.into_os_string()]);
 }

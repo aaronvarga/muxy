@@ -23,6 +23,9 @@ muxy-app-core = { path = "../muxy-app-core" }
 muxy-client = { path = "../muxy-client" }
 muxy-protocol = { path = "../muxy-protocol" }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui = { version = "=0.2.2", default-features = false, features = ["x11", "wayland"] }
+
 [dev-dependencies]
 muxy-core = { path = "../muxy-core", features = ["test-support"] }
 muxy-ui = { path = "../muxy-ui", features = ["test-support"] }

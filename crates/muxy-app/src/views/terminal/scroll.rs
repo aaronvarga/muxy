@@ -410,6 +410,7 @@ impl Scroll {
         rows * cell_height
     }
 
+    #[cfg(any(target_os = "macos", test))]
     pub(crate) fn requested_pixels(&self, cell_height: f32) -> f64 {
         (self.wanted + self.elastic) * f64::from(cell_height)
     }

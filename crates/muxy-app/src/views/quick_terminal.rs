@@ -9,7 +9,9 @@ use gpui::{
 use muxy_ui::components::IconButton;
 use muxy_ui::icon::Icon;
 use muxy_ui::popover;
-use muxy_ui::quick_terminal::panel::{EffectiveAppearance, QuickTerminalConfiguration};
+use muxy_ui::quick_terminal::panel::EffectiveAppearance;
+#[cfg(target_os = "macos")]
+use muxy_ui::quick_terminal::panel::QuickTerminalConfiguration;
 use muxy_ui::theme::{Metrics, Theme};
 use muxy_ui::tr;
 use std::time::Duration;
@@ -17,6 +19,7 @@ use std::time::Duration;
 #[cfg(target_os = "macos")]
 use muxy_ui::quick_terminal::platform::macos::{PanelAdapter, PanelTelemetry};
 
+#[cfg(target_os = "macos")]
 use muxy_ui::quick_terminal::view::bridge_accessibility_model;
 #[derive(Clone, Copy)]
 pub(crate) enum BridgeAction {
@@ -25,6 +28,7 @@ pub(crate) enum BridgeAction {
 }
 
 pub(crate) struct QuickTerminalViewModel {
+    #[cfg(target_os = "macos")]
     pub configuration: QuickTerminalConfiguration,
     pub appearance: EffectiveAppearance,
     pub theme: Theme,
@@ -76,6 +80,8 @@ impl QuickTerminalView {
         #[cfg(target_os = "macos")]
         let panel = PanelAdapter::configure(window);
         let bounds_subscription = cx.observe_window_bounds(window, |view, _, _| {
+            #[cfg(not(target_os = "macos"))]
+            let _ = view;
             #[cfg(target_os = "macos")]
             if let Ok(panel) = &view.panel {
                 panel.sync_bounds(view.visible);
@@ -122,6 +128,7 @@ impl QuickTerminalView {
     }
 
     #[cfg(not(target_os = "macos"))]
+    #[allow(clippy::unused_self, reason = "Shared platform adapter interface")]
     pub(crate) fn prepare(&mut self, _window: &mut Window) -> Result<(), String> {
         Err(tr!("Quick Terminal panels are unavailable on this platform").to_string())
     }
@@ -184,6 +191,8 @@ impl QuickTerminalView {
 
     pub(crate) fn begin_show(&mut self, duration: Duration, window: &mut Window, _cx: &mut App) {
         self.visible = true;
+        #[cfg(not(target_os = "macos"))]
+        let _ = duration;
         #[cfg(target_os = "macos")]
         if let Ok(panel) = &mut self.panel {
             panel.show(duration);
@@ -195,6 +204,8 @@ impl QuickTerminalView {
     pub(crate) fn begin_hide(&mut self, duration: Duration, _window: &mut Window) {
         self.visible = false;
         self.confirm_close = false;
+        #[cfg(not(target_os = "macos"))]
+        let _ = duration;
         self.menu = None;
         #[cfg(target_os = "macos")]
         if let Ok(panel) = &mut self.panel {
@@ -202,7 +213,13 @@ impl QuickTerminalView {
         }
     }
 
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(clippy::unused_self, reason = "Shared platform adapter interface")
+    )]
     pub(crate) fn finish_hide(&mut self, restores_focus: bool) {
+        #[cfg(not(target_os = "macos"))]
+        let _ = restores_focus;
         #[cfg(target_os = "macos")]
         if let Ok(panel) = &mut self.panel {
             panel.finish_hide(restores_focus);

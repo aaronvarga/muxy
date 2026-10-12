@@ -1,0 +1,96 @@
+use super::*;
+use gpui::{Context, Entity, IntoElement, Render, TestAppContext, div};
+
+struct Host;
+impl Render for Host {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+    }
+}
+
+fn active(window: &Window, cx: &App) -> Entity<view::Dialog> {
+    cx.global::<Dialogs>().active[&window.window_handle().window_id()]
+        .upgrade()
+        .expect("live prompt")
+}
+
+#[gpui::test]
+fn cancelling_a_confirmation_cannot_confirm_or_dismiss_its_successor(cx: &mut TestAppContext) {
+    let (_, cx) = cx.add_window_view(|_, _| Host);
+    let answers = Rc::new(RefCell::new(Vec::new()));
+    let first = cx.update(|window, cx| {
+        let answers = answers.clone();
+        confirm(
+            window,
+            cx,
+            "Delete",
+            "Delete data?",
+            "Delete",
+            None,
+            move |answer| answers.borrow_mut().push(answer),
+        )
+        .expect("first prompt")
+    });
+    drop(first);
+    assert_eq!(*answers.borrow(), [ConfirmationResponse::Cancelled]);
+    cx.run_until_parked();
+    let second = cx.update(|window, cx| {
+        let answers = answers.clone();
+        confirm(
+            window,
+            cx,
+            "Delete",
+            "Delete other data?",
+            "Delete",
+            None,
+            move |answer| answers.borrow_mut().push(answer),
+        )
+        .expect("second prompt")
+    });
+    cx.update(|window, cx| {
+        active(window, cx).update(cx, |view, cx| view.finish(Some(0), cx));
+    });
+    let third = cx.update(|window, cx| {
+        confirm(window, cx, "Leave", "Leave session?", "Leave", None, |_| {}).expect("third prompt")
+    });
+    drop(second);
+    cx.run_until_parked();
+    cx.update(|window, cx| assert!(active(window, cx).read(cx).pending()));
+    assert_eq!(
+        *answers.borrow(),
+        [
+            ConfirmationResponse::Cancelled,
+            ConfirmationResponse::Confirmed {
+                dont_ask_again: false
+            }
+        ]
+    );
+    drop(third);
+}
+
+#[gpui::test]
+fn consent_dismissal_never_grants_permission_and_rejects_overlapping_prompts(
+    cx: &mut TestAppContext,
+) {
+    let (_, cx) = cx.add_window_view(|_, _| Host);
+    let answers = Rc::new(RefCell::new(Vec::new()));
+    let prompt = cx.update(|window, cx| {
+        let answers = answers.clone();
+        consent(
+            window,
+            cx,
+            "Permission",
+            "Execute a command?",
+            "Block extension",
+            move |answer| answers.borrow_mut().push(answer),
+        )
+        .expect("consent prompt")
+    });
+    cx.update(|window, cx| {
+        assert!(confirm(window, cx, "Other", "Other request", "Allow", None, |_| {}).is_err());
+        active(window, cx).update(cx, view::Dialog::dismiss);
+    });
+    drop(prompt);
+    cx.run_until_parked();
+    assert_eq!(*answers.borrow(), [ConsentResponse::Cancel]);
+}

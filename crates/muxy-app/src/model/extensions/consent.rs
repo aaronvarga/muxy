@@ -324,6 +324,7 @@ impl AppModel {
         let (sender, receiver) = async_channel::bounded(1);
         let sheet = muxy_ui::dialog::consent(
             window,
+            cx,
             &tr!("Allow %@?", &call.owner),
             &message,
             &block_label(request.gate),
@@ -483,6 +484,7 @@ impl AppModel {
                 .or_else(|| std::env::var_os("HOME").map(std::path::PathBuf::from))
                 .unwrap_or_else(|| "/".into());
             muxy_ui::dialog::choose_folder_with(
+                cx,
                 &clamp(call.args["title"].as_str().unwrap_or("")),
                 &clamp(call.args["message"].as_str().unwrap_or("")),
                 &start,
@@ -495,7 +497,7 @@ impl AppModel {
             dialog_options(&call.verb, &call.args).map_or_else(
                 |error| Err(std::io::Error::other(error)),
                 |options| {
-                    muxy_ui::dialog::present(window, options, move |value| {
+                    muxy_ui::dialog::present(window, cx, options, move |value| {
                         let _ = sender.try_send(value);
                     })
                     .map(|sheet| Box::new(sheet) as Box<dyn std::any::Any>)

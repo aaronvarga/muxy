@@ -287,9 +287,10 @@ async fn prompt(
 ) -> Result<ConfirmationResponse, String> {
     let (sender, receiver) = async_channel::bounded(1);
     let _dialog = window
-        .update(cx, |_, window, _| {
+        .update(cx, |_, window, cx| {
             muxy_ui::dialog::confirm(
                 window,
+                cx,
                 &muxy_ui::l10n::translate(title),
                 &message,
                 &muxy_ui::l10n::translate(action),

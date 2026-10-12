@@ -533,11 +533,12 @@ impl AppModel {
         };
         let choices = view.read(cx).menu_items();
         let anchor = view.read(cx).menu_anchor.get();
-        let Ok(receiver) = self.window.update(cx, |_, window, _| {
+        let Ok(receiver) = self.window.update(cx, |_, window, cx| {
             muxy_ui::native_menu::show(
                 choices.iter().map(|(item, _)| item.clone()).collect(),
                 anchor,
                 window,
+                cx,
             )
         }) else {
             return;

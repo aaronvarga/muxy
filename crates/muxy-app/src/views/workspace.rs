@@ -667,7 +667,7 @@ impl Render for AppModel {
                     .w(px(1.0))
                     .bg(theme.border),
             )
-            .child(titlebar::navigation(self, sidebar_width, cx))
+            .child(titlebar::navigation(self, sidebar_width, window, cx))
             .when(self.appearance.sidebar_expanded, |body| {
                 body.child(sidebar::resize_handle(self, cx))
             })

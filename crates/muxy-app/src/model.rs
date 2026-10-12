@@ -2680,6 +2680,7 @@ mod tests {
     mod tab_groups;
     mod tab_menu;
     mod tui;
+    #[cfg(target_os = "macos")]
     mod updates;
     mod worktrees;
 
@@ -3137,6 +3138,9 @@ mod tests {
 
     #[gpui::test]
     fn metadata_titles_and_close_confirmation_follow_the_attached_process(cx: &mut TestAppContext) {
+        let close = muxy_core::shortcuts::ShortcutId::ClosePane
+            .definition()
+            .keys[0];
         let (boot, requests) = stub_boot(AppState::bootstrap().expect("state"));
         cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
         let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
@@ -3188,7 +3192,7 @@ mod tests {
                 .to_owned()),
             "hello"
         );
-        cx.simulate_keystrokes("cmd-w");
+        cx.simulate_keystrokes(close);
         view.update(cx, acknowledge_close);
         cx.run_until_parked();
         view.read_with(cx, |model, _| {
@@ -3204,7 +3208,7 @@ mod tests {
                 crate::views::confirm::PANE_MESSAGE.into()
             ))
         );
-        cx.simulate_keystrokes("cmd-w");
+        cx.simulate_keystrokes(close);
         view.update(cx, acknowledge_close);
         cx.run_until_parked();
         cx.simulate_prompt_answer("Cancel");
@@ -3217,7 +3221,7 @@ mod tests {
                 .try_iter()
                 .any(|(_, work)| matches!(work, Work::Discard(_, _)))
         );
-        cx.simulate_keystrokes("cmd-w");
+        cx.simulate_keystrokes(close);
         view.update(cx, acknowledge_close);
         cx.run_until_parked();
         cx.simulate_prompt_answer("Close");

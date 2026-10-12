@@ -13,6 +13,46 @@ Supported platforms, and lessons that shape the code.
 Not yet supported: Windows, and musl or Alpine Linux. Linux builds must be
 built and run natively on both architectures to count as supported.
 
+### Experimental Linux desktop
+
+The Linux desktop port is under development. The initial test environment is
+Ubuntu 24.04 ARM64 in SwiftVM on Apple Silicon, with GNOME, Wayland and X11.
+This does not establish support for other distributions, x86_64 desktop builds,
+or hardware GPU drivers. SwiftVM currently uses Mesa's software Vulkan renderer
+in this environment, so its performance is not representative of a native GPU.
+
+The [Linux phase tracker](../../.plans/linux/status.md) records the audited gaps,
+implementation sequence, macOS regression gates, and fresh-agent handoff.
+
+The initial port covers the terminal desktop, GPUI dialogs, desktop-portal file
+selection, Linux shortcuts, and `xdg-open` for external resources. Copy and paste
+use Ctrl+Shift+C and Ctrl+Shift+V in terminals; text fields use Ctrl+C and Ctrl+V.
+Existing configured shortcuts remain literal. New configurations use the system
+monospace font and inline paths for composer images.
+
+Voice input, extension scripts and webviews, global Quick Terminal shortcuts,
+native desktop notifications, and automatic updates still need Linux backends.
+Clipboard image submission is unavailable because the current clipboard API
+cannot safely preserve all MIME types and detect ownership changes. Use inline
+image paths instead. The command-line tool's in-app installer still expects a
+macOS bundle; run the built Linux CLI directly for now.
+
+To build on Ubuntu, install Rust from `rust-toolchain.toml`, Zig 0.15.2, and the
+development packages `build-essential pkg-config clang cmake libssl-dev
+libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev
+libwayland-dev libxcb1-dev libvulkan-dev`. Runtime packages include
+`mesa-vulkan-drivers xdg-desktop-portal xdg-desktop-portal-gnome xdg-utils`.
+Then run `bash scripts/build-desktop-linux.sh`. `MUXY_ZIG` can point at Zig, and
+`CARGO_TARGET_DIR` must point to a guest-local writable directory when the source
+checkout is shared read-only. Keep `muxy-app`, `muxy`, and `muxy-server` together.
+
+Visual checks are performed by a person: start the app from a desktop terminal,
+open a project, create and split terminals, exercise shell input and Ctrl+C,
+copy/paste Unicode text, scroll history, open Settings and a folder picker, then
+cancel a close confirmation before confirming another. Check both Wayland and
+X11 sessions. Next milestones are native x86_64 and hardware GPU validation,
+Linux packaging and launch integration, and the deferred platform backends.
+
 On Linux hosts that end a user's processes at logout, run
 `loginctl enable-linger` so the server keeps running after an SSH session ends.
 

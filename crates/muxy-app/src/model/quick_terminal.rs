@@ -152,6 +152,7 @@ impl AppModel {
     fn quick_view_model(&self) -> QuickTerminalViewModel {
         let configuration = self.quick_configuration();
         QuickTerminalViewModel {
+            #[cfg(target_os = "macos")]
             configuration,
             appearance: effective_appearance(configuration, self.quick.accessibility),
             theme: self.theme.clone(),

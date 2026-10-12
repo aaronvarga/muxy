@@ -251,6 +251,7 @@ impl ExtensionsView {
         }
         let (sender, receiver) = async_channel::bounded(1);
         match muxy_ui::dialog::choose_folder(
+            cx,
             &tr!("Choose an extension folder containing package.json or a built dist folder"),
             std::path::Path::new("/"),
             move |path| {

@@ -4,10 +4,15 @@
     reason = "Compatibility fixtures fail immediately"
 )]
 
+#[cfg(target_os = "macos")]
 use muxy_ui::javascript::{Event, Script};
-use serde_json::{Value, json};
+use serde_json::Value;
+#[cfg(target_os = "macos")]
+use serde_json::json;
+#[cfg(target_os = "macos")]
 use std::time::{Duration, Instant};
 
+#[cfg(target_os = "macos")]
 fn runtime(source: &str) -> (Script, async_channel::Receiver<Event>) {
     Script::start(format!(
         "{}(\"files\", {});\n{source}",
@@ -17,6 +22,7 @@ fn runtime(source: &str) -> (Script, async_channel::Receiver<Event>) {
     .unwrap()
 }
 
+#[cfg(target_os = "macos")]
 fn next(events: &async_channel::Receiver<Event>) -> muxy_ui::javascript::Call {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
@@ -31,6 +37,7 @@ fn next(events: &async_channel::Receiver<Event>) -> muxy_ui::javascript::Call {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn reply(call: &muxy_ui::javascript::Call, value: &Value) {
     call.reply
         .send(json!({"ok":true,"value":value}).to_string())
@@ -38,6 +45,7 @@ fn reply(call: &muxy_ui::javascript::Call, value: &Value) {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn cancelling_an_async_editor_dialog_prevents_closing_the_document() {
     let source = format!(
         r#"
@@ -70,6 +78,7 @@ fn cancelling_an_async_editor_dialog_prevents_closing_the_document() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn unchanged_quick_open_script_executes_synchronously_and_opens_selected_file() {
     // Files 1.21.5, muxy-app/extensions eb37a0e. This fixture is the published script, unchanged.
     let (script, events) = runtime(include_str!("../../fixtures/extensions/quick-open.js"));
@@ -121,6 +130,7 @@ fn unchanged_quick_open_script_executes_synchronously_and_opens_selected_file() 
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn unchanged_find_in_files_script_uses_query_callbacks_and_async_exec() {
     let (script, events) = runtime(include_str!("../../fixtures/extensions/find-in-files.js"));
     let mut started = false;
@@ -164,11 +174,13 @@ fn unchanged_find_in_files_script_uses_query_callbacks_and_async_exec() {
     assert!(started && fed);
 }
 
+#[cfg(target_os = "macos")]
 fn request(call: &muxy_ui::javascript::Call) -> Value {
     serde_json::from_str(&call.request).unwrap()
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn background_scripts_keep_running_with_main_surface() {
     let (_script, events) = Script::start(format!(
         "{}(\"ports\", {}, {{ surface: 'background', persistent: true }});\n{}",

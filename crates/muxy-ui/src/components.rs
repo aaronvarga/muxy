@@ -412,6 +412,7 @@ impl RenderOnce for SymbolGlyph {
 #[derive(IntoElement)]
 pub struct TemplateGlyph {
     key: SharedString,
+    #[cfg(target_os = "macos")]
     bytes: std::sync::Arc<[u8]>,
     size: Pixels,
     color: Hsla,
@@ -436,8 +437,11 @@ impl TemplateGlyph {
         color: Hsla,
         fallback: impl Into<SharedString>,
     ) -> Self {
+        #[cfg(not(target_os = "macos"))]
+        drop(bytes);
         Self {
             key: key.into(),
+            #[cfg(target_os = "macos")]
             bytes,
             size,
             color,

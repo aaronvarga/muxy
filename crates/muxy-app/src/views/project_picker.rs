@@ -983,9 +983,10 @@ async fn create_prompt(
 ) -> Result<bool, String> {
     let (sender, receiver) = async_channel::bounded(1);
     let _dialog = window
-        .update(cx, |_, window, _| {
+        .update(cx, |_, window, cx| {
             muxy_ui::dialog::confirm(
                 window,
+                cx,
                 &tr!("Create Project Folder?"),
                 &message,
                 &tr!("Create & Add"),
@@ -1032,8 +1033,9 @@ async fn folder_prompt(
 ) -> Result<Option<PathBuf>, String> {
     let (sender, receiver) = async_channel::bounded(1);
     let _dialog = window
-        .update(cx, |_, _, _| {
+        .update(cx, |_, _, cx| {
             muxy_ui::dialog::choose_folder(
+                cx,
                 &if search_location {
                     tr!("Select where Muxy searches for project folders")
                 } else {

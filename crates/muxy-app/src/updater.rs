@@ -1,11 +1,21 @@
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "macos")]
 mod replacement;
+#[cfg(not(target_os = "macos"))]
+mod unsupported;
+#[cfg(not(target_os = "macos"))]
+pub(crate) use unsupported::{Installation, PreparedUpdate};
 
+#[cfg(target_os = "macos")]
 use std::io::{Read, Write};
+#[cfg(target_os = "macos")]
 use std::time::Duration;
 
-use muxy_core::release::{self, Channel};
+use muxy_core::release;
+#[cfg(target_os = "macos")]
+use muxy_core::release::Channel;
+#[cfg(any(target_os = "macos", test))]
 use muxy_ui::tr;
 
 #[cfg(target_os = "macos")]
@@ -14,9 +24,11 @@ pub(crate) use macos::{Installation, PreparedUpdate};
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub(crate) const RELEASES: &str = "https://github.com/muxy-app/muxy/releases/download";
+#[cfg(any(target_os = "macos", test))]
 const MAX_DOWNLOAD: u64 = 2 * 1024 * 1024 * 1024;
 
 /// Betas share a rolling feed; each stable release carries its own, and the latest one wins.
+#[cfg(target_os = "macos")]
 fn feed(channel: Channel) -> &'static str {
     match channel {
         Channel::Beta => "https://github.com/muxy-app/muxy/releases/download/beta-2.x/update.json",
@@ -32,7 +44,7 @@ pub(crate) struct Release {
 }
 
 impl Release {
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "macos"))]
     pub(crate) fn fixture(version: &str) -> Self {
         Self {
             version: version.into(),
@@ -45,6 +57,7 @@ impl Release {
         release::is_newer(&self.version, version)
     }
 
+    #[cfg(any(target_os = "macos", test))]
     fn parse(bytes: &[u8], current: &str, platform: &str, arch: &str) -> Result<Option<Self>> {
         let metadata: serde_json::Value = serde_json::from_slice(bytes)?;
         if metadata["schema"].as_u64() != Some(1) {
@@ -83,6 +96,7 @@ impl Release {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn client() -> Result<reqwest::blocking::Client> {
     Ok(reqwest::blocking::Client::builder()
         .user_agent(concat!("Muxy/", env!("CARGO_PKG_VERSION")))
@@ -92,6 +106,7 @@ fn client() -> Result<reqwest::blocking::Client> {
         .build()?)
 }
 
+#[cfg(target_os = "macos")]
 fn latest(
     client: &reqwest::blocking::Client,
     platform: &str,
@@ -111,6 +126,7 @@ fn latest(
     Release::parse(&bytes, env!("CARGO_PKG_VERSION"), platform, arch)
 }
 
+#[cfg(target_os = "macos")]
 fn download(
     client: &reqwest::blocking::Client,
     release: &Release,
@@ -140,6 +156,7 @@ mod tests {
         }})
     }
 
+    #[cfg(any(target_os = "macos", test))]
     fn parse(feed: &serde_json::Value) -> Result<Option<Release>> {
         parse_from(feed, "2.0.0-beta.9")
     }

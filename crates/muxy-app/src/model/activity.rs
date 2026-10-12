@@ -22,6 +22,7 @@ pub(crate) struct ActivityView {
 }
 
 /// Each server numbers its own events, so another computer's carry its server.
+#[cfg(target_os = "macos")]
 fn notification_id(server: ServerId, id: u64) -> String {
     if server.is_local() {
         id.to_string()
@@ -40,6 +41,7 @@ fn activity_description(kind: muxy_protocol::ActivityKind) -> gpui::SharedString
     }
 }
 
+#[cfg(target_os = "macos")]
 fn notification_event(identifier: &str) -> Option<(ServerId, u64)> {
     match identifier.split_once(':') {
         Some((server, id)) => Some((server.parse().ok()?, id.parse().ok()?)),
@@ -400,6 +402,13 @@ impl AppModel {
         cx.notify();
     }
 
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(
+            clippy::unused_self,
+            reason = "Notification delivery is platform-dependent"
+        )
+    )]
     pub(super) fn deliver_activity(&self, server: ServerId, result: Result<Vec<u64>, ClientError>) {
         let Ok(ids) = result else {
             return;

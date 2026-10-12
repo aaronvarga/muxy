@@ -231,9 +231,11 @@ fn local_path(path: &ServerPath) -> PathBuf {
 /// Copied files, or an image copied without text, which a terminal on
 /// another computer gets sent instead of their names or a paste key it can't
 /// act on. Text pastes as text, as it does here.
-pub(crate) fn clipboard_upload(item: &gpui::ClipboardItem) -> Option<Upload> {
+pub(crate) fn clipboard_upload(item: &gpui::ClipboardItem, cx: &gpui::App) -> Option<Upload> {
     #[cfg(not(test))]
-    let copied = muxy_ui::pasteboard::read_content().ok();
+    let copied = muxy_ui::pasteboard::read_content(cx).ok();
+    #[cfg(test)]
+    let _ = cx;
     #[cfg(test)]
     let copied: Option<muxy_ui::pasteboard::Content> = None;
     if let Some(muxy_ui::pasteboard::Content::Files(paths)) = copied {

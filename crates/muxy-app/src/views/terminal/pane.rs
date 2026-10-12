@@ -101,6 +101,7 @@ pub(crate) struct TerminalPane {
     pub(crate) native_visible: bool,
     #[cfg(target_os = "macos")]
     pub(crate) native_scroll: Option<muxy_ui::native_scroll::NativeScrollView>,
+    #[cfg(target_os = "macos")]
     native_sequence: u64,
     saved_history: Option<HistoryRequest>,
     pub(crate) focus: FocusHandle,
@@ -196,6 +197,7 @@ impl TerminalPane {
             native_visible: true,
             #[cfg(target_os = "macos")]
             native_scroll: None,
+            #[cfg(target_os = "macos")]
             native_sequence: 0,
             saved_history: None,
             focus: cx.focus_handle(),
@@ -1314,7 +1316,7 @@ impl TerminalPane {
         if let Some(item) = cx.read_from_clipboard() {
             if self.remote()
                 && self.state == PaneState::Live
-                && let Some(upload) = crate::model::remote_files::clipboard_upload(&item)
+                && let Some(upload) = crate::model::remote_files::clipboard_upload(&item, cx)
             {
                 cx.emit(PaneEvent::Upload(upload));
             } else if self.server_input
@@ -1546,6 +1548,13 @@ impl TerminalPane {
         true
     }
 
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(
+            clippy::unused_self,
+            reason = "Reads platform-specific terminal preferences"
+        )
+    )]
     fn option_as_alt(&self) -> bool {
         #[cfg(target_os = "macos")]
         {
@@ -1806,10 +1815,24 @@ mod tests {
             .detach();
         });
         cx.simulate_keystrokes("a shift-b space ctrl-c ctrl-left alt-left alt-f5");
-        assert_eq!(&*input.borrow(), b"aB \x03\x1b[1;5D\x1bb\x1b[15;3~");
+        assert_eq!(
+            &*input.borrow(),
+            if cfg!(target_os = "macos") {
+                b"aB \x03\x1b[1;5D\x1bb\x1b[15;3~".as_slice()
+            } else {
+                b"aB \x03\x1b[1;5D\x1b[1;3D\x1b[15;3~".as_slice()
+            }
+        );
         for (setting, expected) in [
             (muxy_app_core::settings::OptionAsAlt::True, "\x1bb"),
-            (muxy_app_core::settings::OptionAsAlt::False, "∫"),
+            (
+                muxy_app_core::settings::OptionAsAlt::False,
+                if cfg!(target_os = "macos") {
+                    "∫"
+                } else {
+                    "\x1bb"
+                },
+            ),
         ] {
             input.borrow_mut().clear();
             cx.update(|window, cx| {
@@ -1839,7 +1862,15 @@ mod tests {
             });
         }
         cx.run_until_parked();
-        assert_eq!(&*input.borrow(), "e∫".as_bytes());
+        assert_eq!(
+            &*input.borrow(),
+            if cfg!(target_os = "macos") {
+                "e∫"
+            } else {
+                "e\x1bb"
+            }
+            .as_bytes()
+        );
         input.borrow_mut().clear();
         pane.update(cx, |pane, cx| pane.set_state(PaneState::Disconnected, cx));
         cx.simulate_keystrokes("a ctrl-c alt-left enter");
@@ -1879,7 +1910,11 @@ mod tests {
             vec![1, 2, 3],
         ));
         cx.update(|_, cx| cx.write_to_clipboard(image.clone()));
-        cx.simulate_keystrokes("cmd-v cmd-shift-v ctrl-v ctrl-shift-v");
+        cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+            "cmd-v cmd-shift-v ctrl-v ctrl-shift-v"
+        } else {
+            "cmd-v ctrl-shift-v ctrl-v ctrl-shift-v"
+        });
         assert_eq!(&*input.borrow(), b"\x16\x16\x16\x16");
         assert_eq!(cx.update(|_, cx| cx.read_from_clipboard()), Some(image));
         input.borrow_mut().clear();

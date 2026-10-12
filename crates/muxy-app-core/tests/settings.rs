@@ -141,13 +141,14 @@ fn ghostty_includes_apply_last_and_detect_cycles() -> Result {
 #[test]
 fn existing_bindings_take_precedence_over_new_project_defaults_and_round_trip() -> Result {
     let fixture = Fixture::new()?;
-    for (project_action, chord) in [
-        (ShortcutId::AddProject, "cmd-o"),
-        (ShortcutId::PreviousProject, "ctrl-["),
-        (ShortcutId::NextProject, "ctrl-]"),
-        (ShortcutId::SelectProject1, "ctrl-1"),
-        (ShortcutId::SelectProject9, "ctrl-9"),
+    for project_action in [
+        ShortcutId::AddProject,
+        ShortcutId::PreviousProject,
+        ShortcutId::NextProject,
+        ShortcutId::SelectProject1,
+        ShortcutId::SelectProject9,
     ] {
+        let chord = project_action.definition().keys[0];
         for existing_action in [ShortcutId::NewTab, ShortcutId::Copy] {
             let source = format!("[keymap]\n{} = '{chord}'\n", existing_action.name());
             let path = fixture.write("settings.toml", &source)?;
@@ -170,13 +171,14 @@ fn existing_bindings_take_precedence_over_new_project_defaults_and_round_trip() 
 #[test]
 fn an_existing_binding_keeps_the_key_equalize_splits_defaults_to() -> Result {
     let fixture = Fixture::new()?;
-    let chord: KeyChord = "cmd-ctrl-=".parse()?;
+    let key = ShortcutId::EqualizeSplits.definition().keys[0];
+    let chord: KeyChord = key.parse()?;
     assert_eq!(
         Keymap::default().action(&chord),
         Some(ShortcutId::EqualizeSplits)
     );
     for existing in ["new_tab", "\"command.tests\""] {
-        let source = format!("[keymap]\n{existing} = 'cmd-ctrl-='\n");
+        let source = format!("[keymap]\n{existing} = '{key}'\n");
         let path = fixture.write("settings.toml", &source)?;
         let keymap = Settings::load(&path)?.keymap;
         assert_eq!(keymap.binding(existing.trim_matches('"')), Some(&chord));
@@ -189,21 +191,25 @@ fn an_existing_binding_keeps_the_key_equalize_splits_defaults_to() -> Result {
 #[test]
 fn a_command_keeps_a_key_a_newer_default_claims_but_cannot_take_one_in_use() -> Result {
     let fixture = Fixture::new()?;
+    let key = ShortcutId::NewTabInProject.definition().keys[0];
     let path = fixture.write(
         "settings.toml",
-        "[keymap]\n\"command.tests\" = 'cmd-shift-n'\n",
+        &format!("[keymap]\n\"command.tests\" = '{key}'\n"),
     )?;
     let keymap = Settings::load(&path)?.keymap;
-    let chord: KeyChord = "cmd-shift-n".parse()?;
+    let chord: KeyChord = key.parse()?;
     assert_eq!(keymap.binding("command.tests"), Some(&chord));
     assert_eq!(keymap.chord(ShortcutId::NewTabInProject), None);
     assert!(
         keymap
-            .with_binding("command.other", Some("cmd-t".parse()?))
+            .with_binding(
+                "command.other",
+                Some(ShortcutId::NewTab.definition().keys[0].parse()?)
+            )
             .is_err()
     );
 
-    let moved = keymap.with_binding("command.tests", Some("ctrl-alt-t".parse()?))?;
+    let moved = keymap.with_binding("command.tests", Some("ctrl-alt-f24".parse()?))?;
     assert_eq!(moved.chord(ShortcutId::NewTabInProject), Some(&chord));
     assert!(moved.with_binding("command.tests", Some(chord)).is_err());
     Ok(())
@@ -272,13 +278,17 @@ fn runtime_keymap_rebinding_reset_and_persistence_preserve_contexts_and_other_se
     let fixture = Fixture::new()?;
     let path = fixture.0.join("settings.toml");
     let settings = Settings::load(&path)?;
-    let custom = settings
-        .keymap
-        .with_binding("new_tab", Some("cmd-n".parse()?))?;
+    let custom = settings.keymap.with_binding(
+        "new_tab",
+        Some(ShortcutId::NewHomeTab.definition().keys[0].parse()?),
+    )?;
     assert_eq!(custom.binding("new_home_tab"), None);
     assert!(
         custom
-            .with_binding("close_tab", Some("cmd-n".parse()?))
+            .with_binding(
+                "close_tab",
+                Some(ShortcutId::NewHomeTab.definition().keys[0].parse()?)
+            )
             .is_err()
     );
     custom.save(&path)?;
@@ -287,7 +297,7 @@ fn runtime_keymap_rebinding_reset_and_persistence_preserve_contexts_and_other_se
     assert_eq!(loaded.window, settings.window);
     assert_eq!(
         loaded.keymap.keys("text_input.copy", Some("TextInput")),
-        vec!["cmd-c"]
+        vec![ShortcutId::TextInputCopy.definition().keys[0]]
     );
     assert_eq!(
         loaded.keymap.keys("popover.dismiss", Some("Picker")),
@@ -317,7 +327,10 @@ fn editing_terminal_values_does_not_copy_included_fonts_into_the_root() -> Resul
         assert_eq!(settings.font_families, ["Menlo", "Monaco"]);
         assert!(!fs::read_to_string(&path)?.contains("font-family = Monaco"));
     }
-    let claimed = Keymap::default().with_binding("new_tab", Some("cmd-n".parse()?))?;
+    let claimed = Keymap::default().with_binding(
+        "new_tab",
+        Some(ShortcutId::NewHomeTab.definition().keys[0].parse()?),
+    )?;
     assert!(claimed.with_binding("new_home_tab", None).is_err());
     Ok(())
 }

@@ -108,6 +108,7 @@
 "Add ~/.local/bin to your PATH. For this shell, run:\nexport PATH=\"$HOME/.local/bin:$PATH\"" = "Add ~/.local/bin to your PATH. For this shell, run:\nexport PATH=\"$HOME/.local/bin:$PATH\"";
 "Added %lld projects and %lld workspaces from Muxy 1.x. Projects, tabs, and workspaces you already had are unchanged." = "Added %lld projects and %lld workspaces from Muxy 1.x. Projects, tabs, and workspaces you already had are unchanged.";
 "Additional Prompt" = "Additional Prompt";
+"Additional instructions" = "Additional instructions";
 "Additional prompt" = "Additional prompt";
 "Adds %lld extensions from Muxy 1.x." = "Adds %lld extensions from Muxy 1.x.";
 "Adjust character spacing by pixels or a percentage, such as 10%%." = "Adjust character spacing by pixels or a percentage, such as 10%%.";
@@ -162,6 +163,7 @@
 "Auto · %@" = "Auto · %@";
 "Auto · None installed" = "Auto · None installed";
 "Automatic updates are available in installed releases of %@" = "Automatic updates are available in installed releases of %@";
+"Automatic updates are not available on Linux yet." = "Automatic updates are not available on Linux yet.";
 "Automatic updates require a Developer ID signed app" = "Automatic updates require a Developer ID signed app";
 "Automatic updates require an installed %@.app" = "Automatic updates require an installed %@.app";
 "Automatic updates require an installed release of %@" = "Automatic updates require an installed release of %@";
@@ -279,6 +281,7 @@
 "Click a shortcut to record it. Escape cancels. Conflicts in the same context must be resolved first." = "Click a shortcut to record it. Escape cancels. Conflicts in the same context must be resolved first.";
 "Clipboard changed during capture. Try again." = "Clipboard changed during capture. Try again.";
 "Clipboard changed during submission; sending stopped." = "Clipboard changed during submission; sending stopped.";
+"Clipboard image submission is not available on Linux. Select inline image paths in Composer settings." = "Clipboard image submission is not available on Linux. Select inline image paths in Composer settings.";
 "Clipboard is too large to preserve. Use inline image paths instead." = "Clipboard is too large to preserve. Use inline image paths instead.";
 "Clipboard paste" = "Clipboard paste";
 "Close" = "Close";
@@ -293,6 +296,7 @@
 "Close Tabs to the Left" = "Close Tabs to the Left";
 "Close Tabs to the Right" = "Close Tabs to the Right";
 "Close Tabs?" = "Close Tabs?";
+"Close Window" = "Close Window";
 "Close active terminal?" = "Close active terminal?";
 "Close pull request #%lld (%@) without merging?" = "Close pull request #%lld (%@) without merging?";
 "Close pull request?" = "Close pull request?";
@@ -557,7 +561,9 @@
 "Extend always" = "Extend always";
 "Extension %@ is not loaded" = "Extension %@ is not loaded";
 "Extension log writer is unavailable." = "Extension log writer is unavailable.";
+"Extension scripts are not available on Linux yet." = "Extension scripts are not available on Linux yet.";
 "Extension updated." = "Extension updated.";
+"Extension webviews are not available on Linux yet." = "Extension webviews are not available on Linux yet.";
 "Extensions" = "Extensions";
 "Extensions changed while reloading. Try again." = "Extensions changed while reloading. Try again.";
 "Fallback fonts" = "Fallback fonts";
@@ -732,6 +738,7 @@
 "Manage scheduled update…" = "Manage scheduled update…";
 "Manage the local server that keeps your terminal sessions running." = "Manage the local server that keeps your terminal sessions running.";
 "Manual Order" = "Manual Order";
+"Maximize" = "Maximize";
 "Maximize Pane" = "Maximize Pane";
 "Merge" = "Merge";
 "Merge %@ into %@ and push the updated branch?" = "Merge %@ into %@ and push the updated branch?";
@@ -1028,6 +1035,7 @@
 "Restarting…" = "Restarting…";
 "Restore Default" = "Restore Default";
 "Restore Pane" = "Restore Pane";
+"Restore Window" = "Restore Window";
 "Restore backup" = "Restore backup";
 "Restore on next launch" = "Restore on next launch";
 "Restore settings and %lld saved projects with their layouts on the next launch. Existing projects are kept; matching projects receive the saved layouts. A recovery copy is saved in the profile’s Backups folder. Restart the server from Settings to apply restored server settings." = "Restore settings and %lld saved projects with their layouts on the next launch. Existing projects are kept; matching projects receive the saved layouts. A recovery copy is saved in the profile’s Backups folder. Restart the server from Settings to apply restored server settings.";
@@ -1374,6 +1382,7 @@
 "View" = "View";
 "Violet" = "Violet";
 "Voice" = "Voice";
+"Voice input is not available on Linux yet." = "Voice input is not available on Linux yet.";
 "Wait for the AI repository action to finish" = "Wait for the AI repository action to finish";
 "Wait for the current AI action to finish" = "Wait for the current AI action to finish";
 "Wait for the current Git action to finish" = "Wait for the current Git action to finish";
