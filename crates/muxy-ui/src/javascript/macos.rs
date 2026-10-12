@@ -29,6 +29,9 @@ const MAX_DELAY_MS: f64 = 86_400_000.0;
 
 use super::{Call, Event};
 
+pub const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Supported;
+
 #[derive(Debug)]
 pub struct Script {
     input: mpsc::Sender<String>,

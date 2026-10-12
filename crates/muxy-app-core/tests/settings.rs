@@ -168,6 +168,49 @@ fn existing_bindings_take_precedence_over_new_project_defaults_and_round_trip() 
     Ok(())
 }
 
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn default_shortcuts_avoid_shifted_digits_and_symbols_which_arrive_without_shift() -> Result {
+    use muxy_app_core::settings::{TerminalAction, TerminalBindings};
+
+    let terminal = TerminalBindings::default();
+    let actions = [
+        TerminalAction::Text(b"\n".to_vec()),
+        TerminalAction::Paste,
+        TerminalAction::SelectAll,
+        TerminalAction::ScrollTop,
+        TerminalAction::ScrollBottom,
+        TerminalAction::ScrollPageUp,
+        TerminalAction::ScrollPageDown,
+        TerminalAction::ResetFontSize,
+    ];
+    let mut chords = Vec::new();
+    for key in muxy_core::shortcuts::ALL
+        .iter()
+        .flat_map(|shortcut| shortcut.keys)
+    {
+        chords.push(key.parse::<KeyChord>()?);
+    }
+    for action in &actions {
+        chords.extend(terminal.chords_for_action(action).cloned());
+    }
+    assert!(chords.len() > actions.len());
+    for chord in chords {
+        let chord = chord.as_str();
+        let key = if chord.ends_with("--") || chord == "-" {
+            "-"
+        } else {
+            chord.rsplit('-').next().ok_or("empty chord")?
+        };
+        let shifted = chord
+            .strip_suffix(key)
+            .is_some_and(|modifiers| modifiers.contains("shift-"));
+        let unshifted = key.chars().count() == 1 && key.to_lowercase() == key.to_uppercase();
+        assert!(!(shifted && unshifted), "{chord} can never be pressed");
+    }
+    Ok(())
+}
+
 #[test]
 fn an_existing_binding_keeps_the_key_equalize_splits_defaults_to() -> Result {
     let fixture = Fixture::new()?;

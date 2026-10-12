@@ -6,10 +6,17 @@ use std::path::{Path, PathBuf};
 
 use crate::model::AppModel;
 use gpui::{Context, SharedString};
+use muxy_core::capability::{Capability, Feature};
 use muxy_ui::tr;
+
+/// The installer links the tool out of a macOS app bundle.
+pub(crate) const CAPABILITY: Capability = Capability::of(cfg!(target_os = "macos"));
 
 impl AppModel {
     pub(crate) fn install_command_line(&mut self, cx: &mut Context<Self>) {
+        if !self.require(Feature::CommandLineTool, cx) {
+            return;
+        }
         let window = self.window;
         cx.spawn(async move |_, cx| {
             let result = cx.background_executor().spawn(async { install() }).await;

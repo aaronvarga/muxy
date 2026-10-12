@@ -1,6 +1,9 @@
 use super::{AssetResult, Event, assets::Source};
 use gpui::{Bounds, CursorStyle, Pixels, Rgba, Window};
 
+pub const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Unsupported;
+
 #[derive(Debug)]
 pub enum NativeWebview {}
 
@@ -12,7 +15,9 @@ impl NativeWebview {
         _background: Rgba,
         _transparent_background: bool,
     ) -> Result<(Self, async_channel::Receiver<Event>), String> {
-        Err(crate::tr!("Extension webviews are not available on Linux yet.").to_string())
+        Err(muxy_core::capability::Feature::ExtensionWebviews
+            .unsupported_reason()
+            .into_owned())
     }
     pub fn set_shortcuts(&self, _modal: bool, _shortcuts: Vec<gpui::Keystroke>) {
         match *self {}

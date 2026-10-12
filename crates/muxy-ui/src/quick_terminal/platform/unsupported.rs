@@ -2,9 +2,11 @@ use crate::quick_terminal::ShortcutRecordingEvent;
 use crate::quick_terminal::shortcut_service::{
     ShortcutBackend, ShortcutBackendFactory, ShortcutState,
 };
-use crate::tr;
 use muxy_core::quick_terminal::QuickTerminalShortcut;
 use std::rc::Rc;
+
+pub const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Unsupported;
 
 #[derive(Debug)]
 pub struct SystemObservers;
@@ -14,7 +16,9 @@ pub struct ShortcutRecorder;
 
 impl ShortcutRecorder {
     pub fn start(_sender: async_channel::Sender<ShortcutRecordingEvent>) -> Result<Self, String> {
-        Err(tr!("Quick Terminal shortcut recording is unavailable on this platform").to_string())
+        Err(muxy_core::capability::Feature::QuickTerminal
+            .unsupported_reason()
+            .into_owned())
     }
 }
 

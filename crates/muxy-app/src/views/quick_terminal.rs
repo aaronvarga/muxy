@@ -130,7 +130,9 @@ impl QuickTerminalView {
     #[cfg(not(target_os = "macos"))]
     #[allow(clippy::unused_self, reason = "Shared platform adapter interface")]
     pub(crate) fn prepare(&mut self, _window: &mut Window) -> Result<(), String> {
-        Err(tr!("Quick Terminal panels are unavailable on this platform").to_string())
+        Err(muxy_core::capability::Feature::QuickTerminal
+            .unsupported_reason()
+            .into_owned())
     }
 
     fn update_owner(

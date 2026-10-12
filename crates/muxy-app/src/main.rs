@@ -194,7 +194,9 @@ fn app_name() -> &'static str {
 
 #[allow(clippy::too_many_lines, reason = "One native menu registration list")]
 fn menus() -> Vec<Menu> {
+    use muxy_core::capability::Feature;
     use muxy_ui::text_input;
+    let backends = model::capabilities::backends();
     let mut window_items = vec![
         MenuItem::action(tr!("Minimize"), Minimize),
         MenuItem::action(tr!("Zoom"), Zoom),
@@ -225,23 +227,52 @@ fn menus() -> Vec<Menu> {
         .extend((0..9).map(|index| {
             MenuItem::action(tr!("Project %lld", index + 1), SelectProject { index })
         }));
+    let mut app_items = vec![MenuItem::action(tr!("Settings…"), OpenSettings)];
+    if backends.has_backend(Feature::Updates) {
+        app_items.push(MenuItem::action(tr!("Check for Updates…"), CheckForUpdates));
+    }
+    if backends.has_backend(Feature::CommandLineTool) {
+        app_items.push(MenuItem::action(
+            tr!("Install Command Line Tool…"),
+            InstallCommandLineTool,
+        ));
+    }
+    app_items.extend([
+        MenuItem::separator(),
+        MenuItem::os_submenu(tr!("Services"), SystemMenuType::Services),
+        MenuItem::separator(),
+        MenuItem::action(tr!("Hide %@", app_name()), HideApp),
+        MenuItem::action(tr!("Hide Others"), HideOthers),
+        MenuItem::action(tr!("Show All"), ShowAll),
+        MenuItem::separator(),
+        MenuItem::action(tr!("Quit %@", app_name()), Quit),
+        MenuItem::action(tr!("End All Sessions and Quit"), EndAllSessionsAndQuit),
+    ]);
+    let mut view_items = vec![
+        MenuItem::action(tr!("Command Palette…"), ToggleCommandPalette),
+        MenuItem::separator(),
+        MenuItem::action(tr!("Toggle Composer"), ToggleComposer),
+    ];
+    if backends.has_backend(Feature::Voice) {
+        view_items.push(MenuItem::action(
+            tr!("Toggle Voice Recording"),
+            ToggleVoiceRecording,
+        ));
+    }
+    view_items.extend([
+        MenuItem::separator(),
+        MenuItem::action(tr!("Toggle Sidebar"), ToggleSidebar),
+        MenuItem::action(tr!("Toggle Full Screen"), ToggleFullScreen),
+        MenuItem::separator(),
+        MenuItem::action(tr!("Theme Picker"), ToggleThemePicker),
+        MenuItem::separator(),
+        MenuItem::action(tr!("Increase Font Size"), IncreaseFontSize),
+        MenuItem::action(tr!("Decrease Font Size"), DecreaseFontSize),
+    ]);
     vec![
         Menu {
             name: app_name().into(),
-            items: vec![
-                MenuItem::action(tr!("Settings…"), OpenSettings),
-                MenuItem::action(tr!("Check for Updates…"), CheckForUpdates),
-                MenuItem::action(tr!("Install Command Line Tool…"), InstallCommandLineTool),
-                MenuItem::separator(),
-                MenuItem::os_submenu(tr!("Services"), SystemMenuType::Services),
-                MenuItem::separator(),
-                MenuItem::action(tr!("Hide %@", app_name()), HideApp),
-                MenuItem::action(tr!("Hide Others"), HideOthers),
-                MenuItem::action(tr!("Show All"), ShowAll),
-                MenuItem::separator(),
-                MenuItem::action(tr!("Quit %@", app_name()), Quit),
-                MenuItem::action(tr!("End All Sessions and Quit"), EndAllSessionsAndQuit),
-            ],
+            items: app_items,
         },
         Menu {
             name: tr!("Edit"),
@@ -277,20 +308,7 @@ fn menus() -> Vec<Menu> {
         },
         Menu {
             name: tr!("View"),
-            items: vec![
-                MenuItem::action(tr!("Command Palette…"), ToggleCommandPalette),
-                MenuItem::separator(),
-                MenuItem::action(tr!("Toggle Composer"), ToggleComposer),
-                MenuItem::action(tr!("Toggle Voice Recording"), ToggleVoiceRecording),
-                MenuItem::separator(),
-                MenuItem::action(tr!("Toggle Sidebar"), ToggleSidebar),
-                MenuItem::action(tr!("Toggle Full Screen"), ToggleFullScreen),
-                MenuItem::separator(),
-                MenuItem::action(tr!("Theme Picker"), ToggleThemePicker),
-                MenuItem::separator(),
-                MenuItem::action(tr!("Increase Font Size"), IncreaseFontSize),
-                MenuItem::action(tr!("Decrease Font Size"), DecreaseFontSize),
-            ],
+            items: view_items,
         },
         Menu {
             // GPUI hands macOS the window list only for a menu named "Window".

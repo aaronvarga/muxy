@@ -9,6 +9,7 @@
 "%@ CLI is not installed" = "%@ CLI is not installed";
 "%@ CLI is not installed. Choose another provider or install its CLI." = "%@ CLI is not installed. Choose another provider or install its CLI.";
 "%@ Could not restore the extension's enabled state: %@" = "%@ Could not restore the extension's enabled state: %@";
+"%@ Images are sent as inline file paths." = "%@ Images are sent as inline file paths.";
 "%@ Updates" = "%@ Updates";
 "%@ already exists; move it before installing Muxy." = "%@ already exists; move it before installing Muxy.";
 "%@ and %@, but %@" = "%@ and %@, but %@";
@@ -163,7 +164,7 @@
 "Auto · %@" = "Auto · %@";
 "Auto · None installed" = "Auto · None installed";
 "Automatic updates are available in installed releases of %@" = "Automatic updates are available in installed releases of %@";
-"Automatic updates are not available on Linux yet." = "Automatic updates are not available on Linux yet.";
+"Automatic updates are not available on this platform yet." = "Automatic updates are not available on this platform yet.";
 "Automatic updates require a Developer ID signed app" = "Automatic updates require a Developer ID signed app";
 "Automatic updates require an installed %@.app" = "Automatic updates require an installed %@.app";
 "Automatic updates require an installed release of %@" = "Automatic updates require an installed release of %@";
@@ -281,7 +282,7 @@
 "Click a shortcut to record it. Escape cancels. Conflicts in the same context must be resolved first." = "Click a shortcut to record it. Escape cancels. Conflicts in the same context must be resolved first.";
 "Clipboard changed during capture. Try again." = "Clipboard changed during capture. Try again.";
 "Clipboard changed during submission; sending stopped." = "Clipboard changed during submission; sending stopped.";
-"Clipboard image submission is not available on Linux. Select inline image paths in Composer settings." = "Clipboard image submission is not available on Linux. Select inline image paths in Composer settings.";
+"Clipboard image submission is not available on this platform yet." = "Clipboard image submission is not available on this platform yet.";
 "Clipboard is too large to preserve. Use inline image paths instead." = "Clipboard is too large to preserve. Use inline image paths instead.";
 "Clipboard paste" = "Clipboard paste";
 "Close" = "Close";
@@ -493,6 +494,8 @@
 "Delete Workspace…" = "Delete Workspace…";
 "Delete “%@”? Its projects will not be removed." = "Delete “%@”? Its projects will not be removed.";
 "Deny & Remember" = "Deny & Remember";
+"Desktop notifications are not available on this platform yet." = "Desktop notifications are not available on this platform yet.";
+"Desktop notifications need Muxy to run from its app bundle." = "Desktop notifications need Muxy to run from its app bundle.";
 "Detach" = "Detach";
 "Detach Terminal" = "Detach Terminal";
 "Detached %@" = "Detached %@";
@@ -561,9 +564,9 @@
 "Extend always" = "Extend always";
 "Extension %@ is not loaded" = "Extension %@ is not loaded";
 "Extension log writer is unavailable." = "Extension log writer is unavailable.";
-"Extension scripts are not available on Linux yet." = "Extension scripts are not available on Linux yet.";
+"Extension scripts are not available on this platform yet." = "Extension scripts are not available on this platform yet.";
 "Extension updated." = "Extension updated.";
-"Extension webviews are not available on Linux yet." = "Extension webviews are not available on Linux yet.";
+"Extension webviews are not available on this platform yet." = "Extension webviews are not available on this platform yet.";
 "Extensions" = "Extensions";
 "Extensions changed while reloading. Try again." = "Extensions changed while reloading. Try again.";
 "Fallback fonts" = "Fallback fonts";
@@ -618,6 +621,7 @@
 "Hide Tips" = "Hide Tips";
 "Hide Tips?" = "Hide Tips?";
 "Hides the panel" = "Hides the panel";
+"Hiding apps is not available on this platform." = "Hiding apps is not available on this platform.";
 "History budget is too large" = "History budget is too large";
 "History budget per session (MiB)" = "History budget per session (MiB)";
 "Home directory is unavailable" = "Home directory is unavailable";
@@ -666,6 +670,7 @@
 "Installed %@.\n\n%@" = "Installed %@.\n\n%@";
 "Installing muxy-server, then testing connection…" = "Installing muxy-server, then testing connection…";
 "Installing the app update and restarting Muxy." = "Installing the app update and restarting Muxy.";
+"Installing the command line tool is not available on this platform yet." = "Installing the command line tool is not available on this platform yet.";
 "Installing…" = "Installing…";
 "Interface" = "Interface";
 "Invalid Mobile port" = "Invalid Mobile port";
@@ -693,6 +698,7 @@
 "Keyboard" = "Keyboard";
 "Keys the terminal handles while it is focused. They take precedence over app shortcuts." = "Keys the terminal handles while it is focused. They take precedence over app shortcuts.";
 "Language" = "Language";
+"Language packs and other resource-only extensions keep working." = "Language packs and other resource-only extensions keep working.";
 "Last seen %lld d ago" = "Last seen %lld d ago";
 "Last seen %lld h ago" = "Last seen %lld h ago";
 "Last seen %lld min ago" = "Last seen %lld min ago";
@@ -951,10 +957,8 @@
 "Query is too long" = "Query is too long";
 "Quick Terminal" = "Quick Terminal";
 "Quick Terminal panel unavailable" = "Quick Terminal panel unavailable";
-"Quick Terminal panels are unavailable on this platform" = "Quick Terminal panels are unavailable on this platform";
 "Quick Terminal shortcut" = "Quick Terminal shortcut";
 "Quick Terminal shortcut conflicts with %@" = "Quick Terminal shortcut conflicts with %@";
-"Quick Terminal shortcut recording is unavailable on this platform" = "Quick Terminal shortcut recording is unavailable on this platform";
 "Quick Terminal status" = "Quick Terminal status";
 "Quit %@" = "Quit %@";
 "Quitting Muxy never ends your terminals. To keep them when closing tabs or panes too, set Settings → General → Closing terminals → When closing tabs or panes to Detach." = "Quitting Muxy never ends your terminals. To keep them when closing tabs or panes too, set Settings → General → Closing terminals → When closing tabs or panes to Detach.";
@@ -1218,6 +1222,7 @@
 "The AI provider returned an empty commit message" = "The AI provider returned an empty commit message";
 "The AI provider returned an empty pull request title" = "The AI provider returned an empty pull request title";
 "The AI provider returned an invalid response. Update the prompt or try another provider." = "The AI provider returned an invalid response. Update the prompt or try another provider.";
+"The Quick Terminal is not available on this platform yet." = "The Quick Terminal is not available on this platform yet.";
 "The Quick Terminal shortcut listener and shell are off. Your shortcut, size, and appearance settings are preserved." = "The Quick Terminal shortcut listener and shell are off. Your shortcut, size, and appearance settings are preserved.";
 "The app is updated. The server will update when all terminal sessions end, or you can restart it now. Restarting ends all sessions, including idle and detached sessions." = "The app is updated. The server will update when all terminal sessions end, or you can restart it now. Restarting ends all sessions, including idle and detached sessions.";
 "The audio input changed. Finish or cancel dictation, then try again." = "The audio input changed. Finish or cancel dictation, then try again.";
@@ -1382,7 +1387,7 @@
 "View" = "View";
 "Violet" = "Violet";
 "Voice" = "Voice";
-"Voice input is not available on Linux yet." = "Voice input is not available on Linux yet.";
+"Voice input is not available on this platform yet." = "Voice input is not available on this platform yet.";
 "Wait for the AI repository action to finish" = "Wait for the AI repository action to finish";
 "Wait for the current AI action to finish" = "Wait for the current AI action to finish";
 "Wait for the current Git action to finish" = "Wait for the current Git action to finish";

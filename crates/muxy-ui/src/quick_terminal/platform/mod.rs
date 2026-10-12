@@ -7,6 +7,11 @@ use super::ShortcutRecordingEvent;
 use super::shortcut_service::ShortcutBackendFactory;
 use async_channel::Sender;
 
+#[cfg(target_os = "macos")]
+pub use macos::CAPABILITY;
+#[cfg(not(target_os = "macos"))]
+pub use unsupported::CAPABILITY;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SystemMutation {
     Accessibility,

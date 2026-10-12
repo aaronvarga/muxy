@@ -646,6 +646,19 @@ impl Render for ExtensionsView {
             })
             .collect();
         let errors = registry.errors.clone();
+        let capabilities = &model.read(cx).capabilities;
+        let mut unavailable: Vec<_> = [
+            muxy_core::capability::Feature::ExtensionScripts,
+            muxy_core::capability::Feature::ExtensionWebviews,
+        ]
+        .into_iter()
+        .filter_map(|feature| capabilities.reason(feature))
+        .collect();
+        if !unavailable.is_empty() {
+            unavailable.push(muxy_core::tr!(
+                "Language packs and other resource-only extensions keep working."
+            ));
+        }
         let body = if let Some(details) = &self.selected {
             self.details_body(details, &installed, cx)
         } else if self.tab == Tab::Installed {
@@ -695,6 +708,11 @@ impl Render for ExtensionsView {
                                 errors
                                     .iter()
                                     .map(|error| form::note(self.style(), error, true)),
+                            )
+                            .children(
+                                unavailable
+                                    .iter()
+                                    .map(|reason| form::note(self.style(), reason, false)),
                             )
                             .child(body),
                     ),

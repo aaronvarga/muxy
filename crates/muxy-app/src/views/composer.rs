@@ -49,6 +49,8 @@ pub(crate) struct Composer {
     voice: Option<muxy_ui::voice::Recorder>,
     voice_snapshot: muxy_ui::voice::Snapshot,
     voice_poll: Option<Task<()>>,
+    /// Whether dictation can run, from the app's capability table.
+    pub(crate) dictation: muxy_core::capability::Capability,
     pub(crate) workspace_inset: f32,
     pub(crate) context_label: String,
     floating_dimensions: Option<gpui::Size<gpui::Pixels>>,
@@ -125,6 +127,7 @@ impl Composer {
             voice: None,
             voice_snapshot: muxy_ui::voice::Snapshot::default(),
             voice_poll: None,
+            dictation: muxy_core::capability::Capability::Supported,
             workspace_inset: 0.0,
             context_label: String::new(),
             floating_resize: None,
@@ -261,6 +264,11 @@ impl Composer {
             } else {
                 recorder.finish();
             }
+            cx.notify();
+            return;
+        }
+        if let Some(reason) = self.dictation.reason(muxy_core::capability::Feature::Voice) {
+            self.error = Some(reason.into_owned());
             cx.notify();
             return;
         }

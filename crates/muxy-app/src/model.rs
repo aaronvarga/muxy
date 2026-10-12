@@ -1,5 +1,6 @@
 pub(crate) mod ai;
 pub(crate) mod banners;
+pub(crate) mod capabilities;
 mod catalog;
 pub(crate) mod commands;
 mod composer;
@@ -190,8 +191,8 @@ pub(crate) struct AppModel {
     snapshots: HashMap<PaneId, RunGrid>,
     scrolls: HashMap<PaneId, Scroll>,
     pub(crate) window_active: bool,
-    #[cfg(target_os = "macos")]
-    notifications: Option<muxy_ui::notifications::Notifications>,
+    notifications: muxy_ui::notifications::Notifications,
+    pub(crate) capabilities: muxy_core::capability::Capabilities,
     pub(crate) completions: HashSet<PaneId>,
     /// Servers still finishing their work before the app quits.
     flushing: HashSet<ServerId>,
@@ -445,6 +446,13 @@ impl AppModel {
             }
         })
         .detach();
+        let (notifications, opened) = muxy_ui::notifications::Notifications::start();
+        Self::follow_notifications(opened, cx);
+        let mut capabilities = capabilities::backends();
+        capabilities.set(
+            muxy_core::capability::Feature::Notifications,
+            notifications.capability(),
+        );
         let mut model = Self {
             extensions: extensions::Runtime::new(
                 boot.state_path
@@ -544,8 +552,8 @@ impl AppModel {
             snapshots: HashMap::new(),
             scrolls: HashMap::new(),
             window_active: window.is_window_active(),
-            #[cfg(target_os = "macos")]
-            notifications: Self::start_notifications(cx),
+            capabilities,
+            notifications,
             completions: HashSet::new(),
             flushing: HashSet::new(),
             quitting: Quitting::Idle,
@@ -2656,6 +2664,7 @@ impl Drop for AppModel {
 
 #[cfg(test)]
 mod tests {
+    mod capabilities;
     pub(super) mod extensions;
     mod webviews;
     use muxy_protocol::ExitReason;

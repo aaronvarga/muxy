@@ -19,6 +19,7 @@ use muxy_app_core::{
         },
     },
 };
+use muxy_core::capability::Feature;
 use muxy_protocol::{ChannelId, Modes};
 use muxy_ui::panel::PanelId;
 use muxy_ui::tr;
@@ -124,6 +125,7 @@ impl AppModel {
         view.update(cx, |view, _| {
             view.error = error;
             view.sending = self.composer.submission.is_some();
+            view.dictation = self.capabilities.get(Feature::Voice).clone();
         });
         self.place_composer_panel(&view, cx);
         self.composer.subscription = Some(cx.subscribe(&view, |model, _, event, cx| match event {
@@ -742,10 +744,19 @@ impl AppModel {
             file_paths: composer.draft.file_attachments.clone(),
             image_attachments: composer.draft.image_attachments.clone(),
             append_return: enter,
-            image_strategy: composer.settings.image_strategy,
+            image_strategy: self.image_strategy(composer.settings.image_strategy),
             target_pane_ids: targets.iter().map(|(id, _, _)| id.to_string()).collect(),
         });
         (!plan.is_empty()).then_some((revision, plan))
+    }
+
+    /// The stored strategy, or inline paths while clipboard submission cannot run here.
+    fn image_strategy(&self, stored: ImageSubmissionStrategy) -> ImageSubmissionStrategy {
+        if self.supports(Feature::ClipboardImages) {
+            stored
+        } else {
+            ImageSubmissionStrategy::InlinePath
+        }
     }
 
     fn submit_composer(&mut self, enter: bool, cx: &mut Context<Self>) {

@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use gpui::Context;
 use muxy_app_core::{PaneId, ServerId, TabId};
 use muxy_client::ClientError;
+use muxy_core::capability::Feature;
 use muxy_protocol::{ActivitySnapshot, AgentActivity, SessionId};
 use muxy_ui::tr;
 
@@ -22,7 +23,6 @@ pub(crate) struct ActivityView {
 }
 
 /// Each server numbers its own events, so another computer's carry its server.
-#[cfg(target_os = "macos")]
 fn notification_id(server: ServerId, id: u64) -> String {
     if server.is_local() {
         id.to_string()
@@ -31,7 +31,6 @@ fn notification_id(server: ServerId, id: u64) -> String {
     }
 }
 
-#[cfg(target_os = "macos")]
 fn activity_description(kind: muxy_protocol::ActivityKind) -> gpui::SharedString {
     use muxy_protocol::ActivityKind;
     match kind {
@@ -41,7 +40,6 @@ fn activity_description(kind: muxy_protocol::ActivityKind) -> gpui::SharedString
     }
 }
 
-#[cfg(target_os = "macos")]
 fn notification_event(identifier: &str) -> Option<(ServerId, u64)> {
     match identifier.split_once(':') {
         Some((server, id)) => Some((server.parse().ok()?, id.parse().ok()?)),
@@ -140,11 +138,8 @@ impl AppModel {
             })
             .map(|event| event.id)
             .collect();
-        #[cfg(target_os = "macos")]
-        if !removed.is_empty()
-            && let Some(notifications) = &self.notifications
-        {
-            notifications.clear(
+        if !removed.is_empty() {
+            self.notifications.clear(
                 &removed
                     .iter()
                     .map(|id| notification_id(server, *id))
@@ -207,7 +202,6 @@ impl AppModel {
                     !event.read && !activity.ended_during_read.contains(&event.session)
                 });
                 activity.ended_during_read.clear();
-                #[cfg(target_os = "macos")]
                 let removed: Vec<_> = {
                     let retained: HashSet<_> =
                         snapshot.events.iter().map(|event| event.id).collect();
@@ -225,10 +219,7 @@ impl AppModel {
                     focused,
                 );
                 activity.snapshot = snapshot;
-                #[cfg(target_os = "macos")]
-                if let Some(notifications) = &self.notifications {
-                    notifications.clear(&removed);
-                }
+                self.notifications.clear(&removed);
                 self.activity_notifications_posted(server, &ids, cx);
                 self.sync_activity_panes(server, self.state.session_references(server));
                 let ids: Vec<_> = self
@@ -254,7 +245,7 @@ impl AppModel {
                 activity.ack_failed = false;
                 self.resume_activity_navigation(server, cx);
                 self.acknowledge_focused_activity(cx);
-                if !ids.is_empty() {
+                if !ids.is_empty() && self.supports(Feature::Notifications) {
                     self.send(server, Work::ClaimActivity(ids), cx);
                 }
                 if self
@@ -307,14 +298,11 @@ impl AppModel {
         if activity.navigation.is_some_and(|id| ids.contains(&id)) {
             activity.navigation = None;
         }
-        #[cfg(target_os = "macos")]
-        if let Some(notifications) = &self.notifications {
-            notifications.clear(
-                &ids.iter()
-                    .map(|id| notification_id(server, *id))
-                    .collect::<Vec<_>>(),
-            );
-        }
+        self.notifications.clear(
+            &ids.iter()
+                .map(|id| notification_id(server, *id))
+                .collect::<Vec<_>>(),
+        );
         cx.notify();
     }
 
@@ -381,14 +369,11 @@ impl AppModel {
                     .snapshot
                     .events
                     .retain(|event| !ids.contains(&event.id));
-                #[cfg(target_os = "macos")]
-                if let Some(notifications) = &self.notifications {
-                    notifications.clear(
-                        &ids.iter()
-                            .map(|id| notification_id(server, *id))
-                            .collect::<Vec<_>>(),
-                    );
-                }
+                self.notifications.clear(
+                    &ids.iter()
+                        .map(|id| notification_id(server, *id))
+                        .collect::<Vec<_>>(),
+                );
                 self.refresh_activity(server, cx);
             }
             Err(error) => {
@@ -402,39 +387,27 @@ impl AppModel {
         cx.notify();
     }
 
-    #[cfg_attr(
-        not(target_os = "macos"),
-        allow(
-            clippy::unused_self,
-            reason = "Notification delivery is platform-dependent"
-        )
-    )]
     pub(super) fn deliver_activity(&self, server: ServerId, result: Result<Vec<u64>, ClientError>) {
         let Ok(ids) = result else {
             return;
         };
-        #[cfg(target_os = "macos")]
-        if let Some(notifications) = &self.notifications {
-            for event in self.activity_notification_events(server, &ids) {
-                let project = self
-                    .state
-                    .project(event.project)
-                    .map_or("Muxy", |project| project.name.as_str());
-                let title = match self.server_name(server) {
-                    Some(name) if !server.is_local() => {
-                        format!("{} · {project} · {name}", event.provider.name())
-                    }
-                    _ => format!("{} · {project}", event.provider.name()),
-                };
-                notifications.deliver(
-                    &notification_id(server, event.id),
-                    &title,
-                    &activity_description(event.kind),
-                );
-            }
+        for event in self.activity_notification_events(server, &ids) {
+            let project = self
+                .state
+                .project(event.project)
+                .map_or("Muxy", |project| project.name.as_str());
+            let title = match self.server_name(server) {
+                Some(name) if !server.is_local() => {
+                    format!("{} · {project} · {name}", event.provider.name())
+                }
+                _ => format!("{} · {project}", event.provider.name()),
+            };
+            self.notifications.deliver(
+                &notification_id(server, event.id),
+                &title,
+                &activity_description(event.kind),
+            );
         }
-        #[cfg(not(target_os = "macos"))]
-        let _ = (server, ids);
     }
 
     pub(crate) fn navigate_activity(&mut self, server: ServerId, id: u64, cx: &mut Context<Self>) {
@@ -473,7 +446,8 @@ impl AppModel {
             self.focus_pane(pane, cx);
             self.dismiss_overlay(cx);
             self.focus_requested = true;
-        } else if server.is_local() && !self.quick.visible {
+        } else if server.is_local() && !self.quick.visible && self.supports(Feature::QuickTerminal)
+        {
             self.toggle_quick_terminal(cx);
         }
     }
@@ -487,13 +461,13 @@ impl AppModel {
         }
     }
 
-    #[cfg(target_os = "macos")]
-    pub(super) fn start_notifications(
+    /// Navigates to the activity behind each notification the user opens.
+    pub(super) fn follow_notifications(
+        opened: async_channel::Receiver<String>,
         cx: &mut Context<Self>,
-    ) -> Option<muxy_ui::notifications::Notifications> {
-        let (notifications, events) = muxy_ui::notifications::Notifications::new()?;
+    ) {
         cx.spawn(async move |this, cx| {
-            while let Ok(identifier) = events.recv().await {
+            while let Ok(identifier) = opened.recv().await {
                 let Some((server, id)) = notification_event(&identifier) else {
                     continue;
                 };
@@ -509,6 +483,5 @@ impl AppModel {
             }
         })
         .detach();
-        Some(notifications)
     }
 }

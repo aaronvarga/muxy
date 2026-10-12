@@ -204,3 +204,39 @@ fn composer_broadcast_deduplicates_sessions_and_retains_partial_failure(cx: &mut
             .any(|(_, work)| matches!(work, Work::WriteInput { .. }))
     );
 }
+
+#[gpui::test]
+fn stored_clipboard_strategy_sends_an_image_path_without_a_clipboard_backend(
+    cx: &mut TestAppContext,
+) {
+    use muxy_app_core::composer::submission::ImageSubmissionStrategy;
+    use muxy_core::capability::{Capability, Feature};
+
+    let (view, cx, requests) = attached_composer(cx);
+    let mut png = Vec::new();
+    image::RgbaImage::new(1, 1)
+        .write_to(&mut io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .expect("png");
+    view.update(cx, |model, cx| {
+        model
+            .capabilities
+            .set(Feature::ClipboardImages, Capability::Unsupported);
+        let composer = model.composer.view.clone().expect("composer");
+        composer.update(cx, |composer, cx| {
+            composer.settings.image_strategy = ImageSubmissionStrategy::Clipboard;
+            cx.emit(crate::views::composer::ComposerEvent::Image(png));
+        });
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    });
+    cx.run_until_parked();
+    let (bytes, completion) = delivery(&requests);
+    assert!(!bytes.contains(&0x16));
+    assert!(String::from_utf8_lossy(&bytes).contains(".png"));
+    completion.try_send(Ok(())).expect("ack");
+    cx.run_until_parked();
+}

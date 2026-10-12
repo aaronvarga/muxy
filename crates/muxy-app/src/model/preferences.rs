@@ -155,6 +155,7 @@ impl AppModel {
         settings.appearance = self.appearance.clone();
         Snapshot {
             quick_shortcut_status: self.quick_shortcut_status(),
+            capabilities: self.capabilities.clone(),
             settings,
             terminal: self.terminal.clone(),
             server: self.server_preferences.document.clone(),

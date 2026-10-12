@@ -154,6 +154,7 @@ pub(crate) enum SettingsEvent {
 #[derive(Clone)]
 pub(crate) struct Snapshot {
     pub(crate) settings: Settings,
+    pub(crate) capabilities: muxy_core::capability::Capabilities,
     pub(crate) quick_shortcut_status: String,
     pub(crate) terminal: TerminalSettings,
     pub(crate) server: Option<muxy_protocol::ServerSettingsDoc>,
@@ -710,6 +711,11 @@ impl SettingsView {
 
     fn note(&self, text: &str, error: bool) -> gpui::Div {
         form::note(self.style(), text, error)
+    }
+
+    /// A stored value shown without a control, for a setting whose feature cannot run here.
+    fn stored(&self, id: &str, value: &str) -> AnyElement {
+        controls::button(self.style(), id, value, false, |_, _, _| {}).into_any_element()
     }
 
     fn field(&self, id: &'static str) -> AnyElement {

@@ -376,6 +376,15 @@ fn action_handlers(cx: &mut Context<AppModel>) -> gpui::Div {
         .on_action(cx.listener(|model, _: &NavigateBack, _, cx| model.navigate(false, cx)))
         .on_action(cx.listener(|model, _: &NavigateForward, _, cx| model.navigate(true, cx)))
         .on_action(cx.listener(|_, _: &Minimize, window, _| window.minimize_window()))
+        .on_action(cx.listener(|model, _: &HideApp, _, cx| {
+            model.forward(muxy_core::capability::Feature::AppHiding, cx);
+        }))
+        .on_action(cx.listener(|model, _: &HideOthers, _, cx| {
+            model.forward(muxy_core::capability::Feature::AppHiding, cx);
+        }))
+        .on_action(cx.listener(|model, _: &ShowAll, _, cx| {
+            model.forward(muxy_core::capability::Feature::AppHiding, cx);
+        }))
         .on_action(cx.listener(|_, _: &Zoom, window, _| window.zoom_window()))
         .on_action(cx.listener(titlebar::begin_window_move))
         .on_action(
@@ -386,6 +395,31 @@ fn action_handlers(cx: &mut Context<AppModel>) -> gpui::Div {
         )
         .on_action(cx.listener(|model, _: &IncreaseFontSize, _, cx| model.zoom_terminal(1.0, cx)))
         .on_action(cx.listener(|model, _: &DecreaseFontSize, _, cx| model.zoom_terminal(-1.0, cx)))
+}
+
+fn register_composer_commands(
+    registry: &mut muxy_ui::command_palette::Registry<super::command_palette::Handler>,
+    model: &AppModel,
+) {
+    use super::command_palette::action;
+
+    registry.register(action(
+        model,
+        ShortcutId::ToggleComposer,
+        tr_key!("Toggle Composer"),
+        ToggleComposer,
+    ));
+    if model
+        .capabilities
+        .has_backend(muxy_core::capability::Feature::Voice)
+    {
+        registry.register(action(
+            model,
+            ShortcutId::ToggleVoiceRecording,
+            tr_key!("Toggle Voice Recording"),
+            ToggleVoiceRecording,
+        ));
+    }
 }
 
 pub(crate) fn register_commands(
@@ -401,19 +435,8 @@ pub(crate) fn register_commands(
             .active_tab()
             .and_then(|tab| model.tab(tab))
             .is_none_or(|tab| tab.panes.len() < 2);
+    register_composer_commands(registry, model);
     for command in [
-        action(
-            model,
-            ShortcutId::ToggleComposer,
-            tr_key!("Toggle Composer"),
-            ToggleComposer,
-        ),
-        action(
-            model,
-            ShortcutId::ToggleVoiceRecording,
-            tr_key!("Toggle Voice Recording"),
-            ToggleVoiceRecording,
-        ),
         action(model, ShortcutId::NewTab, tr_key!("New Tab"), NewTab).disabled(missing),
         action(
             model,

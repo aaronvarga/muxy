@@ -34,6 +34,9 @@ use crate::tr;
 const FINALIZATION: Duration = Duration::from_secs(2);
 const DEFAULT_LANGUAGE: &str = "en-US";
 
+pub const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Supported;
+
 pub fn languages() -> Vec<Language> {
     unsafe {
         let current = NSLocale::currentLocale();

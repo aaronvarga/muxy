@@ -7,6 +7,9 @@ use muxy_ui::tr;
 
 use super::{Release, Result, client, download, latest, replacement};
 
+pub(crate) const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Supported;
+
 #[derive(Clone, Debug)]
 pub(crate) struct Installation {
     bundle: PathBuf,

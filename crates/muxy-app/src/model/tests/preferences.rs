@@ -83,7 +83,7 @@ fn settings_fields_save_on_blur_window_close_and_quit(cx: &mut TestAppContext) {
     main.simulate_keystrokes(if cfg!(target_os = "macos") {
         "cmd-,"
     } else {
-        "ctrl-shift-,"
+        "ctrl-,"
     });
     let handle = view.read_with(main, |model, _| {
         model.settings_window.as_ref().expect("settings").window

@@ -42,6 +42,6 @@ mod macos;
 #[cfg(not(target_os = "macos"))]
 mod unsupported;
 #[cfg(target_os = "macos")]
-pub use macos::NativeWebview;
+pub use macos::{CAPABILITY, NativeWebview};
 #[cfg(not(target_os = "macos"))]
-pub use unsupported::NativeWebview;
+pub use unsupported::{CAPABILITY, NativeWebview};

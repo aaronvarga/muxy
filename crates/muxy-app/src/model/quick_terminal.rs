@@ -3,6 +3,7 @@ use gpui::{
     size,
 };
 use muxy_app_core::{PaneId, ServerId, TabId};
+use muxy_core::capability::Feature;
 use muxy_core::quick_terminal::keys::{COMMAND, CONTROL, KeyCombo, OPTION, SHIFT};
 use muxy_core::quick_terminal::{ConflictCandidate, QuickTerminalShortcut};
 use muxy_core::shortcuts::ShortcutSettings;
@@ -195,7 +196,12 @@ impl AppModel {
         }
         if self.quick.visible {
             self.hide_quick_terminal(true, cx);
-        } else if let Err(error) = self.show_quick_terminal(cx) {
+            return;
+        }
+        if !self.require(Feature::QuickTerminal, cx) {
+            return;
+        }
+        if let Err(error) = self.show_quick_terminal(cx) {
             self.fail(error, cx);
         }
     }

@@ -1,6 +1,9 @@
 use super::{Release, Result};
 use std::path::Path;
 
+pub(crate) const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Unsupported;
+
 #[derive(Clone, Debug)]
 pub(crate) enum Installation {}
 
@@ -12,11 +15,9 @@ pub(crate) struct PreparedUpdate {
 }
 
 fn unavailable<T>() -> Result<T> {
-    Err(
-        muxy_ui::tr!("Automatic updates are not available on Linux yet.")
-            .to_string()
-            .into(),
-    )
+    Err(muxy_core::capability::Feature::Updates
+        .unsupported_reason()
+        .into())
 }
 
 impl Installation {

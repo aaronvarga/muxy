@@ -4,14 +4,19 @@ use std::sync::{
 };
 use std::time::Duration;
 
+#[cfg(not(target_os = "macos"))]
+use muxy_core::capability::Capability;
+
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::languages;
+pub use macos::{CAPABILITY, languages};
 #[cfg(not(target_os = "macos"))]
 pub fn languages() -> Vec<Language> {
     Vec::new()
 }
+#[cfg(not(target_os = "macos"))]
+pub const CAPABILITY: Capability = Capability::Unsupported;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Language {
@@ -63,7 +68,9 @@ impl Recorder {
         #[cfg(not(target_os = "macos"))]
         {
             drop(language);
-            Err(crate::tr!("Voice input is not available on Linux yet.").to_string())
+            Err(muxy_core::capability::Feature::Voice
+                .unsupported_reason()
+                .into_owned())
         }
     }
 

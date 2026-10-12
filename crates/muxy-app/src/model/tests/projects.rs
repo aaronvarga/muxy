@@ -563,7 +563,7 @@ fn run_projects_live_walkthrough(cx: &mut TestAppContext) -> Result {
     cx.simulate_keystrokes(if cfg!(target_os = "macos") {
         "cmd-alt-["
     } else {
-        "ctrl-shift-alt-["
+        "ctrl-alt-{"
     });
     wait(cx, &view, |model, cx| {
         model.state.current_project().id == first && active_grid(model, cx).is_some()

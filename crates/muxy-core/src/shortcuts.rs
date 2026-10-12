@@ -1,5 +1,7 @@
 //! Shared shortcut catalog and configuration interface. No UI or app dependencies.
 
+use crate::capability::Feature;
+
 pub const WORKSPACE_CLIPBOARD_CONTEXT: &str =
     "WorkspaceTabs && !TextInput && !BareInput && !MultilineInput && !TerminalSearchInput";
 
@@ -16,7 +18,27 @@ impl Shortcut {
     pub fn label(&self) -> String {
         self.id.replace(['_', '.'], " ")
     }
+
+    /// The feature whose backend the shortcut's command needs.
+    pub fn feature(&self) -> Option<Feature> {
+        FEATURES
+            .iter()
+            .find(|(id, _)| id.name() == self.id)
+            .map(|(_, feature)| *feature)
+    }
 }
+
+const FEATURES: [(ShortcutId, Feature); 9] = [
+    (ShortcutId::InstallCommandLineTool, Feature::CommandLineTool),
+    (ShortcutId::HideApp, Feature::AppHiding),
+    (ShortcutId::HideOthers, Feature::AppHiding),
+    (ShortcutId::ShowAll, Feature::AppHiding),
+    (ShortcutId::ComposerVoice, Feature::Voice),
+    (ShortcutId::ToggleVoiceRecording, Feature::Voice),
+    (ShortcutId::VoiceFinish, Feature::Voice),
+    (ShortcutId::VoiceCancel, Feature::Voice),
+    (ShortcutId::VoicePause, Feature::Voice),
+];
 
 pub trait ShortcutSettings {
     fn keys(&self, id: &str, context: Option<&str>) -> Vec<String>;
@@ -257,31 +279,31 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "split_down",
-        keys: platform_keys!(&["cmd-shift-d"], &["ctrl-alt-d"]),
+        keys: platform_keys!(&["cmd-shift-d"], &["ctrl-shift-alt-d"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_left",
-        keys: platform_keys!(&["cmd-alt-left"], &["ctrl-shift-alt-left"]),
+        keys: platform_keys!(&["cmd-alt-left"], &["alt-left"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_right",
-        keys: platform_keys!(&["cmd-alt-right"], &["ctrl-shift-alt-right"]),
+        keys: platform_keys!(&["cmd-alt-right"], &["alt-right"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_up",
-        keys: platform_keys!(&["cmd-alt-up"], &["ctrl-shift-alt-up"]),
+        keys: platform_keys!(&["cmd-alt-up"], &["alt-up"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "focus_pane_down",
-        keys: platform_keys!(&["cmd-alt-down"], &["ctrl-shift-alt-down"]),
+        keys: platform_keys!(&["cmd-alt-down"], &["alt-down"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
@@ -305,7 +327,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "next_tab",
-        keys: platform_keys!(&["cmd-]", "ctrl-tab"], &["ctrl-shift-]", "ctrl-tab"]),
+        keys: platform_keys!(&["cmd-]", "ctrl-tab"], &["ctrl-pagedown", "ctrl-tab"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
@@ -313,20 +335,20 @@ pub const ALL: &[Shortcut] = &[
         id: "previous_tab",
         keys: platform_keys!(
             &["cmd-[", "ctrl-shift-tab"],
-            &["ctrl-shift-[", "ctrl-shift-tab"]
+            &["ctrl-pageup", "ctrl-shift-tab"]
         ),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "previous_project",
-        keys: platform_keys!(&["ctrl-[", "cmd-alt-["], &["ctrl-[", "ctrl-shift-alt-["]),
+        keys: platform_keys!(&["ctrl-[", "cmd-alt-["], &["ctrl-[", "ctrl-alt-{"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "next_project",
-        keys: platform_keys!(&["ctrl-]", "cmd-alt-]"], &["ctrl-]", "ctrl-shift-alt-]"]),
+        keys: platform_keys!(&["ctrl-]", "cmd-alt-]"], &["ctrl-]", "ctrl-alt-}"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")], &[Some("WorkspaceTabs")]],
     },
@@ -338,55 +360,55 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "select_tab1",
-        keys: platform_keys!(&["cmd-1"], &["ctrl-shift-1"]),
+        keys: platform_keys!(&["cmd-1"], &["alt-1"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab2",
-        keys: platform_keys!(&["cmd-2"], &["ctrl-shift-2"]),
+        keys: platform_keys!(&["cmd-2"], &["alt-2"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab3",
-        keys: platform_keys!(&["cmd-3"], &["ctrl-shift-3"]),
+        keys: platform_keys!(&["cmd-3"], &["alt-3"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab4",
-        keys: platform_keys!(&["cmd-4"], &["ctrl-shift-4"]),
+        keys: platform_keys!(&["cmd-4"], &["alt-4"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab5",
-        keys: platform_keys!(&["cmd-5"], &["ctrl-shift-5"]),
+        keys: platform_keys!(&["cmd-5"], &["alt-5"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab6",
-        keys: platform_keys!(&["cmd-6"], &["ctrl-shift-6"]),
+        keys: platform_keys!(&["cmd-6"], &["alt-6"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab7",
-        keys: platform_keys!(&["cmd-7"], &["ctrl-shift-7"]),
+        keys: platform_keys!(&["cmd-7"], &["alt-7"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab8",
-        keys: platform_keys!(&["cmd-8"], &["ctrl-shift-8"]),
+        keys: platform_keys!(&["cmd-8"], &["alt-8"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
     Shortcut {
         id: "select_tab9",
-        keys: platform_keys!(&["cmd-9"], &["ctrl-shift-9"]),
+        keys: platform_keys!(&["cmd-9"], &["alt-9"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
     },
@@ -494,10 +516,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "increase_font_size",
-        keys: platform_keys!(
-            &["cmd-+", "cmd-=", "cmd-shift-="],
-            &["ctrl-shift-+", "ctrl-shift-=", "ctrl-alt-shift-="]
-        ),
+        keys: platform_keys!(&["cmd-+", "cmd-=", "cmd-shift-="], &["ctrl-+", "ctrl-="]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[
             &[Some("WorkspaceTabs"), Some("QuickTerminal")],
@@ -507,7 +526,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "decrease_font_size",
-        keys: platform_keys!(&["cmd--"], &["ctrl-shift--"]),
+        keys: platform_keys!(&["cmd--"], &["ctrl--"]),
         contexts: &[Some("WorkspaceTabs"), Some("QuickTerminal")],
         key_contexts: &[&[Some("WorkspaceTabs"), Some("QuickTerminal")]],
     },
@@ -1178,10 +1197,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "previous_prompt",
-        keys: platform_keys!(
-            &["cmd-up", "cmd-shift-up"],
-            &["ctrl-shift-up", "ctrl-alt-shift-up"]
-        ),
+        keys: platform_keys!(&["cmd-up", "cmd-shift-up"], &["ctrl-shift-up"]),
         contexts: &[
             Some(WORKSPACE_CLIPBOARD_CONTEXT),
             Some("QuickTerminal && !TextInput && !TerminalSearchInput"),
@@ -1199,10 +1215,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "next_prompt",
-        keys: platform_keys!(
-            &["cmd-down", "cmd-shift-down"],
-            &["ctrl-shift-down", "ctrl-alt-shift-down"]
-        ),
+        keys: platform_keys!(&["cmd-down", "cmd-shift-down"], &["ctrl-shift-down"]),
         contexts: &[
             Some(WORKSPACE_CLIPBOARD_CONTEXT),
             Some("QuickTerminal && !TextInput && !TerminalSearchInput"),
@@ -1229,7 +1242,7 @@ pub const ALL: &[Shortcut] = &[
     },
     Shortcut {
         id: "open_settings",
-        keys: platform_keys!(&["cmd-,"], &["ctrl-shift-,"]),
+        keys: platform_keys!(&["cmd-,"], &["ctrl-,"]),
         contexts: &[None],
         key_contexts: &[&[None]],
     },

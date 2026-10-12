@@ -3,13 +3,70 @@ use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, Context, InteractiveElement, IntoElement, ParentElement, Styled, Window, div, px,
 };
+use muxy_core::capability::Feature;
 use muxy_core::quick_terminal::QuickTerminalShortcut;
 use muxy_ui::controls;
 use muxy_ui::l10n::tr_key;
 use muxy_ui::tr;
 
+/// The saved preferences without controls, while the Quick Terminal cannot run here.
+fn stored_rows(view: &SettingsView, reason: &str) -> Vec<AnyElement> {
+    let settings = &view.snapshot.settings.quick_terminal;
+    let mut rows = Vec::new();
+    for (id, label, value) in [
+        (
+            "quick-enabled",
+            tr_key!("Enable Quick Terminal"),
+            if settings.enabled {
+                tr!("On")
+            } else {
+                tr!("Off")
+            },
+        ),
+        (
+            "quick-shortcut",
+            tr_key!("Open Quick Terminal"),
+            settings.shortcut.key_combo().map_or_else(
+                || tr!("No shortcut assigned"),
+                |combo| combo.display().into(),
+            ),
+        ),
+        (
+            "quick-size",
+            tr_key!("Terminal size"),
+            format!("{} × {}", settings.width, settings.height).into(),
+        ),
+        (
+            "quick-transparency",
+            tr_key!("Terminal transparency"),
+            tr!("%lld%%", settings.transparency),
+        ),
+        (
+            "quick-blur",
+            tr_key!("Background vibrancy"),
+            tr!("%lld%%", settings.blur),
+        ),
+    ] {
+        if !view.matches(Category::QuickTerminal, label) {
+            continue;
+        }
+        rows.push(view.row(id, label, view.stored(id, &value)));
+        if rows.len() == 1 {
+            rows.push(view.note(reason, false).into_any_element());
+        }
+    }
+    rows
+}
+
 #[allow(clippy::too_many_lines, reason = "Declarative settings layout")]
 pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<AnyElement> {
+    if let Some(reason) = view
+        .snapshot
+        .capabilities
+        .unsupported(Feature::QuickTerminal)
+    {
+        return stored_rows(view, &reason);
+    }
     let settings = &view.snapshot.settings.quick_terminal;
     let mut rows = Vec::new();
     if view.matches(Category::QuickTerminal, tr_key!("Enable Quick Terminal")) {

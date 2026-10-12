@@ -52,6 +52,9 @@ impl Drop for SystemObserver {
     }
 }
 
+pub const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Supported;
+
 #[derive(Debug)]
 pub struct SystemObservers {
     _observers: Vec<SystemObserver>,

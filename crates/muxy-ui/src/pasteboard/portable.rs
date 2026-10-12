@@ -14,12 +14,18 @@ pub fn read_content(cx: &gpui::App) -> Result<Content, String> {
     Ok(Content::Text)
 }
 
+/// Whether a `Lease` can hand images to a terminal program and restore the clipboard.
+pub const IMAGE_SUBMISSION: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Unsupported;
+
 #[derive(Debug)]
 pub enum Lease {}
 
 impl Lease {
     pub fn capture() -> Result<Self, String> {
-        Err(crate::tr!("Clipboard image submission is not available on Linux. Select inline image paths in Composer settings.").to_string())
+        Err(muxy_core::capability::Feature::ClipboardImages
+            .unsupported_reason()
+            .into_owned())
     }
 
     pub fn write_png(&mut self, _png: Vec<u8>) -> Result<(), String> {

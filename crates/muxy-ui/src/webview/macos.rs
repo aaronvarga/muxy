@@ -382,6 +382,9 @@ impl GripOverlay {
     }
 }
 
+pub const CAPABILITY: muxy_core::capability::Capability =
+    muxy_core::capability::Capability::Supported;
+
 #[derive(Debug)]
 pub struct NativeWebview {
     view: Retained<MaskedWebview>,

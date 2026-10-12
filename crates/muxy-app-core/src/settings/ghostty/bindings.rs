@@ -64,7 +64,7 @@ static DEFAULT_BINDINGS: LazyLock<BTreeMap<KeyChord, TerminalAction>> = LazyLock
         ("ctrl-shift-end", TerminalAction::ScrollBottom),
         ("shift-pageup", TerminalAction::ScrollPageUp),
         ("shift-pagedown", TerminalAction::ScrollPageDown),
-        ("ctrl-shift-0", TerminalAction::ResetFontSize),
+        ("ctrl-0", TerminalAction::ResetFontSize),
     ]
     .into_iter()
     .map(|(key, action)| (KeyChord::default_binding(key), action))

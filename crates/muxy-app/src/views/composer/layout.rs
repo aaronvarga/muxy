@@ -465,22 +465,26 @@ impl Composer {
                 |_, _, cx| cx.emit(ComposerEvent::Attach),
                 cx,
             ))
-            .child(self.glyph_button(
-                "composer-voice",
-                if recording { "stop.fill" } else { "mic" },
-                if recording {
-                    tr_key!("Finish Dictation")
-                } else {
-                    tr_key!("Start Dictation")
-                },
-                if self.recording() {
-                    Control::Recording
-                } else {
-                    Control::Toolbar
-                },
-                |view, _, cx| view.toggle_voice(cx),
-                cx,
-            ))
+            .children(
+                (self.dictation != muxy_core::capability::Capability::Unsupported).then(|| {
+                    self.glyph_button(
+                        "composer-voice",
+                        if recording { "stop.fill" } else { "mic" },
+                        if recording {
+                            tr_key!("Finish Dictation")
+                        } else {
+                            tr_key!("Start Dictation")
+                        },
+                        if self.recording() {
+                            Control::Recording
+                        } else {
+                            Control::Toolbar
+                        },
+                        |view, _, cx| view.toggle_voice(cx),
+                        cx,
+                    )
+                }),
+            )
             .child(self.glyph_button(
                 "composer-more",
                 "ellipsis",

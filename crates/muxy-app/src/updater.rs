@@ -5,7 +5,7 @@ mod replacement;
 #[cfg(not(target_os = "macos"))]
 mod unsupported;
 #[cfg(not(target_os = "macos"))]
-pub(crate) use unsupported::{Installation, PreparedUpdate};
+pub(crate) use unsupported::{CAPABILITY, Installation, PreparedUpdate};
 
 #[cfg(target_os = "macos")]
 use std::io::{Read, Write};
@@ -19,7 +19,7 @@ use muxy_core::release::Channel;
 use muxy_ui::tr;
 
 #[cfg(target_os = "macos")]
-pub(crate) use macos::{Installation, PreparedUpdate};
+pub(crate) use macos::{CAPABILITY, Installation, PreparedUpdate};
 
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
