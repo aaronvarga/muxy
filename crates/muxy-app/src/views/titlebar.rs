@@ -9,7 +9,7 @@ use muxy_ui::tr;
 use crate::model::AppModel;
 
 #[cfg(target_os = "linux")]
-pub(super) mod linux;
+pub(crate) mod linux;
 
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
 #[action(namespace = muxy, no_json)]
@@ -71,8 +71,6 @@ pub(crate) fn navigation(
     let m = model.metrics;
     let theme = &model.theme;
     #[cfg(not(target_os = "linux"))]
-    let _ = window;
-    #[cfg(not(target_os = "linux"))]
     let controls = None::<AnyElement>;
     #[cfg(target_os = "linux")]
     let controls = linux::controls(
@@ -97,7 +95,7 @@ pub(crate) fn navigation(
         .absolute()
         .top_0()
         .left_0()
-        .w(px(sidebar_width.max(navigation_width(model))))
+        .w(px(sidebar_width.max(navigation_width(model, window))))
         .h(m.title_bar_height())
         .flex()
         .items_center()
@@ -143,8 +141,23 @@ pub(crate) fn navigation(
         .into_any_element()
 }
 
-pub(super) fn navigation_width(model: &AppModel) -> f32 {
-    f32::from(model.metrics.traffic_light_width() + model.metrics.navigation_arrows_width())
+/// Whether the window's buttons sit in this titlebar. A system that frames
+/// the window draws them itself, above the content.
+fn holds_window_buttons(window: &Window) -> bool {
+    cfg!(target_os = "macos")
+        || matches!(
+            window.window_decorations(),
+            gpui::Decorations::Client { .. }
+        )
+}
+
+pub(super) fn navigation_width(model: &AppModel, window: &Window) -> f32 {
+    let arrows = model.metrics.navigation_arrows_width();
+    f32::from(if holds_window_buttons(window) {
+        model.metrics.traffic_light_width() + arrows
+    } else {
+        arrows
+    })
 }
 
 fn arrow(model: &AppModel, forward: bool, cx: &mut Context<AppModel>) -> AnyElement {

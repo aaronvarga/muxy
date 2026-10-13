@@ -29,7 +29,7 @@ pub fn show(
     anchor: gpui::Point<gpui::Pixels>,
     window: &mut gpui::Window,
     _cx: &mut gpui::App,
-) -> async_channel::Receiver<Option<usize>> {
+) -> Option<async_channel::Receiver<Option<usize>>> {
     let (sender, receiver) = async_channel::bounded(1);
     let location = screen_location(anchor, window);
     DispatchQueue::main().exec_async(move || {
@@ -38,7 +38,7 @@ pub fn show(
         });
         let _ = sender.try_send(result);
     });
-    receiver
+    Some(receiver)
 }
 
 fn screen_location(anchor: gpui::Point<gpui::Pixels>, window: &gpui::Window) -> Option<NSPoint> {

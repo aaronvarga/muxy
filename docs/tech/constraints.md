@@ -15,17 +15,19 @@ built and run natively on both architectures to count as supported.
 
 ### Experimental Linux desktop
 
-The Linux desktop port is under development. The initial test environment is
-Ubuntu 24.04 ARM64 in SwiftVM on Apple Silicon, with GNOME, Wayland and X11.
+The Linux desktop port is under development. It is tried on Ubuntu 24.04 ARM64
+in SwiftVM on Apple Silicon, with GNOME and KDE Plasma, each on Wayland and X11.
 This does not establish support for other distributions, x86_64 desktop builds,
-or hardware GPU drivers. SwiftVM currently uses Mesa's software Vulkan renderer
-in this environment, so its performance is not representative of a native GPU.
+or hardware GPU drivers. SwiftVM uses Mesa's software Vulkan renderer, so its
+performance is not representative of a native GPU.
 
-The [Linux phase tracker](../../.plans/linux/status.md) records the audited gaps,
-implementation sequence, macOS regression gates, and fresh-agent handoff.
+The system draws the window: frame, buttons, shadow, resizing and tiling. GNOME
+on Wayland draws no frame, so there the app shows its own buttons and the
+window cannot be resized from its edges.
 
-The initial port covers the terminal desktop, GPUI dialogs, desktop-portal file
-selection, Linux shortcuts, and `xdg-open` for external resources. Copy and paste
+The port covers the terminal desktop, in-app dialogs and menus, desktop-portal
+file selection, Linux shortcuts, and `xdg-open` for external resources. Commands
+that macOS offers in the menu bar are in the command palette. Copy and paste
 use Ctrl+Shift+C and Ctrl+Shift+V in terminals; text fields use Ctrl+C and Ctrl+V.
 Existing configured shortcuts remain literal. New configurations use the system
 monospace font and inline paths for composer images.

@@ -739,7 +739,7 @@ fn project_row(
                                 .debug_selector(move || format!("project-worktree-label-{id}"))
                                 .truncate()
                                 .text_size(m.font_footnote())
-                                .font_family(".AppleSystemUIFontMonospaced")
+                                .font_family(muxy_ui::font::monospace())
                                 .font_weight(FontWeight::NORMAL)
                                 .child(server.map_or_else(
                                     || worktree.to_owned(),

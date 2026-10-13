@@ -1,6 +1,6 @@
 use super::{Close, Composer, ComposerEvent, Insert, Submit, ToggleVoice};
 use gpui::prelude::FluentBuilder;
-use gpui::{AnyElement, FontWeight, MouseButton, Pixels, Point, Size, point, size};
+use gpui::{AnyElement, FontWeight, MouseButton, Pixels, Point, Size, size};
 use gpui::{
     AppContext, Context, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, Styled, Window, div, px,
@@ -89,14 +89,9 @@ impl Composer {
             .when(id == "composer-more", |button| {
                 let anchor = self.menu_anchor.clone();
                 button.relative().child(
-                    gpui::canvas(
-                        move |bounds, _, _| {
-                            anchor.set(point(bounds.left(), bounds.bottom() + px(1.0)));
-                        },
-                        |_, (), _, _| {},
-                    )
-                    .absolute()
-                    .size_full(),
+                    gpui::canvas(move |bounds, _, _| anchor.set(bounds), |_, (), _, _| {})
+                        .absolute()
+                        .size_full(),
                 )
             })
             .rounded(m.radius_xl())
@@ -362,7 +357,7 @@ impl Composer {
         row.child(
             div()
                 .flex_none()
-                .font_family(".AppleSystemUIFontMonospaced")
+                .font_family(muxy_ui::font::monospace())
                 .text_size(m.font_xs())
                 .font_weight(FontWeight::BOLD)
                 .text_color(if paused {
@@ -386,7 +381,7 @@ impl Composer {
         .child(
             div()
                 .flex_none()
-                .font_family(".AppleSystemUIFontMonospaced")
+                .font_family(muxy_ui::font::monospace())
                 .text_size(m.font_xs())
                 .text_color(self.theme.fg_dim)
                 .child(format!("{:02}:{:02}", elapsed / 60, elapsed % 60)),

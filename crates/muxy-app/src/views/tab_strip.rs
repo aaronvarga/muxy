@@ -45,7 +45,7 @@ pub(crate) fn tab_strip(
     let has_layouts = model.has_project_layouts();
     let controls =
         1 + u8::from(zoom_tab.is_some()) + u8::from(existing_count > 0) + u8::from(has_layouts);
-    let leading = (titlebar::navigation_width(model) - sidebar_width).max(0.0);
+    let leading = (titlebar::navigation_width(model, window) - sidebar_width).max(0.0);
     let available = (f32::from(window.viewport_size().width)
         - sidebar_width
         - leading

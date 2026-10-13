@@ -240,3 +240,103 @@ fn stored_clipboard_strategy_sends_an_image_path_without_a_clipboard_backend(
     completion.try_send(Ok(())).expect("ack");
     cx.run_until_parked();
 }
+
+#[gpui::test]
+fn the_app_drawn_composer_menu_opens_at_its_button_and_hands_the_keyboard_back(
+    cx: &mut TestAppContext,
+) {
+    use crate::views::overlays::Overlay;
+    use gpui::Focusable;
+
+    let (view, cx, _requests) = attached_composer(cx);
+    let button = gpui::Bounds::new(gpui::point(px(120.0), px(300.0)), size(px(20.0), px(20.0)));
+    let composer = view.update(cx, |model, cx| {
+        let composer = model.composer.view.clone().expect("composer");
+        composer.update(cx, |composer, _| composer.sending = true);
+        let choices = composer.read(cx).menu_items();
+        model.open_composer_menu(&choices, button, cx);
+        let Some(Overlay::Menu(menu)) = &model.overlay else {
+            panic!("the composer menu is not open");
+        };
+        assert_eq!(menu.drops_from, Some(button));
+        assert_eq!(
+            model.menu_outline(),
+            [[
+                "Send to All Split Panes",
+                "Send Without Enter",
+                "✓Clear After Sending",
+                "Clear on Close",
+                "Use Floating Composer",
+            ]]
+        );
+        composer
+    });
+
+    cx.simulate_keystrokes("down down");
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.menu_outline()[0][2], ">✓Clear After Sending");
+    });
+    cx.simulate_keystrokes("enter");
+    view.update_in(cx, |model, window, cx| {
+        assert!(model.overlay.is_none());
+        assert!(!model.settings.composer.clear_after_sending);
+        assert!(composer.focus_handle(cx).is_focused(window));
+    });
+
+    view.update(cx, |model, cx| {
+        let choices = composer.read(cx).menu_items();
+        model.open_composer_menu(&choices, button, cx);
+    });
+    cx.simulate_keystrokes("escape");
+    view.update_in(cx, |model, window, cx| {
+        assert!(model.overlay.is_none());
+        assert!(composer.focus_handle(cx).is_focused(window));
+    });
+}
+
+#[gpui::test]
+fn a_floating_composer_closed_by_its_menu_row_leaves_the_keyboard_to_the_terminal(
+    cx: &mut TestAppContext,
+) {
+    use crate::views::composer::menu::Command;
+
+    let (view, cx, _requests) = attached_composer(cx);
+    let button = gpui::Bounds::new(gpui::point(px(120.0), px(300.0)), size(px(20.0), px(20.0)));
+    view.update(cx, |model, cx| {
+        let composer = model.composer.view.clone().expect("composer");
+        composer.update(cx, |composer, cx| {
+            composer.menu_action(Command::Presentation, cx);
+        });
+    });
+    cx.run_until_parked();
+    view.update(cx, |model, cx| {
+        let composer = model.composer.view.clone().expect("composer");
+        let choices = composer.read(cx).menu_items();
+        model.open_composer_menu(&choices, button, cx);
+        model.dismiss_overlay(cx);
+        model.dismiss_composer(false, cx);
+        assert!(model.composer.closing.is_some());
+    });
+    cx.run_until_parked();
+    cx.executor()
+        .advance_clock(crate::views::composer::TRANSITION * 2);
+    cx.run_until_parked();
+    view.update_in(cx, |model, window, cx| {
+        let pane = model.active_pane().expect("pane");
+        let terminal = model.terminal(&pane).expect("terminal");
+        assert!(terminal.view.read(cx).focus.is_focused(window));
+    });
+
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-i"
+    } else {
+        "ctrl-shift-i"
+    });
+    view.update(cx, |model, cx| {
+        let composer = model.composer.view.clone().expect("composer");
+        let choices = composer.read(cx).menu_items();
+        model.open_composer_menu(&choices, button, cx);
+        model.close_composer(cx);
+        assert!(model.overlay.is_none());
+    });
+}

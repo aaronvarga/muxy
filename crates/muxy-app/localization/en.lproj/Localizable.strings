@@ -760,6 +760,7 @@
 "Microphone recording stopped. Try again." = "Microphone recording stopped. Try again.";
 "Migration" = "Migration";
 "Minimize" = "Minimize";
+"Minimize Window" = "Minimize Window";
 "Missing application directory" = "Missing application directory";
 "Missing installation directory" = "Missing installation directory";
 "Missing update directory" = "Missing update directory";
@@ -1080,6 +1081,7 @@
 "Scan with the Muxy app. The code works once and expires in 5 minutes." = "Scan with the Muxy app. The code works once and expires in 5 minutes.";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
+"Scroll to Bottom" = "Scroll to Bottom";
 "Scroll to bottom" = "Scroll to bottom";
 "Scroll to bottom on output" = "Scroll to bottom on output";
 "Scroll to bottom when typing" = "Scroll to bottom when typing";
@@ -1418,6 +1420,7 @@
 "You can show tips again in Settings → Appearance → Interface by turning on Show tips." = "You can show tips again in Settings → Appearance → Interface by turning on Show tips.";
 "You’re running the latest version of %@." = "You’re running the latest version of %@.";
 "Zoom" = "Zoom";
+"Zoom Window" = "Zoom Window";
 "add project" = "add project";
 "allow" = "allow";
 "archive checksum does not match the marketplace" = "archive checksum does not match the marketplace";

@@ -1,13 +1,34 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, App, AppContext, ClickEvent, Decorations, InteractiveElement, IntoElement,
-    MouseButton, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window, div,
+    MouseButton, ParentElement, SharedString, StatefulInteractiveElement, Styled, Window,
+    WindowDecorations, div,
 };
 use muxy_ui::components::{IconGlyph, Tooltip};
 use muxy_ui::icon::Icon;
 use muxy_ui::theme::{Metrics, Theme};
 use muxy_ui::tr;
 
+/// Leaves the window's frame to the system, which shows `title` in it. Where
+/// the system draws none, the window keeps its own buttons so it can still be
+/// minimized and closed.
+pub(crate) fn adopt_system_frame(window: &mut Window, title: &str) {
+    window.set_window_title(title);
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    if gpui::guess_compositor() == "Wayland" && leaves_windows_unframed(&desktop) {
+        window.request_decorations(WindowDecorations::Client);
+    }
+}
+
+/// GNOME's Wayland compositor draws no window frame and has no protocol to
+/// ask it for one.
+fn leaves_windows_unframed(desktop: &str) -> bool {
+    desktop
+        .split(':')
+        .any(|name| name.eq_ignore_ascii_case("GNOME"))
+}
+
+/// The buttons of a window the system left unframed.
 pub(in crate::views) fn controls(
     window: &Window,
     theme: &Theme,
@@ -105,4 +126,19 @@ fn button(
         })
         .child(glyph)
         .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::leaves_windows_unframed;
+
+    #[test]
+    fn only_gnome_sessions_keep_their_own_window_buttons() {
+        for desktop in ["GNOME", "ubuntu:GNOME", "GNOME-Classic:gnome"] {
+            assert!(leaves_windows_unframed(desktop), "{desktop}");
+        }
+        for desktop in ["", "KDE", "sway", "X-Cinnamon"] {
+            assert!(!leaves_windows_unframed(desktop), "{desktop}");
+        }
+    }
 }

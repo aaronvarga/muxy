@@ -79,4 +79,5 @@ inherits = "release"
 libghostty-vt = { path = "vendor/libghostty-vt" }
 libghostty-vt-sys = { path = "vendor/libghostty-vt-sys" }
 core-text = { path = "vendor/core-text" }
+xim-ctext = { path = "vendor/xim-ctext" }
 gpui = { git = "https://github.com/muxy-app/gpui", rev = "bd450eaedd79e2c86ba7a3bae0b62827f6a25954" }

@@ -132,7 +132,10 @@ impl Render for Dialog {
         clippy::too_many_lines,
         reason = "Declarative dialog controls and event wiring"
     )]
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.dismissed && !self.focus.contains_focused(window, cx) {
+            window.focus(&self.focus_handle(cx));
+        }
         let theme = &self.request.theme;
         let metrics = &self.request.metrics;
         let style = Style { theme, metrics };

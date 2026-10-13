@@ -170,7 +170,9 @@ fn above_origin(
     )
 }
 
-fn dropdown_origin(
+/// Where a panel opens from `anchor`: below it, or above when it would not
+/// fit below.
+pub fn dropdown_origin(
     anchor: Bounds<Pixels>,
     panel: Size<Pixels>,
     viewport: Size<Pixels>,

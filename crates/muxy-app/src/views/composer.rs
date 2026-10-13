@@ -55,7 +55,8 @@ pub(crate) struct Composer {
     pub(crate) context_label: String,
     floating_dimensions: Option<gpui::Size<gpui::Pixels>>,
     size_motion: Option<layout::SizeMotion>,
-    pub(crate) menu_anchor: std::rc::Rc<std::cell::Cell<gpui::Point<gpui::Pixels>>>,
+    /// Where the button that opens the menu was last drawn.
+    pub(crate) menu_anchor: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     pub(crate) visibility: muxy_ui::motion::VisibilityMotion,
     input_style: InputStyle,
     floating_resize: Option<(
@@ -207,9 +208,9 @@ impl Composer {
                 .all_font_names()
                 .contains(&self.settings.font_family)
         {
-            ".AppleSystemUIFontMonospaced".to_owned()
+            muxy_ui::font::monospace()
         } else {
-            self.settings.font_family.clone()
+            self.settings.font_family.clone().into()
         };
         let font = gpui::font(family.clone());
         let id = cx.text_system().resolve_font(&font);
@@ -224,7 +225,7 @@ impl Composer {
         self.input_style = style;
         self.input.update(cx, |input, cx| {
             input.set_style(style, cx);
-            input.set_font_family(Some(family.into()), cx);
+            input.set_font_family(Some(family), cx);
         });
         cx.notify();
     }

@@ -12,6 +12,7 @@ pub mod controls;
 pub mod dialog;
 #[path = "dialog/types.rs"]
 mod dialog_types;
+pub mod font;
 pub mod form;
 pub mod icon;
 #[cfg(target_os = "macos")]

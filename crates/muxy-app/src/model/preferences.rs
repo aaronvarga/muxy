@@ -95,8 +95,6 @@ impl AppModel {
                 cx,
             ))),
             window_min_size: Some(size(px(740.0), px(480.0))),
-            #[cfg(target_os = "linux")]
-            window_decorations: Some(gpui::WindowDecorations::Client),
             is_movable: !cfg!(target_os = "macos"),
             titlebar: Some(TitlebarOptions {
                 title: Some(tr!("Muxy Settings")),
@@ -106,6 +104,8 @@ impl AppModel {
             ..WindowOptions::default()
         };
         match cx.open_window(options, move |window, cx| {
+            #[cfg(target_os = "linux")]
+            crate::views::titlebar::linux::adopt_system_frame(window, &tr!("Muxy Settings"));
             let model = weak.clone();
             window.on_window_should_close(cx, move |_, cx| {
                 let _ = model.update(cx, |model, cx| {

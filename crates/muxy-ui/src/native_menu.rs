@@ -1,3 +1,6 @@
+//! Menus the system pops up. `show` answers `None` where it has none, and
+//! the caller draws its own.
+
 #[derive(Clone, Debug)]
 pub struct Item {
     pub label: String,
@@ -20,8 +23,8 @@ impl Item {
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(not(target_os = "macos"))]
-mod portable;
+mod unsupported;
 #[cfg(target_os = "macos")]
 pub use macos::show;
 #[cfg(not(target_os = "macos"))]
-pub use portable::show;
+pub use unsupported::show;

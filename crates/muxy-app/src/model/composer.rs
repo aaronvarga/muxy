@@ -169,6 +169,7 @@ impl AppModel {
     }
 
     pub(super) fn dismiss_composer(&mut self, clear: bool, cx: &mut Context<Self>) {
+        self.close_composer_menu(cx);
         if let Some(view) = &self.composer.view {
             view.update(cx, Composer::cancel_voice);
         }
@@ -534,15 +535,19 @@ impl AppModel {
             return;
         };
         let choices = view.read(cx).menu_items();
-        let anchor = view.read(cx).menu_anchor.get();
-        let Ok(receiver) = self.window.update(cx, |_, window, cx| {
+        let button = view.read(cx).menu_anchor.get();
+        let Ok(shown) = self.window.update(cx, |_, window, cx| {
             muxy_ui::native_menu::show(
                 choices.iter().map(|(item, _)| item.clone()).collect(),
-                anchor,
+                gpui::point(button.left(), button.bottom() + gpui::px(1.0)),
                 window,
                 cx,
             )
         }) else {
+            return;
+        };
+        let Some(receiver) = shown else {
+            self.open_composer_menu(&choices, button, cx);
             return;
         };
         let view = view.downgrade();
@@ -564,6 +569,67 @@ impl AppModel {
             });
         })
         .detach();
+    }
+}
+
+impl AppModel {
+    /// Closes the composer's menu with the composer, and leaves the keyboard
+    /// to the pane rather than to a composer on its way out.
+    fn close_composer_menu(&mut self, cx: &mut Context<Self>) {
+        use crate::views::{menu::Command, overlays::Overlay};
+
+        if let Some(Overlay::Menu(menu)) = &self.overlay
+            && menu
+                .items
+                .iter()
+                .any(|item| matches!(item.command(), Some(Command::Composer(..))))
+        {
+            self.dismiss_overlay(cx);
+        }
+        self.focus_return = None;
+    }
+
+    /// The composer's menu, drawn by the app where the system pops up none.
+    pub(super) fn open_composer_menu(
+        &mut self,
+        choices: &[(
+            muxy_ui::native_menu::Item,
+            crate::views::composer::menu::Command,
+        )],
+        button: gpui::Bounds<gpui::Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::views::menu::{Command, Item, Menu};
+
+        let Some(view) = &self.composer.view else {
+            return;
+        };
+        let composer = view.entity_id();
+        let items = choices
+            .iter()
+            .map(|(choice, command)| {
+                let mut item =
+                    Item::action(choice.label.clone(), Command::Composer(composer, *command));
+                if choice.checked {
+                    item = item.checked_if(true);
+                }
+                if !choice.enabled {
+                    item = item.disabled();
+                }
+                if choice.separator {
+                    item = item.separated();
+                }
+                item
+            })
+            .collect();
+        let mut menu = Menu::new(items, button.bottom_left());
+        menu.drops_from = Some(button);
+        menu.returns_focus_to = Some(view.focus_handle(cx).downgrade());
+        self.overlay_subscription = None;
+        self.overlay = Some(crate::views::overlays::Overlay::Menu(menu));
+        let focus = self.overlay_focus.clone();
+        let _ = self.window.update(cx, |_, window, _| focus.focus(window));
+        cx.notify();
     }
 }
 

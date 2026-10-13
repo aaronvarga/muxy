@@ -243,7 +243,7 @@ impl VoicePanel {
                 div()
                     .flex_none()
                     .w(m.scaled(60.0))
-                    .font_family(".AppleSystemUIFontMonospaced")
+                    .font_family(muxy_ui::font::monospace())
                     .font_weight(FontWeight::MEDIUM)
                     .text_size(m.font_emphasis())
                     .child(format!("{:02}:{:02}", elapsed / 60, elapsed % 60)),
@@ -310,7 +310,7 @@ impl VoicePanel {
                     .gap(m.spacing1())
                     .child(
                         div()
-                            .font_family(".AppleSystemUIFontMonospaced")
+                            .font_family(muxy_ui::font::monospace())
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(self.theme.fg_muted)
                             .child(key),

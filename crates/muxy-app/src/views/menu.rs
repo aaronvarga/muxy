@@ -79,6 +79,8 @@ pub(crate) enum Command {
     /// The open remote file link's menu: copy the file here and open it.
     OpenRemoteCopy,
     CopyRemotePath,
+    /// A row of the menu the composer with this identity opened.
+    Composer(gpui::EntityId, super::composer::menu::Command),
 }
 
 #[derive(Clone, Debug)]
@@ -174,6 +176,12 @@ pub(crate) fn color_items(current: Option<&str>, command: impl Fn(usize) -> Comm
 pub(crate) struct Menu {
     pub(crate) items: Vec<Item>,
     pub(crate) position: Point<Pixels>,
+    /// The control the menu drops down from. It opens above the control when
+    /// there is no room below.
+    pub(crate) drops_from: Option<Bounds<Pixels>>,
+    /// What takes the keyboard back when the menu closes, instead of the
+    /// active pane.
+    pub(crate) returns_focus_to: Option<gpui::WeakFocusHandle>,
     /// The root menu first, then one entry per open submenu, each opened from
     /// the row highlighted in the level before it.
     levels: Vec<Level>,
@@ -203,6 +211,8 @@ impl Menu {
         Self {
             items,
             position,
+            drops_from: None,
+            returns_focus_to: None,
             levels: vec![Level::default()],
             pointer: None,
             pending: None,
@@ -640,6 +650,14 @@ impl AppModel {
             }
             Command::OpenRemoteCopy => self.open_remote_copy(cx),
             Command::CopyRemotePath => self.copy_remote_path(cx),
+            Command::Composer(id, command) => {
+                if let Some(composer) = &self.composer.view
+                    && composer.entity_id() == id
+                {
+                    composer.update(cx, |composer, cx| composer.menu_action(command, cx));
+                }
+                return;
+            }
         }
         self.focus_active(window, cx);
     }

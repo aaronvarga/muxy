@@ -59,6 +59,7 @@ mod views {
         pub(crate) mod links;
         pub(crate) mod pane;
         pub(crate) mod scroll;
+        pub(crate) mod scrollbar;
         pub(crate) mod selection;
     }
     pub(crate) mod voice;
@@ -134,8 +135,6 @@ fn main() -> ExitCode {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_min_size: Some(size(px(640.0), px(400.0))),
             window_background: WindowBackgroundAppearance::Transparent,
-            #[cfg(target_os = "linux")]
-            window_decorations: Some(gpui::WindowDecorations::Client),
             // Empty titlebar space explicitly starts native movement, not tab presses.
             is_movable: !cfg!(target_os = "macos"),
             titlebar: Some(TitlebarOptions {
@@ -146,6 +145,8 @@ fn main() -> ExitCode {
             ..WindowOptions::default()
         };
         if let Err(error) = cx.open_window(options, |window, cx| {
+            #[cfg(target_os = "linux")]
+            views::titlebar::linux::adopt_system_frame(window, app_name());
             let model = cx.new(|cx| AppModel::new(boot, window, cx));
             model.update(cx, |_, cx| AppModel::open_folders_from(opened_folders, cx));
             let configuration = model.downgrade();

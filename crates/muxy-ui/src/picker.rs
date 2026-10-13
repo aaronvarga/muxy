@@ -1629,7 +1629,7 @@ impl Picker {
             .min_h(self.metrics.scaled(20.0))
             .px(self.metrics.spacing5())
             .text_size(self.metrics.font_caption())
-            .font_family("monospace")
+            .font_family(crate::font::monospace())
             .text_color(self.theme.fg)
             .child(line)
             .into_any_element()

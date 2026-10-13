@@ -153,6 +153,8 @@ pub(crate) struct AppModel {
     pub(crate) overlay: Option<Overlay>,
     pub(crate) overlay_focus: FocusHandle,
     pub(crate) focus_requested: bool,
+    /// What a requested focus goes back to, instead of the active pane.
+    pub(crate) focus_return: Option<gpui::WeakFocusHandle>,
     pub(crate) split_resize: crate::views::splits::SplitResizeState,
     pub(crate) sidebar_resize: Option<crate::views::sidebar::SidebarResize>,
     pub(crate) tab_drag: crate::views::tab_strip::TabDragState,
@@ -520,6 +522,7 @@ impl AppModel {
             overlay: None,
             overlay_focus: cx.focus_handle(),
             focus_requested: false,
+            focus_return: None,
             split_resize: crate::views::splits::SplitResizeState::default(),
             sidebar_resize: None,
             tab_drag: crate::views::tab_strip::TabDragState::default(),
@@ -2670,6 +2673,7 @@ mod tests {
     use muxy_protocol::ExitReason;
     mod activity;
     mod ai;
+    mod commands;
     mod composer;
     mod detach;
     mod find;

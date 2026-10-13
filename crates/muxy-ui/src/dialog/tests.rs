@@ -1,10 +1,23 @@
 use super::*;
-use gpui::{Context, Entity, IntoElement, Render, TestAppContext, div};
+use gpui::{
+    Context, Entity, FocusHandle, InteractiveElement, IntoElement, Render, TestAppContext, div,
+};
 
-struct Host;
+struct Host {
+    focus: FocusHandle,
+}
+
+impl Host {
+    fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            focus: cx.focus_handle(),
+        }
+    }
+}
+
 impl Render for Host {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div()
+        div().track_focus(&self.focus)
     }
 }
 
@@ -16,7 +29,7 @@ fn active(window: &Window, cx: &App) -> Entity<view::Dialog> {
 
 #[gpui::test]
 fn cancelling_a_confirmation_cannot_confirm_or_dismiss_its_successor(cx: &mut TestAppContext) {
-    let (_, cx) = cx.add_window_view(|_, _| Host);
+    let (_, cx) = cx.add_window_view(|_, cx| Host::new(cx));
     let answers = Rc::new(RefCell::new(Vec::new()));
     let first = cx.update(|window, cx| {
         let answers = answers.clone();
@@ -72,7 +85,7 @@ fn cancelling_a_confirmation_cannot_confirm_or_dismiss_its_successor(cx: &mut Te
 fn consent_dismissal_never_grants_permission_and_rejects_overlapping_prompts(
     cx: &mut TestAppContext,
 ) {
-    let (_, cx) = cx.add_window_view(|_, _| Host);
+    let (_, cx) = cx.add_window_view(|_, cx| Host::new(cx));
     let answers = Rc::new(RefCell::new(Vec::new()));
     let prompt = cx.update(|window, cx| {
         let answers = answers.clone();
@@ -93,4 +106,32 @@ fn consent_dismissal_never_grants_permission_and_rejects_overlapping_prompts(
     drop(prompt);
     cx.run_until_parked();
     assert_eq!(*answers.borrow(), [ConsentResponse::Cancel]);
+}
+
+#[gpui::test]
+fn a_confirmation_keeps_the_keyboard_when_the_window_refocuses_its_content(
+    cx: &mut TestAppContext,
+) {
+    let (host, cx) = cx.add_window_view(|_, cx| Host::new(cx));
+    let answers = Rc::new(RefCell::new(Vec::new()));
+    let prompt = cx.update(|window, cx| {
+        let answers = answers.clone();
+        confirm(
+            window,
+            cx,
+            "Close Pane?",
+            "A process is still running.",
+            "Close",
+            None,
+            move |answer| answers.borrow_mut().push(answer),
+        )
+        .expect("prompt")
+    });
+    cx.update(|window, cx| {
+        let content = host.read(cx).focus.clone();
+        window.focus(&content);
+    });
+    cx.simulate_keystrokes("escape");
+    assert_eq!(*answers.borrow(), [ConfirmationResponse::Cancelled]);
+    drop(prompt);
 }

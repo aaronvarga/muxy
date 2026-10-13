@@ -284,7 +284,7 @@ fn detail_row(m: Metrics, theme: &Theme, label: &str, value: String, color: Hsla
             div()
                 .min_w(px(0.0))
                 .truncate()
-                .font_family(".AppleSystemUIFontMonospaced")
+                .font_family(muxy_ui::font::monospace())
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(color)
                 .child(value),

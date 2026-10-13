@@ -19,6 +19,7 @@ use super::{
     colors::Palette,
     element, find, input,
     scroll::{HistoryRequest, Scroll, output_changed},
+    scrollbar::Scrollbar,
     selection::{Point, SelectedRow, Selection},
 };
 
@@ -103,6 +104,7 @@ pub(crate) struct TerminalPane {
     pub(crate) native_scroll: Option<muxy_ui::native_scroll::NativeScrollView>,
     #[cfg(target_os = "macos")]
     native_sequence: u64,
+    pub(super) scrollbar: Scrollbar,
     saved_history: Option<HistoryRequest>,
     pub(crate) focus: FocusHandle,
     pub(crate) focused: bool,
@@ -199,6 +201,7 @@ impl TerminalPane {
             native_scroll: None,
             #[cfg(target_os = "macos")]
             native_sequence: 0,
+            scrollbar: Scrollbar::new(cx.background_executor().now()),
             saved_history: None,
             focus: cx.focus_handle(),
             focused: true,
@@ -369,6 +372,23 @@ impl TerminalPane {
                 self.restart_find(cx);
             }
             self.validate_selection();
+            self.reveal_scrollbar(cx);
+            cx.notify();
+        }
+    }
+
+    /// Moves the view to `rows` above the bottom.
+    pub(super) fn scroll_to(&mut self, rows: f64, cx: &mut Context<Self>) {
+        if let Some(grid) = &self.grid {
+            let height = usize::from(self.viewport.unwrap_or(grid.size).rows);
+            let was_scrolled = self.scroll.view.is_some();
+            if let Some(request) = self.scroll.move_to(rows, grid, height) {
+                self.request_history(request, cx);
+            }
+            if was_scrolled && self.scroll.view.is_none() {
+                self.restart_find(cx);
+            }
+            self.validate_selection();
             cx.notify();
         }
     }
@@ -383,7 +403,7 @@ impl TerminalPane {
         }
     }
 
-    fn prepare_saved_history(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn prepare_saved_history(&mut self, cx: &mut Context<Self>) {
         if self.saved_history.is_none()
             && matches!(
                 self.state,
@@ -442,22 +462,7 @@ impl TerminalPane {
             return;
         }
         self.native_sequence = position.sequence;
-        if let Some(grid) = &self.grid {
-            let height = usize::from(self.viewport.unwrap_or(grid.size).rows);
-            let was_scrolled = self.scroll.view.is_some();
-            if let Some(request) = self.scroll.move_to(
-                position.from_bottom / f64::from(self.cell_height),
-                grid,
-                height,
-            ) {
-                self.request_history(request, cx);
-            }
-            if was_scrolled && self.scroll.view.is_none() {
-                self.restart_find(cx);
-            }
-            self.validate_selection();
-            cx.notify();
-        }
+        self.scroll_to(position.from_bottom / f64::from(self.cell_height), cx);
     }
 
     pub(crate) fn receive_history(
@@ -533,6 +538,7 @@ impl TerminalPane {
             super::scroll::PromptOperation::Next
         };
         self.prompt_operation(operation, anchor, cx);
+        self.reveal_scrollbar(cx);
     }
 
     pub(crate) fn select_command_output(
@@ -719,7 +725,6 @@ impl TerminalPane {
         self.scroll.view.as_ref().or(self.grid.as_ref())
     }
 
-    #[cfg(target_os = "macos")]
     #[allow(clippy::cast_precision_loss)]
     pub(super) fn scrollable_rows(&self, viewport_rows: u16) -> f64 {
         self.displayed_grid().map_or(0.0, |grid| {
@@ -774,7 +779,7 @@ impl TerminalPane {
             && !shift
     }
 
-    fn reports_wheel(&self) -> bool {
+    pub(super) fn reports_wheel(&self) -> bool {
         self.state == PaneState::Live
             && self.terminal.options.mouse_reporting
             && (self.input_modes.mouse_tracking || self.input_modes.alternate_scroll)
@@ -1019,6 +1024,11 @@ impl TerminalPane {
     ) {
         self.focus.focus(window);
         cx.emit(PaneEvent::Focused);
+        if event.button == MouseButton::Left && self.press_scrollbar(event.position, cx) {
+            self.stop_selecting();
+            cx.stop_propagation();
+            return;
+        }
         if event.button == MouseButton::Left && event.modifiers.platform {
             self.hover_link(event.position, true, cx);
             if let Some(target) = self.link_hover.target.clone() {
@@ -1078,6 +1088,15 @@ impl TerminalPane {
             self.stop_selecting();
             return;
         }
+        if self.scrollbar_dragging() {
+            if event.pressed_button == Some(MouseButton::Left) {
+                self.drag_scrollbar(event.position, cx);
+            } else {
+                self.release_scrollbar(cx);
+            }
+            return;
+        }
+        self.hover_scrollbar(event.position, cx);
         self.hover_link(
             event.position,
             event.modifiers.platform && event.pressed_button.is_none(),
@@ -1227,7 +1246,7 @@ impl TerminalPane {
             );
             return;
         }
-        if event.button != MouseButton::Left {
+        if event.button != MouseButton::Left || self.release_scrollbar(cx) {
             return;
         }
         let completed_selection = self.selecting.is_some();
@@ -1737,6 +1756,7 @@ impl Render for TerminalPane {
 mod tests {
     mod autoscroll;
     mod bindings;
+    mod scrollbar;
     mod server_input;
 
     use super::*;
