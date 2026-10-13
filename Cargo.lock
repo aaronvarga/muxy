@@ -198,6 +198,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "rand 0.9.5",
+ "raw-window-handle",
  "serde",
  "serde_repr",
  "url",
@@ -2635,7 +2636,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/muxy-app/gpui?rev=bd450eaedd79e2c86ba7a3bae0b62827f6a25954#bd450eaedd79e2c86ba7a3bae0b62827f6a25954"
+source = "git+https://github.com/muxy-app/gpui?rev=0f0fecb8f3b125df633598973d78cd81a7880e87#0f0fecb8f3b125df633598973d78cd81a7880e87"
 dependencies = [
  "anyhow",
  "as-raw-xcb-connection",
@@ -4174,6 +4175,7 @@ dependencies = [
 name = "muxy-ui"
 version = "2.0.0-beta-0"
 dependencies = [
+ "ashpd 0.11.1",
  "async-channel 2.5.0",
  "block2",
  "dispatch2",
@@ -4194,6 +4196,7 @@ dependencies = [
  "objc2-web-kit",
  "raw-window-handle",
  "unicode-segmentation",
+ "zbus",
 ]
 
 [[package]]

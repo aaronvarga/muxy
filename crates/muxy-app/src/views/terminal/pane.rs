@@ -1029,7 +1029,7 @@ impl TerminalPane {
             cx.stop_propagation();
             return;
         }
-        if event.button == MouseButton::Left && event.modifiers.platform {
+        if event.button == MouseButton::Left && event.modifiers.secondary() {
             self.hover_link(event.position, true, cx);
             if let Some(target) = self.link_hover.target.clone() {
                 self.stop_selecting();
@@ -1099,7 +1099,7 @@ impl TerminalPane {
         self.hover_scrollbar(event.position, cx);
         self.hover_link(
             event.position,
-            event.modifiers.platform && event.pressed_button.is_none(),
+            event.modifiers.secondary() && event.pressed_button.is_none(),
             cx,
         );
         if self.reports_mouse(event.modifiers.shift) && self.selecting.is_none() {
@@ -1661,7 +1661,7 @@ impl Render for TerminalPane {
         }
         #[cfg(target_os = "macos")]
         self.setup_native_scroll(window, cx);
-        self.hover_link(window.mouse_position(), window.modifiers().platform, cx);
+        self.hover_link(window.mouse_position(), window.modifiers().secondary(), cx);
         let palette = self.palette;
         div()
             .id("terminal-pane")
@@ -1705,7 +1705,7 @@ impl Render for TerminalPane {
             })
             .on_modifiers_changed(cx.listener(
                 |pane, event: &gpui::ModifiersChangedEvent, window, cx| {
-                    pane.hover_link(window.mouse_position(), event.modifiers.platform, cx);
+                    pane.hover_link(window.mouse_position(), event.modifiers.secondary(), cx);
                 },
             ))
             .when(self.state == PaneState::Live, |pane| {

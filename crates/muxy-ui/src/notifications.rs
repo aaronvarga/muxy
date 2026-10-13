@@ -1,9 +1,9 @@
 //! Native delivery only; notification history and policy belong to callers.
 
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
-#[cfg(not(target_os = "macos"))]
-mod unsupported;
 
 #[cfg(any(test, feature = "test-support"))]
 use std::sync::{Arc, Mutex, PoisonError};
@@ -13,14 +13,23 @@ use async_channel::Receiver;
 use async_channel::Sender;
 use muxy_core::capability::Capability;
 
+#[cfg(target_os = "linux")]
+pub use linux::CAPABILITY;
+#[cfg(target_os = "linux")]
+use linux::Service;
 #[cfg(target_os = "macos")]
 pub use macos::CAPABILITY;
 #[cfg(target_os = "macos")]
 use macos::Service;
-#[cfg(not(target_os = "macos"))]
-pub use unsupported::CAPABILITY;
-#[cfg(not(target_os = "macos"))]
-use unsupported::Service;
+
+/// What a notification service reports while it runs.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Event {
+    /// The user opened the notification with this identifier.
+    Opened(String),
+    /// What the system lets the service do changed.
+    Capability(Capability),
+}
 
 #[derive(Debug)]
 enum Backend {
@@ -34,24 +43,39 @@ enum Backend {
 pub struct Notifications(Backend);
 
 impl Notifications {
-    /// Starts the platform's notification service. The receiver yields the
-    /// identifier of each notification the user opens.
-    pub fn start() -> (Self, Receiver<String>) {
+    /// Starts the platform's notification service, and the events it reports.
+    pub fn start() -> (Self, Receiver<Event>) {
         match Service::start() {
-            Ok((service, opened)) => (Self(Backend::Native(service)), opened),
+            Ok((service, events)) => (Self(Backend::Native(service)), events),
             Err(capability) => {
-                let (_, opened) = async_channel::bounded(1);
-                (Self(Backend::Absent(capability)), opened)
+                let (_, events) = async_channel::bounded(1);
+                (Self(Backend::Absent(capability)), events)
             }
         }
     }
 
+    /// A service with no backend, for tests that must not reach the desktop.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn absent() -> (Self, Receiver<Event>) {
+        let (_, events) = async_channel::bounded(1);
+        (Self(Backend::Absent(Capability::Unsupported)), events)
+    }
+
+    /// Whether a notification delivered now would reach the user.
     pub fn capability(&self) -> Capability {
         match &self.0 {
-            Backend::Native(_) => Capability::Supported,
+            Backend::Native(service) => service.capability(),
             #[cfg(any(test, feature = "test-support"))]
             Backend::Simulated(_) => Capability::Supported,
             Backend::Absent(capability) => capability.clone(),
+        }
+    }
+
+    /// Asks the service what the system lets it do now. A change arrives as
+    /// an [`Event::Capability`].
+    pub fn refresh(&self) {
+        if let Backend::Native(service) = &self.0 {
+            service.refresh();
         }
     }
 
@@ -78,20 +102,20 @@ impl Notifications {
 #[derive(Clone, Debug)]
 pub struct SimulatedNotifications {
     shown: Arc<Mutex<Vec<String>>>,
-    opened: Sender<String>,
+    events: Sender<Event>,
 }
 
 #[cfg(any(test, feature = "test-support"))]
 impl SimulatedNotifications {
-    pub fn start() -> (Notifications, Receiver<String>, Self) {
-        let (sender, opened) = async_channel::bounded(32);
+    pub fn start() -> (Notifications, Receiver<Event>, Self) {
+        let (sender, events) = async_channel::bounded(32);
         let simulated = Self {
             shown: Arc::default(),
-            opened: sender,
+            events: sender,
         };
         (
             Notifications(Backend::Simulated(simulated.clone())),
-            opened,
+            events,
             simulated,
         )
     }
@@ -107,6 +131,11 @@ impl SimulatedNotifications {
 
     /// Acts as the user opening the notification `id`.
     pub fn open(&self, id: &str) {
-        let _ = self.opened.try_send(id.to_owned());
+        let _ = self.events.try_send(Event::Opened(id.to_owned()));
+    }
+
+    /// Acts as the system changing what the service may do.
+    pub fn report(&self, capability: Capability) {
+        let _ = self.events.try_send(Event::Capability(capability));
     }
 }

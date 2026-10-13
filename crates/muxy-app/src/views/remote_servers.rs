@@ -856,11 +856,18 @@ impl AppModel {
             }
         };
         cx.spawn(async move |model, cx| {
-            let path = receiver.recv().await.ok().flatten();
+            let answer = receiver.recv().await.unwrap_or(Ok(None));
             drop(dialog);
-            let _ = model.update(cx, |model, cx| {
-                if let Some(path) = path {
-                    model.set_server_identity(&path, cx);
+            let _ = model.update(cx, |model, cx| match answer {
+                Ok(Some(path)) => model.set_server_identity(&path, cx),
+                Ok(None) => {}
+                Err(error) => {
+                    if let Some(Overlay::ServerForm(form)) = &mut model.overlay {
+                        form.error = Some(
+                            tr!("Could not choose a key file: %@", error.to_string()).to_string(),
+                        );
+                    }
+                    cx.notify();
                 }
             });
         })

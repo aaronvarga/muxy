@@ -321,7 +321,11 @@ fn prompt(
             });
         return cx.spawn(async move |_, _| {
             let _dialog = dialog.map_err(|error| error.to_string())?;
-            receiver.recv().await.map_err(|error| error.to_string())
+            receiver
+                .recv()
+                .await
+                .map_err(|error| error.to_string())?
+                .map_err(|error| error.to_string())
         });
     }
     let result = cx.prompt_for_paths(gpui::PathPromptOptions {

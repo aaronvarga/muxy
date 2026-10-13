@@ -416,7 +416,7 @@ impl ProjectPicker {
                 .disabled(self.session.confirmation_path().is_none()),
         ];
         if self.remote.is_none() {
-            actions.push(PickerAction::new("finder", tr!("Finder…")));
+            actions.push(PickerAction::new("finder", crate::opener::browse_label()));
             actions.push(PickerAction::new("location", tr!("Search Location…")));
         }
         actions
@@ -841,6 +841,10 @@ impl AppModel {
             while let Ok(urls) = folders.recv().await {
                 if this
                     .update(cx, |model, cx| {
+                        // A launch that names no folder asks for the window.
+                        if urls.is_empty() {
+                            model.raise_window(cx);
+                        }
                         model
                             .pending_folders
                             .extend(urls.iter().filter_map(|url| folder_from_url(url)));
@@ -1049,7 +1053,10 @@ async fn folder_prompt(
         })
         .map_err(|error| error.to_string())?
         .map_err(|error| error.to_string())?;
-    Ok(receiver.recv().await.unwrap_or_default())
+    match receiver.recv().await {
+        Ok(answer) => answer.map_err(|error| error.to_string()),
+        Err(_) => Ok(None),
+    }
 }
 
 #[cfg(test)]

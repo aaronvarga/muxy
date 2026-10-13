@@ -26,18 +26,21 @@ on Wayland draws no frame, so there the app shows its own buttons and the
 window cannot be resized from its edges.
 
 The port covers the terminal desktop, in-app dialogs and menus, desktop-portal
-file selection, Linux shortcuts, and `xdg-open` for external resources. Commands
-that macOS offers in the menu bar are in the command palette. Copy and paste
-use Ctrl+Shift+C and Ctrl+Shift+V in terminals; text fields use Ctrl+C and Ctrl+V.
+file selection, desktop notifications, Linux shortcuts, and `xdg-open` for
+external resources. Commands that macOS offers in the menu bar are in the
+command palette. Copy and paste use Ctrl+Shift+C and Ctrl+Shift+V in terminals;
+text fields use Ctrl+C and Ctrl+V. Links in a terminal open with Ctrl+click.
 Existing configured shortcuts remain literal. New configurations use the system
 monospace font and inline paths for composer images.
 
+One app runs per profile: a second launch, and `muxy <folder>`, hand their
+folders to the app that is running. The app, the `muxy` tool and the server are
+installed in one directory and find each other there.
+
 Voice input, extension scripts and webviews, global Quick Terminal shortcuts,
-native desktop notifications, and automatic updates still need Linux backends.
-Clipboard image submission is unavailable because the current clipboard API
-cannot safely preserve all MIME types and detect ownership changes. Use inline
-image paths instead. The command-line tool's in-app installer still expects a
-macOS bundle; run the built Linux CLI directly for now.
+and automatic updates still need Linux backends. Clipboard image submission is
+unavailable because the current clipboard API cannot safely preserve all MIME
+types and detect ownership changes. Use inline image paths instead.
 
 To build on Ubuntu, install Rust from `rust-toolchain.toml`, Zig 0.15.2, and the
 development packages `build-essential pkg-config clang cmake libssl-dev

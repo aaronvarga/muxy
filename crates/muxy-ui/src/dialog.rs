@@ -288,7 +288,7 @@ pub fn choose_folder(
     cx: &mut gpui::App,
     message: &str,
     directory: &std::path::Path,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
+    on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
 ) -> io::Result<FolderPicker> {
     choose_folder_with(cx, message, "", directory, on_complete)
 }
@@ -299,7 +299,7 @@ pub fn choose_folder_with(
     message: &str,
     prompt: &str,
     directory: &std::path::Path,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
+    on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
 ) -> io::Result<FolderPicker> {
     open_panel(message, prompt, directory, false, on_complete)
 }
@@ -309,7 +309,7 @@ pub fn choose_file(
     _cx: &mut gpui::App,
     message: &str,
     directory: &std::path::Path,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
+    on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
 ) -> io::Result<FolderPicker> {
     open_panel(message, "", directory, true, on_complete)
 }
@@ -319,7 +319,7 @@ fn open_panel(
     prompt: &str,
     directory: &std::path::Path,
     files: bool,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
+    on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
 ) -> io::Result<FolderPicker> {
     let main_thread = MainThreadMarker::new()
         .ok_or_else(|| io::Error::other("native dialogs require the main thread"))?;
@@ -350,7 +350,7 @@ fn open_panel(
             })
             .flatten();
         if let Some(callback) = callback.take() {
-            callback(path);
+            callback(Ok(path));
         }
     });
     panel.beginWithCompletionHandler(&handler);

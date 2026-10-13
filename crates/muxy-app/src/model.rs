@@ -389,6 +389,7 @@ impl AppModel {
             if self.path.with_file_name("terminal.toml").exists() {
                 self.reload_configuration(cx);
             }
+            self.notifications.refresh();
             self.refresh_git(cx);
             self.refresh_project_statuses(cx);
             self.reconnect_waiting(cx);
@@ -448,7 +449,10 @@ impl AppModel {
             }
         })
         .detach();
+        #[cfg(not(test))]
         let (notifications, opened) = muxy_ui::notifications::Notifications::start();
+        #[cfg(test)]
+        let (notifications, opened) = muxy_ui::notifications::Notifications::absent();
         Self::follow_notifications(opened, cx);
         let mut capabilities = capabilities::backends();
         capabilities.set(

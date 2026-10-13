@@ -25,6 +25,7 @@
 "%@ is checked out in another worktree, so this one stays on its branch." = "%@ is checked out in another worktree, so this one stays on its branch.";
 "%@ is larger than 100 MiB, the most Muxy sends to %@." = "%@ is larger than 100 MiB, the most Muxy sends to %@.";
 "%@ is no longer available. Try again." = "%@ is no longer available. Try again.";
+"%@ is not installed, so there is nothing to open this with." = "%@ is not installed, so there is nothing to open this with.";
 "%@ is running" = "%@ is running";
 "%@ isn't connected." = "%@ isn't connected.";
 "%@ must be a regular file no larger than 16 MiB" = "%@ must be a regular file no larger than 16 MiB";
@@ -400,6 +401,7 @@
 "Could not open a copy: %@" = "Could not open a copy: %@";
 "Could not open file: %@" = "Could not open file: %@";
 "Could not open link: %@" = "Could not open link: %@";
+"Could not open the file chooser: %@" = "Could not open the file chooser: %@";
 "Could not prepare the app update: %@" = "Could not prepare the app update: %@";
 "Could not prepare the update: %@. Check for updates to retry." = "Could not prepare the update: %@. Check for updates to retry.";
 "Could not preserve the clipboard" = "Could not preserve the clipboard";
@@ -496,6 +498,7 @@
 "Deny & Remember" = "Deny & Remember";
 "Desktop notifications are not available on this platform yet." = "Desktop notifications are not available on this platform yet.";
 "Desktop notifications need Muxy to run from its app bundle." = "Desktop notifications need Muxy to run from its app bundle.";
+"Desktop notifications need the session's D-Bus: %@" = "Desktop notifications need the session's D-Bus: %@";
 "Detach" = "Detach";
 "Detach Terminal" = "Detach Terminal";
 "Detached %@" = "Detached %@";
@@ -571,6 +574,7 @@
 "Extensions changed while reloading. Try again." = "Extensions changed while reloading. Try again.";
 "Fallback fonts" = "Fallback fonts";
 "File" = "File";
+"File manager" = "File manager";
 "Files" = "Files";
 "Fill padding with the background color, or extend the color of the nearest cells." = "Fill padding with the background color, or extend the color of the nearest cells.";
 "Filter layouts…" = "Filter layouts…";
@@ -656,6 +660,7 @@
 "Input" = "Input";
 "Insert" = "Insert";
 "Install" = "Install";
+"Install %@ and open it from there before installing its command line tool." = "Install %@ and open it from there before installing its command line tool.";
 "Install Command Line Tool…" = "Install Command Line Tool…";
 "Install Muxy %@ and restart the app? Running terminals will continue, and the server will update when all terminal sessions end. Restarting the server now ends all terminal sessions on this device, including sessions used by other clients." = "Install Muxy %@ and restart the app? Running terminals will continue, and the server will update when all terminal sessions end. Restarting the server now ends all terminal sessions on this device, including sessions used by other clients.";
 "Install Muxy…" = "Install Muxy…";
@@ -786,6 +791,7 @@
 "Muxy Settings" = "Muxy Settings";
 "Muxy Update" = "Muxy Update";
 "Muxy can open copies only of files in %@'s projects and Home." = "Muxy can open copies only of files in %@'s projects and Home.";
+"Muxy is already running but did not answer: %@" = "Muxy is already running but did not answer: %@";
 "Muxy is quitting" = "Muxy is quitting";
 "Muxy on %@ can't receive files. Update Muxy there." = "Muxy on %@ can't receive files. Update Muxy there.";
 "Muxy on %@ is %@" = "Muxy on %@ is %@";
@@ -842,6 +848,7 @@
 "No matching languages" = "No matching languages";
 "No matching terminals" = "No matching terminals";
 "No microphone is available" = "No microphone is available";
+"No notification service is running on this desktop." = "No notification service is running on this desktop.";
 "No on-device speech language is installed. Add one in System Settings → Keyboard → Dictation." = "No on-device speech language is installed. Add one in System Settings → Keyboard → Dictation.";
 "No opener supports this resource" = "No opener supports this resource";
 "No other terminals in this project" = "No other terminals in this project";
@@ -866,6 +873,7 @@
 "Not listening: %@" = "Not listening: %@";
 "Notes about imported terminal settings. Your original configuration is preserved." = "Notes about imported terminal settings. Your original configuration is preserved.";
 "Nothing is staged. Stage changes first or include unstaged changes." = "Nothing is staged. Stage changes first or include unstaged changes.";
+"Notifications are turned off for Muxy in System Settings." = "Notifications are turned off for Muxy in System Settings.";
 "OK" = "OK";
 "Off" = "Off";
 "On" = "On";
@@ -1148,6 +1156,7 @@
 "Shortcut" = "Shortcut";
 "Shortcut conflicts with Quick Terminal" = "Shortcut conflicts with Quick Terminal";
 "Shortcuts" = "Shortcuts";
+"Show" = "Show";
 "Show All" = "Show All";
 "Show All Projects" = "Show All Projects";
 "Show Muxy Tip" = "Show Muxy Tip";
@@ -1159,6 +1168,7 @@
 "Show all" = "Show all";
 "Show an enabled extension's sidebar in place of the built-in one." = "Show an enabled extension's sidebar in place of the built-in one.";
 "Show connection and terminal information at the bottom of the workspace." = "Show connection and terminal information at the bottom of the workspace.";
+"Show in File Manager" = "Show in File Manager";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
 "Show project names alongside their icons in the workspace sidebar." = "Show project names alongside their icons in the workspace sidebar.";
 "Show status bar" = "Show status bar";
@@ -1232,6 +1242,7 @@
 "The branch changed. Try again." = "The branch changed. Try again.";
 "The bundled client and server do not match the release" = "The bundled client and server do not match the release";
 "The command path changed during installation; try again." = "The command path changed during installation; try again.";
+"The desktop refused a notification: %@" = "The desktop refused a notification: %@";
 "The development build at %@ is uploaded to %@. It installs muxy-server and its muxy helper in ~/.local/bin, then tests the connection. It requires x86_64 Linux with glibc 2.35 or newer." = "The development build at %@ is uploaded to %@. It installs muxy-server and its muxy helper in ~/.local/bin, then tests the connection. It requires x86_64 Linux with glibc 2.35 or newer.";
 "The device disconnects now and must be paired again to reconnect." = "The device disconnects now and must be paired again to reconnect.";
 "The extension changed. Check for updates and try again." = "The extension changed. Check for updates and try again.";
@@ -1284,6 +1295,7 @@
 "This Mac" = "This Mac";
 "This backup format is not supported by this version of Muxy" = "This backup format is not supported by this version of Muxy";
 "This branch already has a pull request" = "This branch already has a pull request";
+"This desktop has no file chooser service. Install xdg-desktop-portal and its backend for your desktop." = "This desktop has no file chooser service. Install xdg-desktop-portal and its backend for your desktop.";
 "This extension is up to date." = "This extension is up to date.";
 "This is not a released version" = "This is not a released version";
 "This language is unavailable for speech recognition" = "This language is unavailable for speech recognition";

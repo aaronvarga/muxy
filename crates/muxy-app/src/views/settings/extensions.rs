@@ -269,18 +269,21 @@ impl ExtensionsView {
             }
         }
         cx.spawn(async move |view, cx| {
-            let path = receiver.recv().await.ok().flatten();
+            let answer = receiver.recv().await.unwrap_or(Ok(None));
             let task = view.update(cx, |view, cx| {
                 view.folder = None;
-                path.map(|path| {
-                    view.model
-                        .update(cx, |model, cx| model.load_unpacked_extension(path, cx))
+                answer.map(|path| {
+                    path.map(|path| {
+                        view.model
+                            .update(cx, |model, cx| model.load_unpacked_extension(path, cx))
+                    })
                 })
             });
             let result = match task {
-                Ok(Some(Ok(task))) => task.await,
-                Ok(None) => Ok(()),
-                Ok(Some(Err(error))) | Err(error) => Err(error.to_string()),
+                Ok(Ok(Some(Ok(task)))) => task.await,
+                Ok(Ok(None)) => Ok(()),
+                Ok(Err(error)) => Err(error.to_string()),
+                Ok(Ok(Some(Err(error)))) | Err(error) => Err(error.to_string()),
             };
             let _ = view.update(cx, |view, cx| {
                 view.mutation = None;

@@ -762,6 +762,26 @@ fn folders_from_the_command_line_select_their_project_or_add_it(cx: &mut TestApp
     std::fs::remove_dir_all(root).expect("cleanup");
 }
 
+/// On another computer, as macOS file systems refuse such names here.
+#[gpui::test]
+fn a_project_whose_folder_name_is_not_text_opens_like_any_other(cx: &mut TestAppContext) {
+    use std::os::unix::ffi::OsStringExt;
+    let odd = PathBuf::from(std::ffi::OsString::from_vec(b"/srv/caf\xe9 \xff".to_vec()));
+    let mut state = AppState::bootstrap().expect("state");
+    let server = ServerId::new();
+    state
+        .apply_catalog(server, &servers::page(2, ProjectId::new(), &[]))
+        .expect("remote catalog");
+    let project = state.add_project(server, odd.clone()).expect("project");
+    let (boot, _requests, _remotes) = remote_boot(state, vec![servers::entry(server, "box")]);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        model.select_project(project, cx);
+        model.sync_extension_events(cx);
+        assert_eq!(model.state.current_project().directory, odd);
+    });
+}
+
 #[gpui::test]
 fn folders_opened_at_launch_find_projects_added_while_the_app_was_closed(cx: &mut TestAppContext) {
     let root = std::env::temp_dir().join(format!("muxy-cli-launch-{}", ProjectId::new()));

@@ -446,6 +446,7 @@ impl AppModel {
             self.focus_pane(pane, cx);
             self.dismiss_overlay(cx);
             self.focus_requested = true;
+            self.raise_window(cx);
         } else if server.is_local() && !self.quick.visible && self.supports(Feature::QuickTerminal)
         {
             self.toggle_quick_terminal(cx);
@@ -461,27 +462,41 @@ impl AppModel {
         }
     }
 
-    /// Navigates to the activity behind each notification the user opens.
+    /// Navigates to the activity behind each notification the user opens,
+    /// and keeps up with whether notifications can still be shown.
     pub(super) fn follow_notifications(
-        opened: async_channel::Receiver<String>,
+        events: async_channel::Receiver<muxy_ui::notifications::Event>,
         cx: &mut Context<Self>,
     ) {
+        use muxy_ui::notifications::Event;
         cx.spawn(async move |this, cx| {
-            while let Ok(identifier) = opened.recv().await {
-                let Some((server, id)) = notification_event(&identifier) else {
-                    continue;
-                };
-                if this
-                    .update(cx, |model, cx| {
-                        cx.activate(true);
-                        model.navigate_activity(server, id, cx);
-                    })
-                    .is_err()
-                {
+            while let Ok(event) = events.recv().await {
+                let followed = this.update(cx, |model, cx| match event {
+                    Event::Opened(identifier) => {
+                        if let Some((server, id)) = notification_event(&identifier) {
+                            cx.activate(true);
+                            model.navigate_activity(server, id, cx);
+                        }
+                    }
+                    Event::Capability(capability) => {
+                        model.capabilities.set(Feature::Notifications, capability);
+                        cx.notify();
+                    }
+                });
+                if followed.is_err() {
                     break;
                 }
             }
         })
         .detach();
+    }
+
+    /// Brings the main window to the front, as far as the desktop lets an
+    /// app do that.
+    pub(crate) fn raise_window(&self, cx: &mut Context<Self>) {
+        let window = self.window;
+        cx.defer(move |cx| {
+            let _ = window.update(cx, |_, window, _| window.activate_window());
+        });
     }
 }

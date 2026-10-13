@@ -5,6 +5,8 @@ mod boot;
 mod cli_install;
 mod diagnostics;
 mod extensions;
+#[cfg(target_os = "linux")]
+mod instance;
 mod model;
 mod navigation;
 mod opener;
@@ -103,6 +105,16 @@ fn main() -> ExitCode {
             .unwrap_or_default();
         return askpass::run(&socket, &prompt);
     }
+    let (folders, opened_folders) = async_channel::unbounded();
+    #[cfg(target_os = "linux")]
+    let _instance = match instance::claim(std::env::args_os().skip(1), &folders) {
+        Ok(Some(instance)) => instance,
+        Ok(None) => return ExitCode::SUCCESS,
+        Err(error) => {
+            let _ = writeln!(io::stderr(), "muxy-app: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
     let profile = profiler::init();
     let boot = {
         let _span = profiler::span(profiler::Metric::BootLoad);
@@ -117,7 +129,6 @@ fn main() -> ExitCode {
     #[cfg(target_os = "macos")]
     muxy_ui::native_scroll::use_overlay_scrollers();
     let application = Application::new().with_assets(muxy_ui::assets::Assets);
-    let (folders, opened_folders) = async_channel::unbounded();
     application.on_open_urls(move |urls| {
         let _ = folders.try_send(urls);
     });

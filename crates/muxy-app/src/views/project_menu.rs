@@ -54,7 +54,11 @@ fn path_items(project: &Project) -> Vec<Item> {
     let copy = Item::action(tr!("Copy Path"), Command::CopyPath(project.id));
     if project.server_id.is_local() {
         vec![
-            Item::action(tr!("Reveal in Finder"), Command::RevealPath(project.id)).separated(),
+            Item::action(
+                crate::opener::reveal_label(),
+                Command::RevealPath(project.id),
+            )
+            .separated(),
             copy,
         ]
     } else {

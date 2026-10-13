@@ -1,6 +1,6 @@
-use std::{cell::RefCell, collections::HashMap, io, path::Path, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, io, rc::Rc};
 
-use gpui::{App, AppContext, AsyncApp, Global, Task, WeakEntity, Window, WindowId};
+use gpui::{App, AppContext, AsyncApp, Global, WeakEntity, Window, WindowId};
 
 pub use crate::dialog_types::{
     ADDITIONAL_PROMPT_LIMIT, ConfirmationResponse, ConsentResponse, DialogOptions, PromptCheckbox,
@@ -12,7 +12,10 @@ use crate::{
     tr,
 };
 
+mod picker;
 mod view;
+
+pub use picker::{FolderPicker, choose_file, choose_folder, choose_folder_with};
 
 #[derive(Default)]
 struct Dialogs {
@@ -372,70 +375,6 @@ pub fn present(
             );
         },
     )
-}
-
-#[derive(Debug)]
-pub struct FolderPicker {
-    _task: Task<()>,
-}
-
-pub fn choose_folder(
-    cx: &mut App,
-    message: &str,
-    directory: &Path,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
-) -> io::Result<FolderPicker> {
-    choose_folder_with(cx, message, "", directory, on_complete)
-}
-
-pub fn choose_folder_with(
-    cx: &mut App,
-    message: &str,
-    prompt: &str,
-    _directory: &Path,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
-) -> io::Result<FolderPicker> {
-    Ok(paths(
-        cx,
-        if prompt.is_empty() { message } else { prompt },
-        false,
-        on_complete,
-    ))
-}
-
-pub fn choose_file(
-    cx: &mut App,
-    message: &str,
-    _directory: &Path,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
-) -> io::Result<FolderPicker> {
-    Ok(paths(cx, message, true, on_complete))
-}
-
-fn paths(
-    cx: &mut App,
-    message: &str,
-    files: bool,
-    on_complete: impl FnOnce(Option<std::path::PathBuf>) + 'static,
-) -> FolderPicker {
-    let response = cx.prompt_for_paths(gpui::PathPromptOptions {
-        files,
-        directories: !files,
-        multiple: false,
-        prompt: Some(message.to_owned().into()),
-    });
-    FolderPicker {
-        _task: cx.spawn(async move |_| {
-            on_complete(
-                response
-                    .await
-                    .ok()
-                    .and_then(Result::ok)
-                    .flatten()
-                    .and_then(|mut paths| (paths.len() == 1).then(|| paths.remove(0))),
-            );
-        }),
-    }
 }
 
 #[cfg(test)]

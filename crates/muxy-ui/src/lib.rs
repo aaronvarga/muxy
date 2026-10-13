@@ -8,10 +8,14 @@ mod bitmap;
 pub mod command_palette;
 pub mod components;
 pub mod controls;
+#[cfg(target_os = "linux")]
+mod dbus;
 #[cfg_attr(not(target_os = "macos"), path = "dialog/portable.rs")]
 pub mod dialog;
 #[path = "dialog/types.rs"]
 mod dialog_types;
+#[cfg(target_os = "linux")]
+pub mod file_manager;
 pub mod font;
 pub mod form;
 pub mod icon;

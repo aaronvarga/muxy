@@ -191,10 +191,7 @@ fn a_timed_out_opener_is_reaped_and_the_worker_accepts_later_work() {
     })
     .expect("hang job");
     pool.try_spawn(move || {
-        let command = Launch {
-            program: "/usr/bin/true".into(),
-            args: Vec::new(),
-        };
+        let command = Launch::program("/usr/bin/true", []);
         send.send(launch(&command).map_err(|error| error.kind()))
             .expect("result");
     })
@@ -251,6 +248,28 @@ fn linux_openers_preserve_literal_paths_and_use_the_file_manager_for_reveal() {
         Launch::system([location.path.as_os_str().to_owned()]).program,
         Path::new("xdg-open")
     );
-    assert_eq!(finder(&location.path).args, [OsString::from("/tmp")]);
-    assert_eq!(finder(&directory).args, [directory.into_os_string()]);
+    let reveal = finder(&location.path);
+    assert_eq!(reveal.select.as_deref(), Some(location.path.as_path()));
+    assert_eq!(
+        (reveal.program.as_path(), reveal.args.as_slice()),
+        (Path::new("xdg-open"), [OsString::from("/tmp")].as_slice()),
+        "without a file manager that selects, the folder opens"
+    );
+    let folder = finder(&directory);
+    assert_eq!(folder.select, None);
+    assert_eq!(folder.args, [directory.into_os_string()]);
+}
+
+#[test]
+fn a_missing_program_is_named_and_other_failures_are_kept() {
+    let missing = Launch::program("/nonexistent/muxy-opener", ["a file".into()]);
+    let error = launch(&missing).expect_err("nothing to run");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert!(
+        error.to_string().contains("/nonexistent/muxy-opener"),
+        "{error}"
+    );
+    let failing = Launch::program("/usr/bin/false", []);
+    let error = launch(&failing).expect_err("exits with failure");
+    assert_ne!(error.kind(), io::ErrorKind::NotFound);
 }

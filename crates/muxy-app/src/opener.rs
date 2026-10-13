@@ -21,6 +21,31 @@ mod tests;
 
 const FINDER: &str = "com.apple.finder";
 
+/// The label key of the file manager, among the openers in Settings.
+pub(crate) const FILE_MANAGER: &str = if cfg!(target_os = "macos") {
+    "Finder"
+} else {
+    muxy_ui::l10n::tr_key!("File manager")
+};
+
+/// The menu item that shows a path in the file manager.
+pub(crate) fn reveal_label() -> gpui::SharedString {
+    if cfg!(target_os = "macos") {
+        tr!("Reveal in Finder")
+    } else {
+        tr!("Show in File Manager")
+    }
+}
+
+/// The action that picks a folder in the system's own dialog.
+pub(crate) fn browse_label() -> gpui::SharedString {
+    if cfg!(target_os = "macos") {
+        tr!("Finder…")
+    } else {
+        tr!("Browse…")
+    }
+}
+
 pub(crate) fn submit<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
 ) -> io::Result<async_channel::Receiver<T>> {
@@ -145,23 +170,41 @@ fn open_with<'a>(
 struct Launch {
     program: PathBuf,
     args: Vec<OsString>,
+    /// A file to select in its folder, where a file manager offers that. The
+    /// program runs when none does.
+    #[cfg(not(target_os = "macos"))]
+    select: Option<PathBuf>,
 }
 
 impl Launch {
     fn system(args: impl IntoIterator<Item = OsString>) -> Self {
-        Self {
-            program: if cfg!(target_os = "macos") {
+        Self::program(
+            if cfg!(target_os = "macos") {
                 "/usr/bin/open"
             } else {
                 "xdg-open"
-            }
-            .into(),
+            },
+            args,
+        )
+    }
+
+    fn program(program: impl Into<PathBuf>, args: impl IntoIterator<Item = OsString>) -> Self {
+        Self {
+            program: program.into(),
             args: args.into_iter().collect(),
+            #[cfg(not(target_os = "macos"))]
+            select: None,
         }
     }
 }
 
 fn launch(launch: &Launch) -> io::Result<()> {
+    #[cfg(not(target_os = "macos"))]
+    if let Some(file) = &launch.select
+        && muxy_ui::file_manager::select(file).is_ok()
+    {
+        return Ok(());
+    }
     process::run(
         Command::new(&launch.program)
             .args(&launch.args)
@@ -169,6 +212,22 @@ fn launch(launch: &Launch) -> io::Result<()> {
         Duration::from_secs(10),
     )
     .map(drop)
+    .map_err(|error| missing(&launch.program, error))
+}
+
+/// Names the program when it is what could not be found.
+fn missing(program: &Path, error: io::Error) -> io::Error {
+    if error.kind() != io::ErrorKind::NotFound {
+        return error;
+    }
+    io::Error::new(
+        io::ErrorKind::NotFound,
+        tr!(
+            "%@ is not installed, so there is nothing to open this with.",
+            program.display().to_string()
+        )
+        .to_string(),
+    )
 }
 
 /// Opens a file with this computer's default app for its type.
@@ -176,8 +235,9 @@ pub(crate) fn open_with_default_app(path: &Path) -> io::Result<()> {
     launch(&Launch::system([path.as_os_str().to_owned()]))
 }
 
-/// Shows a path in Finder: a file selected in its folder, or a folder opened.
-/// A path that doesn't exist yet shows its nearest existing folder.
+/// Shows a path in the file manager: a file selected in its folder, or a
+/// folder opened. A path that doesn't exist yet shows its nearest existing
+/// folder.
 pub(crate) fn reveal(path: &Path) -> io::Result<()> {
     let existing = path.ancestors().find(|path| path.exists()).unwrap_or(path);
     launch(&finder(existing))
@@ -374,12 +434,14 @@ fn editor_rank(bundle: &str) -> Option<usize> {
 
 #[cfg(not(target_os = "macos"))]
 fn finder(path: &Path) -> Launch {
-    let directory = if path.is_dir() {
-        path
-    } else {
-        path.parent().unwrap_or(path)
-    };
-    Launch::system([directory.as_os_str().to_owned()])
+    if path.is_dir() {
+        return Launch::system([path.as_os_str().to_owned()]);
+    }
+    let folder = path.parent().unwrap_or(path);
+    Launch {
+        select: Some(path.to_owned()),
+        ..Launch::system([folder.as_os_str().to_owned()])
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -396,10 +458,7 @@ impl Editor {
             }
             args.push(location_argument(file));
         }
-        Launch {
-            program: self.path.clone(),
-            args,
-        }
+        Launch::program(self.path.clone(), args)
     }
 }
 

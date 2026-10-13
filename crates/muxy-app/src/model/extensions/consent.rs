@@ -476,7 +476,7 @@ impl AppModel {
         }
         self.extensions.next += 1;
         let id = self.extensions.next;
-        let (sender, receiver) = async_channel::bounded::<Option<String>>(1);
+        let (sender, receiver) = async_channel::bounded::<Result<Option<String>, String>>(1);
         let shown: std::io::Result<Box<dyn std::any::Any>> = if call.verb == "dialog.pickFolder" {
             let start = call.args["default"]
                 .as_str()
@@ -489,7 +489,10 @@ impl AppModel {
                 &clamp(call.args["message"].as_str().unwrap_or("")),
                 &start,
                 move |path| {
-                    let _ = sender.try_send(path.map(|path| path.display().to_string()));
+                    let _ = sender.try_send(
+                        path.map(|path| path.map(|path| path.display().to_string()))
+                            .map_err(|error| error.to_string()),
+                    );
                 },
             )
             .map(|picker| Box::new(picker) as Box<dyn std::any::Any>)
@@ -498,7 +501,7 @@ impl AppModel {
                 |error| Err(std::io::Error::other(error)),
                 |options| {
                     muxy_ui::dialog::present(window, cx, options, move |value| {
-                        let _ = sender.try_send(value);
+                        let _ = sender.try_send(Ok(value));
                     })
                     .map(|sheet| Box::new(sheet) as Box<dyn std::any::Any>)
                 },
@@ -520,7 +523,7 @@ impl AppModel {
         }
         let handle = self.window;
         cx.spawn(async move |model, cx| {
-            let value = receiver.recv().await.ok().flatten();
+            let value = receiver.recv().await.unwrap_or(Ok(None));
             let _ = handle.update(cx, |_, window, cx| {
                 let _ = model.update(cx, |model, cx| {
                     if model
@@ -532,8 +535,9 @@ impl AppModel {
                         model.extensions.sheet = None;
                     }
                     if model.call_live(&call, cx) {
-                        let result = dialog_result(&call.verb, &call.args, value, cx);
-                        call.reply.send(Ok(result), cx);
+                        let result =
+                            value.map(|value| dialog_result(&call.verb, &call.args, value, cx));
+                        call.reply.send(result, cx);
                     } else {
                         call.reply.send(Err("extension call expired".into()), cx);
                     }
