@@ -1,10 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::path::Path;
 use std::ptr;
 
 use async_channel::{Receiver, Sender};
 use block2::{DynBlock, RcBlock};
 use gpui::{Bounds, CursorStyle, Pixels, Rgba, Window};
+use muxy_core::capability::Capability;
 use muxy_core::worker::WorkerPool;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
@@ -30,7 +32,7 @@ use objc2_web_kit::{
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-use super::{AssetResult, Event, Snapshot, assets, assets::Source};
+use super::{AssetResult, Event, Pointer, Snapshot, assets, assets::Source, rules};
 use crate::tr;
 
 type Reply = RcBlock<dyn Fn(*mut AnyObject, *mut NSString)>;
@@ -66,7 +68,7 @@ impl State {
     }
     fn cancel_replies(&self) {
         for (_, reply) in self.replies.take() {
-            reject(&reply, "document retired");
+            reject(&reply, rules::DOCUMENT_RETIRED);
         }
     }
 }
@@ -77,9 +79,11 @@ fn reject(reply: &DynBlock<dyn Fn(*mut AnyObject, *mut NSString)>, error: &str) 
 }
 
 fn own_url(url: &NSURL, owner: &str) -> bool {
-    url.scheme()
-        .is_some_and(|scheme| scheme.to_string() == "muxy-ext")
-        && url.host().is_some_and(|host| host.to_string() == owner)
+    rules::owns(&part(url.scheme()), &part(url.host()), owner)
+}
+
+fn part(text: Option<Retained<NSString>>) -> String {
+    text.map_or_else(String::new, |text| text.to_string())
 }
 
 define_class!(
@@ -107,7 +111,7 @@ define_class!(
                     .URL()
                     .is_some_and(|url| own_url(&url, &state.source.owner))
             {
-                reject(reply, "message is not from the registered main document");
+                reject(reply, rules::NOT_MAIN_DOCUMENT);
                 return;
             }
             let body = unsafe { message.body() };
@@ -118,11 +122,11 @@ define_class!(
                 )
             };
             let Ok(data) = data else {
-                reject(reply, "invalid JSON message");
+                reject(reply, rules::INVALID_MESSAGE);
                 return;
             };
-            if data.len() > 1024 * 1024 || state.replies.borrow().len() >= 128 {
-                reject(reply, "webview request limit exceeded");
+            if !rules::admits_message(data.len(), state.replies.borrow().len()) {
+                reject(reply, rules::REQUEST_LIMIT);
                 return;
             }
             let json = String::from_utf8_lossy(&data.to_vec()).into_owned();
@@ -138,7 +142,7 @@ define_class!(
                 .is_err()
             {
                 state.replies.borrow_mut().remove(&id);
-                reject(reply, "webview request queue full");
+                reject(reply, rules::QUEUE_FULL);
             }
         }
     }
@@ -152,10 +156,11 @@ define_class!(
             completion: &DynBlock<dyn Fn(WKNavigationActionPolicy)>,
         ) {
             let allowed = unsafe { action.request() }.URL().is_some_and(|url| {
-                own_url(&url, &self.ivars().source.owner)
-                    || url
-                        .scheme()
-                        .is_some_and(|scheme| scheme.to_string() == "about")
+                rules::may_navigate(
+                    &part(url.scheme()),
+                    &part(url.host()),
+                    &self.ivars().source.owner,
+                )
             });
             completion.call((if allowed {
                 WKNavigationActionPolicy::Allow
@@ -219,7 +224,7 @@ define_class!(
                 fail_asset(task);
                 return;
             };
-            if state.assets.borrow().len() >= 32 {
+            if !rules::admits_asset(state.assets.borrow().len()) {
                 fail_asset(task);
                 return;
             }
@@ -382,11 +387,20 @@ impl GripOverlay {
     }
 }
 
-pub const CAPABILITY: muxy_core::capability::Capability =
-    muxy_core::capability::Capability::Supported;
+pub const CAPABILITY: Capability = Capability::Supported;
+/// The system shows the page in a native view above the window.
+pub(super) const DRAWN_BY_APP: bool = false;
+
+/// `WebKit` is part of the system, so there is nothing to load.
+pub(super) fn probe() -> Capability {
+    CAPABILITY
+}
+
+/// Pages keep what they store with the app's own `WebKit` data.
+pub(super) fn set_data_directory(_directory: &Path) {}
 
 #[derive(Debug)]
-pub struct NativeWebview {
+pub(super) struct NativeWebview {
     view: Retained<MaskedWebview>,
     grips: Retained<GripOverlay>,
     parent: Retained<NSView>,
@@ -417,7 +431,7 @@ struct Mask {
 }
 
 impl NativeWebview {
-    pub fn new(
+    pub(super) fn new(
         window: &Window,
         source: Source,
         script: &str,
@@ -455,12 +469,12 @@ impl NativeWebview {
         unsafe {
             configuration.setURLSchemeHandler_forURLScheme(
                 Some(ProtocolObject::from_ref(&*delegate)),
-                &NSString::from_str("muxy-ext"),
+                &NSString::from_str(rules::SCHEME),
             );
             controller.addScriptMessageHandlerWithReply_contentWorld_name(
                 ProtocolObject::from_ref(&*delegate),
                 &WKContentWorld::pageWorld(mtm),
-                &NSString::from_str("muxy"),
+                &NSString::from_str(rules::HANDLER),
             );
         }
         install_script(&controller, script, mtm);
@@ -511,7 +525,7 @@ impl NativeWebview {
         ))
     }
 
-    pub fn set_shortcuts(&self, modal: bool, shortcuts: Vec<gpui::Keystroke>) {
+    pub(super) fn set_shortcuts(&self, modal: bool, shortcuts: Vec<gpui::Keystroke>) {
         self.delegate.ivars().modal.set(modal);
         *self.delegate.ivars().shortcuts.borrow_mut() = shortcuts;
     }
@@ -520,7 +534,7 @@ impl NativeWebview {
     /// is, or after a click into it until Muxy catches up. A page that takes
     /// the native focus itself, as when its script focuses an element, doesn't
     /// get them.
-    pub fn set_focused(&self, focused: bool) {
+    pub(super) fn set_focused(&self, focused: bool) {
         let state = self.delegate.ivars();
         state.focused.set(focused);
         if focused {
@@ -531,7 +545,7 @@ impl NativeWebview {
     /// Sends clicks on the resize grips drawn over the page, in window
     /// coordinates, to Muxy and shows each grip's cursor there. The page's
     /// pixels don't change. Call after [`Self::occlude`].
-    pub fn set_grips(&self, grips: &[(Bounds<Pixels>, CursorStyle)]) {
+    pub(super) fn set_grips(&self, grips: &[(Bounds<Pixels>, CursorStyle)]) {
         let frame = self.parent.bounds();
         let regions: Vec<_> = visible_grips(self.bounds.get(), &self.occlusions.borrow(), grips)
             .into_iter()
@@ -549,27 +563,27 @@ impl NativeWebview {
         }
     }
 
-    pub fn set_mouse_passthrough(&self, enabled: bool) {
+    pub(super) fn set_mouse_passthrough(&self, enabled: bool) {
         self.view.ivars().passthrough_all.set(enabled);
     }
 
-    pub fn generation(&self) -> u64 {
+    pub(super) fn generation(&self) -> u64 {
         self.delegate.ivars().generation.get()
     }
 
-    pub fn install_script(&self, script: &str) {
+    pub(super) fn install_script(&self, script: &str) {
         let controller = unsafe { self.view.configuration().userContentController() };
         install_script(&controller, script, self.view.mtm());
     }
 
-    pub fn evaluate(&self, script: &str) {
+    pub(super) fn evaluate(&self, script: &str) {
         unsafe {
             self.view
                 .evaluateJavaScript_completionHandler(&NSString::from_str(script), None);
         }
     }
 
-    pub fn reply(&self, id: u64, generation: u64, json: &str) {
+    pub(super) fn reply(&self, id: u64, generation: u64, json: &str) {
         if self.generation() != generation {
             return;
         }
@@ -582,11 +596,11 @@ impl NativeWebview {
             NSJSONReadingOptions::FragmentsAllowed,
         ) {
             Ok(value) => reply.call((Retained::as_ptr(&value).cast_mut(), ptr::null_mut())),
-            Err(_) => reject(&reply, "invalid host response"),
+            Err(_) => reject(&reply, rules::INVALID_RESPONSE),
         }
     }
 
-    pub fn complete_asset(&self, id: u64, result: AssetResult) {
+    pub(super) fn complete_asset(&self, id: u64, result: AssetResult) {
         let Some(task) = self.delegate.ivars().assets.borrow_mut().remove(&id) else {
             return;
         };
@@ -613,12 +627,13 @@ impl NativeWebview {
         }
     }
 
-    pub fn sync(
+    pub(super) fn sync(
         &self,
         bounds: Bounds<Pixels>,
         clip: Bounds<Pixels>,
         background: Rgba,
         radius: f64,
+        _scale: f32,
     ) {
         self.bounds.set(bounds);
         self.clip.set(clip);
@@ -656,7 +671,7 @@ impl NativeWebview {
         self.apply_mask();
     }
 
-    pub fn occlude(&self, occlusions: &[Bounds<Pixels>]) {
+    pub(super) fn occlude(&self, occlusions: &[Bounds<Pixels>]) {
         if *self.occlusions.borrow() != occlusions {
             *self.occlusions.borrow_mut() = occlusions.to_vec();
         }
@@ -719,7 +734,7 @@ impl NativeWebview {
         )
     }
 
-    pub fn set_visible(&self, visible: bool) {
+    pub(super) fn set_visible(&self, visible: bool) {
         if self.visible.replace(visible) == visible && self.view.isHidden() != visible {
             return;
         }
@@ -731,7 +746,7 @@ impl NativeWebview {
         self.grips.setHidden(!visible);
     }
 
-    pub fn focus(&self) {
+    pub(super) fn focus(&self) {
         if self.visible.get()
             && let Some(window) = self.view.window()
         {
@@ -739,7 +754,7 @@ impl NativeWebview {
         }
     }
 
-    pub fn blur(&self) {
+    pub(super) fn blur(&self) {
         self.delegate.ivars().clicked.set(false);
         if let Some(window) = self.view.window()
             && window.firstResponder().is_some_and(|responder| {
@@ -752,7 +767,7 @@ impl NativeWebview {
         }
     }
 
-    pub fn snapshot(&self) {
+    pub(super) fn snapshot(&self) {
         let scale = self
             .view
             .window()
@@ -795,10 +810,27 @@ impl NativeWebview {
         }
     }
 
-    pub fn is_current_snapshot(&self, id: u64, generation: u64) -> bool {
+    pub(super) fn accept_snapshot(&self, id: u64, generation: u64) -> bool {
         let state = self.delegate.ivars();
         state.snapshot_id.get() == id && state.generation.get() == generation
     }
+
+    // The system delivers the pointer and the keyboard to the native view,
+    // and WebKit shows a page's menus itself.
+    #[allow(clippy::unused_self)]
+    pub(super) fn pointer(&self, _event: Pointer) {}
+
+    #[allow(clippy::unused_self)]
+    pub(super) fn key(
+        &self,
+        _keystroke: &gpui::Keystroke,
+        _pressed: bool,
+        _clipboard: impl FnOnce() -> Option<String>,
+    ) {
+    }
+
+    #[allow(clippy::unused_self)]
+    pub(super) fn choose(&self, _option: Option<usize>) {}
 }
 
 fn snapshot_rows(image: &NSImage, width: u32, height: u32) -> Option<Vec<u8>> {

@@ -4181,6 +4181,7 @@ dependencies = [
  "dispatch2",
  "gpui",
  "image",
+ "libloading",
  "muxy-core",
  "objc2",
  "objc2-app-kit",

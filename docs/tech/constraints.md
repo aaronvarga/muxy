@@ -37,16 +37,34 @@ One app runs per profile: a second launch, and `muxy <folder>`, hand their
 folders to the app that is running. The app, the `muxy` tool and the server are
 installed in one directory and find each other there.
 
-Voice input, extension scripts and webviews, global Quick Terminal shortcuts,
-and automatic updates still need Linux backends. Clipboard image submission is
-unavailable because the current clipboard API cannot safely preserve all MIME
-types and detect ownership changes. Use inline image paths instead.
+Extensions run on the system's WebKitGTK 4.1, version 2.40 or later, which the
+app loads once an extension is enabled. Without it the app still runs, and
+Settings says why extensions are off. Scripts use its JavaScriptCore, the engine
+macOS uses. A GPUI window cannot hold a WebKitGTK view, so pages render off
+screen and the app draws them and passes them input. On Linux a page therefore
+has:
+
+- no context menu, tooltips, or drag and drop;
+- text only on the clipboard, and no clipboard inside a frame;
+- no text from an input method that composes it, as for Chinese or Japanese;
+- an arrow, a hand, or a text cursor, and no other pointer shape;
+- content processes outside WebKit's sandbox where the system forbids the
+  sandbox, as Ubuntu 24.04 does for an app without an AppArmor profile.
+
+SF Symbols exist only on macOS. Linux draws a symbol from a bundled icon when
+there is one, and an extension's symbol without one as the extension icon.
+
+Voice input, global Quick Terminal shortcuts, and automatic updates still need
+Linux backends. Clipboard image submission is unavailable because the current
+clipboard API cannot safely preserve all MIME types and detect ownership
+changes. Use inline image paths instead.
 
 To build on Ubuntu, install Rust from `rust-toolchain.toml`, Zig 0.15.2, and the
 development packages `build-essential pkg-config clang cmake libssl-dev
 libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev
 libwayland-dev libxcb1-dev libvulkan-dev`. Runtime packages include
-`mesa-vulkan-drivers xdg-desktop-portal xdg-desktop-portal-gnome xdg-utils`.
+`mesa-vulkan-drivers xdg-desktop-portal xdg-desktop-portal-gnome xdg-utils`, and
+`libwebkit2gtk-4.1-0` for extensions.
 Then run `bash scripts/build-desktop-linux.sh`. `MUXY_ZIG` can point at Zig, and
 `CARGO_TARGET_DIR` must point to a guest-local writable directory when the source
 checkout is shared read-only. Keep `muxy-app`, `muxy`, and `muxy-server` together.

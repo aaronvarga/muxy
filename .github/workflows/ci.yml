@@ -87,6 +87,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y
           build-essential pkg-config clang cmake libssl-dev libfontconfig1-dev libfreetype-dev
           libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libvulkan-dev
+          libwebkit2gtk-4.1-0 xvfb
           zsh fish binutils vim-tiny less unzip
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -99,4 +100,4 @@ jobs:
         with:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: python3 scripts/check-desktop-linux.py --target "${{ matrix.target }}"
+      - run: xvfb-run -a python3 scripts/check-desktop-linux.py --target "${{ matrix.target }}"

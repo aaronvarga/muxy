@@ -58,6 +58,7 @@ enum Command {
         id: String,
         title: String,
         body: String,
+        opens: bool,
     },
     Clear(Vec<String>),
     Refresh,
@@ -147,10 +148,19 @@ impl Service {
     }
 
     pub(super) fn deliver(&self, id: &str, title: &str, body: &str) {
+        self.show(id, title, body, true);
+    }
+
+    pub(super) fn inform(&self, id: &str, title: &str, body: &str) {
+        self.show(id, title, body, false);
+    }
+
+    fn show(&self, id: &str, title: &str, body: &str, opens: bool) {
         let _ = self.commands.send(Command::Deliver {
             id: id.to_owned(),
             title: title.to_owned(),
             body: body.to_owned(),
+            opens,
         });
     }
 
@@ -163,7 +173,12 @@ impl Worker {
     fn serve(self, queue: &mpsc::Receiver<Command>) {
         for command in queue {
             match command {
-                Command::Deliver { id, title, body } => self.deliver(id, &title, &body),
+                Command::Deliver {
+                    id,
+                    title,
+                    body,
+                    opens,
+                } => self.deliver(id, &title, &body, opens),
                 Command::Clear(ids) => {
                     let numbers = lock(&self.shown).take(&ids);
                     for number in numbers {
@@ -175,9 +190,27 @@ impl Worker {
         }
     }
 
-    fn deliver(&self, id: String, title: &str, body: &str) {
+    /// Whether the desktop reads a notification's text as markup.
+    fn reads_markup(&self) -> bool {
+        self.proxy
+            .call::<_, _, Vec<String>>("GetCapabilities", &())
+            .is_ok_and(|features| features.iter().any(|feature| feature == "body-markup"))
+    }
+
+    fn deliver(&self, id: String, title: &str, body: &str, opens: bool) {
         let name = muxy_core::release::Channel::current().app_name();
         let open = tr!("Show");
+        let body = if self.reads_markup() {
+            escaped(body)
+        } else {
+            body.to_owned()
+        };
+        // A notification with nothing to open offers no action.
+        let actions = if opens {
+            vec![OPEN, open.as_ref()]
+        } else {
+            Vec::new()
+        };
         // Held until the number is recorded, so a click on it is not ignored.
         let mut shown = lock(&self.shown);
         let sent = self.proxy.call::<_, _, u32>(
@@ -188,7 +221,7 @@ impl Worker {
                 "",
                 title,
                 body,
-                vec![OPEN, open.as_ref()],
+                actions,
                 HashMap::<&str, Value<'_>>::new(),
                 -1_i32,
             ),
@@ -237,9 +270,24 @@ fn follow(signals: SignalIterator<'static>, shown: &Mutex<Shown>, events: &Sende
     }
 }
 
+/// `text` as markup that shows the same characters.
+fn escaped(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn text_is_shown_as_written_where_the_desktop_reads_markup() {
+        assert_eq!(
+            escaped("<b>1 & 2</b> &amp;"),
+            "&lt;b&gt;1 &amp; 2&lt;/b&gt; &amp;amp;"
+        );
+    }
 
     #[test]
     fn a_repeated_alert_replaces_its_notification_and_a_cleared_one_is_closed_once() {

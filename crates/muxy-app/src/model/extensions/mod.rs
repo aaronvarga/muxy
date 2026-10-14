@@ -27,6 +27,7 @@ use muxy_app_core::ServerId;
 use muxy_app_core::extensions::{
     AUDIT_LOG, AuditLog, Grants, Registry, Request, Rule, required_permission,
 };
+use muxy_core::capability::Feature;
 use muxy_protocol::ProjectId;
 use muxy_ui::tr;
 use serde_json::{Map, Value, json};
@@ -69,6 +70,8 @@ pub(crate) struct Runtime {
     shortcuts: Vec<surfaces::Shortcut>,
     events: events::Tracker,
     gh_user: Option<(std::time::Instant, Value)>,
+    /// Whether the script and page backends were asked if they can run.
+    runtimes_probed: bool,
 }
 
 impl Runtime {
@@ -106,6 +109,7 @@ impl Runtime {
             shortcuts: Vec::new(),
             events: events::Tracker::default(),
             gh_user: None,
+            runtimes_probed: false,
         }
     }
 
@@ -313,6 +317,34 @@ impl AppModel {
             .cloned()
     }
 
+    /// Asks the script and page backends whether what they load at run time
+    /// is there, once an extension is enabled to need it. The answer can only
+    /// take a feature away, and says why.
+    fn probe_extension_runtimes(&mut self, cx: &mut Context<Self>) {
+        if self.extensions.runtimes_probed || self.extensions.registry.active().next().is_none() {
+            return;
+        }
+        self.extensions.runtimes_probed = true;
+        let probe = cx.background_executor().spawn(async {
+            [
+                (Feature::ExtensionScripts, muxy_ui::javascript::probe()),
+                (Feature::ExtensionWebviews, muxy_ui::webview::probe()),
+            ]
+        });
+        cx.spawn(async move |model, cx| {
+            let found = probe.await;
+            let _ = model.update(cx, |model, cx| {
+                for (feature, capability) in found {
+                    if model.capabilities.has_backend(feature) && !capability.is_supported() {
+                        model.capabilities.set(feature, capability);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     fn receive_extension_snapshot(&mut self, snapshot: local::Snapshot, cx: &mut Context<Self>) {
         if snapshot.revision <= self.extensions.local_revision {
             return;
@@ -329,6 +361,7 @@ impl AppModel {
         }
         self.extensions.local_revision = snapshot.revision;
         self.extensions.registry = snapshot.registry;
+        self.probe_extension_runtimes(cx);
         self.extensions.grants = snapshot.grants;
         self.extensions.settings = snapshot.settings;
         self.read_earlier_logs(cx);

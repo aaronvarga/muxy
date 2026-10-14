@@ -167,6 +167,11 @@ impl Service {
         Ok((service, receiver))
     }
 
+    /// The system brings the app forward for a click on any notification.
+    pub(super) fn inform(&self, id: &str, title: &str, body: &str) {
+        self.deliver(id, title, body);
+    }
+
     pub(super) fn deliver(&self, id: &str, title: &str, body: &str) {
         let content = UNMutableNotificationContent::new();
         content.setTitle(&NSString::from_str(title));

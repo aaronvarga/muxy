@@ -240,7 +240,7 @@ impl AppModel {
         self.show_toast(title.clone(), Some(body.clone()), cx);
         if self.supports(muxy_core::capability::Feature::Notifications) {
             self.extensions.next += 1;
-            self.notifications.deliver(
+            self.notifications.inform(
                 &format!("extension:{}:{}", call.owner, self.extensions.next),
                 if title.is_empty() {
                     &call.owner

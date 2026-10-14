@@ -567,7 +567,10 @@
 "Extend always" = "Extend always";
 "Extension %@ is not loaded" = "Extension %@ is not loaded";
 "Extension log writer is unavailable." = "Extension log writer is unavailable.";
+"Extension pages need WebKitGTK 4.1, which could not be loaded: %@" = "Extension pages need WebKitGTK 4.1, which could not be loaded: %@";
+"Extension pages need a desktop session to render in." = "Extension pages need a desktop session to render in.";
 "Extension scripts are not available on this platform yet." = "Extension scripts are not available on this platform yet.";
+"Extension scripts need WebKitGTK 4.1, which could not be loaded: %@" = "Extension scripts need WebKitGTK 4.1, which could not be loaded: %@";
 "Extension updated." = "Extension updated.";
 "Extension webviews are not available on this platform yet." = "Extension webviews are not available on this platform yet.";
 "Extensions" = "Extensions";
@@ -1250,6 +1253,7 @@
 "The extension kept an open view. Save or close it before reloading." = "The extension kept an open view. Save or close it before reloading.";
 "The extension view could not be closed. Try reloading again." = "The extension view could not be closed. Try reloading again.";
 "The extension was updated but could not be enabled: %@" = "The extension was updated but could not be enabled: %@";
+"The extension's page could not be loaded." = "The extension's page could not be loaded.";
 "The folder operation was cancelled." = "The folder operation was cancelled.";
 "The image is empty." = "The image is empty.";
 "The installed app changed. Reopen Muxy to update the server." = "The installed app changed. Reopen Muxy to update the server.";

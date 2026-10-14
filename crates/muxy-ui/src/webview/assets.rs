@@ -1,7 +1,7 @@
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
 use std::fs::File;
 use std::io;
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
@@ -64,7 +64,7 @@ pub fn resolve(root: &Path, relative: &str) -> io::Result<PathBuf> {
     Ok(path)
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
 pub(super) fn read(root: &Path, relative: &str) -> io::Result<(Vec<u8>, &'static str)> {
     let path = resolve(root, relative)?;
     let file = File::open(&path)?;
@@ -79,7 +79,7 @@ pub(super) fn read(root: &Path, relative: &str) -> io::Result<(Vec<u8>, &'static
     Ok((bytes, mime(&path)))
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
 fn mime(path: &Path) -> &'static str {
     match path
         .extension()

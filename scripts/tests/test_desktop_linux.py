@@ -76,6 +76,24 @@ class DesktopLinuxTests(unittest.TestCase):
             self.assertEqual(env["PATH"], f"{ROOT / 'scripts/zig'}{os.pathsep}/usr/bin")
             self.assertEqual(env["RUSTDOCFLAGS"], "--cfg regression_guard -D warnings")
 
+    def test_extension_pages_are_tested_only_where_there_is_a_display_to_render_in(self):
+        for display in [{"DISPLAY": ":0"}, {"WAYLAND_DISPLAY": "wayland-0"}]:
+            with self.subTest(display=display):
+                run = self.environment(env=display)
+                CHECK.main()
+                commands = [call.args[0] for call in run.call_args_list]
+                tested = commands.index(["cargo", "test", "--locked", "--workspace", "--all-features"])
+                self.assertEqual(commands[tested + 1], CHECK.PAGE_TESTS)
+                self.assertEqual(run.call_args_list[tested + 1].kwargs["env"][next(iter(display))],
+                                 next(iter(display.values())))
+                self.doCleanups()
+        output = io.StringIO()
+        run = self.environment()
+        with contextlib.redirect_stdout(output):
+            CHECK.main()
+        self.assertNotIn(CHECK.PAGE_TESTS, [call.args[0] for call in run.call_args_list])
+        self.assertIn("Extension page tests were skipped", output.getvalue())
+
     def test_ci_runs_desktop_checks_on_both_architectures_beside_the_headless_and_macos_jobs(self):
         for expected in [
             "python3 scripts/check-desktop-macos.py",
@@ -85,6 +103,8 @@ class DesktopLinuxTests(unittest.TestCase):
             "runner: ubuntu-22.04-arm\n",
             "runner: ubuntu-24.04\n",
             "runner: ubuntu-24.04-arm\n",
+            "xvfb-run -a python3 scripts/check-desktop-linux.py",
+            "libwebkit2gtk-4.1-0",
         ]:
             self.assertIn(expected, WORKFLOW)
         self.assertNotIn("continue-on-error", WORKFLOW)

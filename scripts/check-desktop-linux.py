@@ -11,6 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGETS = {"x86_64-unknown-linux-gnu": "x86_64", "aarch64-unknown-linux-gnu": "aarch64"}
+PAGE_TESTS = ["cargo", "test", "--locked", "-p", "muxy-ui", "--lib", "webview::linux", "--", "--ignored"]
 
 
 def main():
@@ -33,17 +34,22 @@ def main():
         "PATH": str(wrapper) + os.pathsep + os.environ.get("PATH", ""),
         "RUSTDOCFLAGS": (os.environ.get("RUSTDOCFLAGS", "") + " -D warnings").strip(),
     }
+    # Extension pages render in the real engine, which needs a display to start.
+    display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
     commands = [
         [sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests"],
         ["cargo", "fmt", "--all", "--check"],
         ["cargo", "clippy", "--locked", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"],
         ["cargo", "test", "--locked", "--workspace", "--all-features"],
+        *([PAGE_TESTS] if display else []),
         ["cargo", "doc", "--locked", "--workspace", "--no-deps"],
         ["cargo", "build", "--locked", "-p", "muxy-app", "-p", "muxy-cli", "-p", "muxy-server"],
     ]
     for command in commands:
         print("+ " + " ".join(command), flush=True)
         subprocess.run(command, cwd=ROOT, env=env, check=True)
+    if not display:
+        print("Extension page tests were skipped: there is no display to render in.", flush=True)
     print(f"Linux desktop checks passed on {args.target}; they are headless and replace no human check.", flush=True)
 
 

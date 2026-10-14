@@ -79,9 +79,21 @@ impl Notifications {
         }
     }
 
+    /// Shows a notification that opens something in the app: an
+    /// [`Event::Opened`] follows when the user opens it.
     pub fn deliver(&self, id: &str, title: &str, body: &str) {
         match &self.0 {
             Backend::Native(service) => service.deliver(id, title, body),
+            #[cfg(any(test, feature = "test-support"))]
+            Backend::Simulated(simulated) => simulated.shown().push(id.to_owned()),
+            Backend::Absent(_) => {}
+        }
+    }
+
+    /// Shows a notification that only informs, with nothing for the user to open.
+    pub fn inform(&self, id: &str, title: &str, body: &str) {
+        match &self.0 {
+            Backend::Native(service) => service.inform(id, title, body),
             #[cfg(any(test, feature = "test-support"))]
             Backend::Simulated(simulated) => simulated.shown().push(id.to_owned()),
             Backend::Absent(_) => {}

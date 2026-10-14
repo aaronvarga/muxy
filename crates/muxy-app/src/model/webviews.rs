@@ -1113,7 +1113,9 @@ impl AppModel {
                 } else {
                     "puzzlepiece.extension".into()
                 };
-                muxy_ui::components::SymbolGlyph::new(symbol, size, foreground).into_any_element()
+                muxy_ui::components::SymbolGlyph::new(symbol, size, foreground)
+                    .or("puzzlepiece.extension")
+                    .into_any_element()
             },
         )
     }

@@ -1,3 +1,6 @@
+//! Extension scripts. Each runs in its own `JavaScriptCore` context on its own
+//! thread: the system framework on macOS, `WebKitGTK`'s library on Linux.
+
 use std::sync::mpsc;
 
 #[derive(Debug)]
@@ -12,11 +15,15 @@ pub enum Event {
     Error(String),
 }
 
-#[cfg(target_os = "macos")]
-mod macos;
-#[cfg(not(target_os = "macos"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg_attr(target_os = "macos", path = "javascript/macos.rs")]
+#[cfg_attr(target_os = "linux", path = "javascript/linux.rs")]
+mod api;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod jsc;
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 mod unsupported;
-#[cfg(target_os = "macos")]
-pub use macos::{CAPABILITY, Script};
-#[cfg(not(target_os = "macos"))]
-pub use unsupported::{CAPABILITY, Script};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub use jsc::{CAPABILITY, Script, probe};
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub use unsupported::{CAPABILITY, Script, probe};

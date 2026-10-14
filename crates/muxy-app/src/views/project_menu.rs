@@ -79,10 +79,14 @@ fn removal(project: &Project) -> Vec<Item> {
 
 fn icon_items(project: &Project) -> Vec<Item> {
     let id = project.id;
-    let mut items = vec![
-        Item::action(tr!("Choose Icon…"), Command::EditProject(id, Field::Icon)),
-        Item::action(tr!("Set Logo…"), Command::ProjectLogo(id)),
-    ];
+    let mut items = Vec::new();
+    if muxy_ui::symbols::PROJECT_ICONS {
+        items.push(Item::action(
+            tr!("Choose Icon…"),
+            Command::EditProject(id, Field::Icon),
+        ));
+    }
+    items.push(Item::action(tr!("Set Logo…"), Command::ProjectLogo(id)));
     if project.logo.is_some() {
         items.push(Item::action(
             tr!("Remove Logo"),

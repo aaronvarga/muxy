@@ -556,7 +556,7 @@ impl AppModel {
                 self.show_toast(title.to_string(), Some(located(detail)), cx);
             }
             Ok(Ok(Outcome::PullRequest(url))) => {
-                self.notifications.deliver(
+                self.notifications.inform(
                     &format!("pull-request:{url}"),
                     &tr!("Pull request created"),
                     &url,

@@ -39,6 +39,7 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.11", default-features = false, features = ["async-std", "wayland", "raw_handle"] }
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
+libloading = "0.8"
 
 [lints]
 workspace = true
