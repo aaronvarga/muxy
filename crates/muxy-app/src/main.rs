@@ -69,8 +69,10 @@ mod views {
     pub(crate) mod workspace;
 }
 
+use std::cell::Cell;
 use std::io::{self, Write};
 use std::process::ExitCode;
+use std::rc::Rc;
 
 use gpui::{
     App, AppContext, Application, Bounds, Menu, MenuItem, OsAction, SystemMenuType,
@@ -91,6 +93,22 @@ use views::workspace::{
 };
 
 fn main() -> ExitCode {
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|argument| argument == "--build-info")
+    {
+        return match serde_json::to_writer(
+            io::stdout().lock(),
+            &muxy_protocol::BuildInfo::current(),
+        ) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
+    }
+    run()
+}
+
+fn run() -> ExitCode {
     #[cfg(target_os = "macos")]
     if std::env::args_os()
         .nth(1)
@@ -105,6 +123,16 @@ fn main() -> ExitCode {
             .unwrap_or_default();
         return askpass::run(&socket, &prompt);
     }
+    #[cfg(target_os = "linux")]
+    let _installation_lease = match muxy_core::executable::current_path()
+        .and_then(|executable| muxy_client::local::bundle::acquire_runtime(&executable))
+    {
+        Ok(lease) => lease,
+        Err(error) => {
+            let _ = writeln!(io::stderr(), "muxy-app: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
     let (folders, opened_folders) = async_channel::unbounded();
     #[cfg(target_os = "linux")]
     let _instance = match instance::claim(std::env::args_os().skip(1), &folders) {
@@ -132,6 +160,8 @@ fn main() -> ExitCode {
     application.on_open_urls(move |urls| {
         let _ = folders.try_send(urls);
     });
+    let exit_code = Rc::new(Cell::new(ExitCode::SUCCESS));
+    let startup_exit_code = exit_code.clone();
     application.run(move |cx: &mut App| {
         if let Some(profile) = profile {
             profile.finish_on_quit(cx);
@@ -174,11 +204,12 @@ fn main() -> ExitCode {
             model
         }) {
             let _ = writeln!(io::stderr(), "muxy-app: could not open window: {error}");
+            startup_exit_code.set(ExitCode::FAILURE);
             cx.quit();
         }
         cx.activate(true);
     });
-    ExitCode::SUCCESS
+    exit_code.get()
 }
 
 #[allow(

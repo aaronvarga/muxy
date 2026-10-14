@@ -26,6 +26,24 @@ pub fn acquire_runtime(
     executable: &Path,
     expected_metadata: &[u8],
 ) -> io::Result<Option<BundleLease>> {
+    #[cfg(target_os = "linux")]
+    if let Some(root) = linux_root(executable) {
+        let directory = executable
+            .parent()
+            .ok_or_else(|| io::Error::other("Missing executable directory"))?;
+        let _replacement = wait_for_replacement(root)?;
+        if crate::executable::build_metadata(executable)? != expected_metadata {
+            return Err(io::Error::other(
+                "The installed Muxy changed during startup. Run the command again.",
+            ));
+        }
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(directory.join(".lease"))?;
+        file.lock_shared()?;
+        return Ok(Some(BundleLease { _file: file }));
+    }
     let Some(bundle) = containing(executable) else {
         return Ok(None);
     };
@@ -55,6 +73,33 @@ pub fn acquire_runtime(
     let file = lease_file(&lease_directory()?, &identity)?;
     file.lock_shared()?;
     Ok(Some(BundleLease { _file: file }))
+}
+
+/// The root of a versioned, user-installed Linux desktop, including its matching helpers.
+#[cfg(target_os = "linux")]
+pub fn linux_root(executable: &Path) -> Option<&Path> {
+    let version = executable.parent()?;
+    let versions = version.parent()?;
+    let root = versions.parent()?;
+    (versions.file_name()? == "versions"
+        && crate::release::Version::parse(version.file_name()?.to_str()?).is_some()
+        && root.join("installation.json").is_file())
+    .then_some(root)
+}
+
+#[cfg(target_os = "linux")]
+fn wait_for_replacement(root: &Path) -> io::Result<File> {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        match lock_replacement(root) {
+            Err(error)
+                if error.kind() == io::ErrorKind::WouldBlock && Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            result => return result,
+        }
+    }
 }
 
 pub fn lock_unused(bundle: &Path) -> io::Result<Option<File>> {

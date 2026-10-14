@@ -90,6 +90,18 @@ fn install() -> io::Result<PathBuf> {
 /// folder is not installed, and a link into it would not last.
 #[cfg(not(target_os = "macos"))]
 fn installed_tool(executable: &Path) -> io::Result<PathBuf> {
+    #[cfg(target_os = "linux")]
+    if let Some(root) = muxy_core::bundle::linux_root(executable) {
+        if root.join("current/muxy-app").canonicalize()? != executable {
+            return Err(io::Error::other(
+                tr!(
+                    "The installed app changed. Reopen it before installing the command line tool."
+                )
+                .to_string(),
+            ));
+        }
+        return Ok(root.join("current/muxy"));
+    }
     let app_name = muxy_core::release::Channel::current().app_name();
     let temporary = [Path::new("/tmp"), Path::new("/var/tmp")]
         .into_iter()

@@ -97,7 +97,11 @@ uses at most four CPU threads and times out after ten minutes. One dictation
 session can run in the app at a time. macOS keeps its native speech service and
 resolves language selections imported from Linux to installed speech locales.
 
-Automatic updates still need a Linux backend.
+User-installed Linux releases use a versioned installation with an atomic
+`current` link, verified downloads and the shared session-compatibility rules.
+See [Linux desktop installation and updates](../user-guide/linux.md). The
+package baseline is Ubuntu 24.04 and glibc 2.39; this does not change the
+standalone CLI/server floor of 2.35.
 Clipboard image submission is unavailable because the current
 clipboard API cannot safely preserve all MIME types and detect ownership
 changes. Use inline image paths instead.
@@ -119,7 +123,7 @@ open a project, create and split terminals, exercise shell input and Ctrl+C,
 copy/paste Unicode text, scroll history, open Settings and a folder picker, then
 cancel a close confirmation before confirming another. Check both Wayland and
 X11 sessions. Next milestones are native x86_64 and hardware GPU validation,
-Linux packaging and launch integration, and the deferred platform backends.
+package installation and upgrade acceptance, and the deferred platform backends.
 
 On Linux hosts that end a user's processes at logout, run
 `loginctl enable-linger` so the server keeps running after an SSH session ends.

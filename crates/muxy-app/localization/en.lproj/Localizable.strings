@@ -167,6 +167,7 @@
 "Automatic updates are available in installed releases of %@" = "Automatic updates are available in installed releases of %@";
 "Automatic updates are not available on this platform yet." = "Automatic updates are not available on this platform yet.";
 "Automatic updates require a Developer ID signed app" = "Automatic updates require a Developer ID signed app";
+"Automatic updates require a user-installed Linux desktop release" = "Automatic updates require a user-installed Linux desktop release";
 "Automatic updates require an installed %@.app" = "Automatic updates require an installed %@.app";
 "Automatic updates require an installed release of %@" = "Automatic updates require an installed release of %@";
 "Background" = "Background";
@@ -704,6 +705,7 @@
 "Invalid recovery directory" = "Invalid recovery directory";
 "Invalid recovery entry" = "Invalid recovery entry";
 "Invalid restore path" = "Invalid restore path";
+"Invalid update checksum" = "Invalid update checksum";
 "Invalid update download size" = "Invalid update download size";
 "Invalid update version" = "Invalid update version";
 "It changed after you confirmed. Refresh and try again." = "It changed after you confirmed. Refresh and try again.";
@@ -781,6 +783,7 @@
 "Minimize" = "Minimize";
 "Minimize Window" = "Minimize Window";
 "Missing application directory" = "Missing application directory";
+"Missing desktop update checksum" = "Missing desktop update checksum";
 "Missing installation directory" = "Missing installation directory";
 "Missing update directory" = "Missing update directory";
 "Missing update size" = "Missing update size";
@@ -944,6 +947,7 @@
 "Pause" = "Pause";
 "Pause Dictation" = "Pause Dictation";
 "Pending import must use the current backup format" = "Pending import must use the current backup format";
+"Pending update belongs to another installation" = "Pending update belongs to another installation";
 "Pending update is outside the installation directory" = "Pending update is outside the installation directory";
 "Pending update version mismatch" = "Pending update version mismatch";
 "Per-machine" = "Per-machine";
@@ -1278,9 +1282,11 @@
 "The image is empty." = "The image is empty.";
 "The installed app changed. Reopen Muxy to update the server." = "The installed app changed. Reopen Muxy to update the server.";
 "The installed app changed. Reopen it before installing the command line tool." = "The installed app changed. Reopen it before installing the command line tool.";
+"The installed app changed. Reopen it before updating." = "The installed app changed. Reopen it before updating.";
 "The installed app has no valid developer signature" = "The installed app has no valid developer signature";
 "The installed app includes a server update. Restarting the server ends all terminal sessions." = "The installed app includes a server update. Restarting the server ends all terminal sessions.";
 "The installed extension could not be loaded. Reload extensions to try again." = "The installed extension could not be loaded. Reload extensions to try again.";
+"The installed or staged update changed. Check for updates again." = "The installed or staged update changed. Check for updates again.";
 "The local audio service is unavailable. Start dictation from a desktop session." = "The local audio service is unavailable. Start dictation from a desktop session.";
 "The microphone could not start recording" = "The microphone could not start recording";
 "The offline transcript was too large." = "The offline transcript was too large.";
@@ -1391,6 +1397,7 @@
 "Update and End Sessions…" = "Update and End Sessions…";
 "Update and Restart App" = "Update and Restart App";
 "Update and restart app…" = "Update and restart app…";
+"Update download checksum mismatch" = "Update download checksum mismatch";
 "Update feed is too large" = "Update feed is too large";
 "Update from %@" = "Update from %@";
 "Update pull request branch?" = "Update pull request branch?";
