@@ -41,6 +41,7 @@ pub struct ComposerSettings {
     pub font_family: String,
     pub line_height: f32,
     pub language: String,
+    pub voice_model: String,
     pub voice_auto_send: bool,
 }
 
@@ -72,6 +73,7 @@ impl Default for ComposerSettings {
             .into(),
             line_height: 1.2,
             language: String::new(),
+            voice_model: String::new(),
             voice_auto_send: false,
         }
     }
@@ -79,6 +81,9 @@ impl Default for ComposerSettings {
 
 impl ComposerSettings {
     pub fn validate(&self) -> Result<()> {
+        if self.voice_model.len() > 4096 || self.voice_model.contains('\0') {
+            return Err(Error::new("composer.voice_model", "Invalid model path"));
+        }
         for (name, value, min, max) in [
             ("width", self.width, 280.0, 800.0),
             ("floating_width", self.floating_width, 1.0, 16384.0),

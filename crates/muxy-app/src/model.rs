@@ -456,6 +456,11 @@ impl AppModel {
         Self::follow_notifications(opened, cx);
         muxy_ui::webview::set_data_directory(&boot.state_path.with_file_name("webviews"));
         let mut capabilities = capabilities::backends();
+        #[cfg(not(test))]
+        capabilities.set(
+            muxy_core::capability::Feature::QuickTerminal,
+            muxy_ui::quick_terminal::platform::capability(window),
+        );
         capabilities.set(
             muxy_core::capability::Feature::Notifications,
             notifications.capability(),

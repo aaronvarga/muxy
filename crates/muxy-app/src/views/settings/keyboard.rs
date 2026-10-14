@@ -156,6 +156,7 @@ impl SettingsView {
         window: &mut gpui::Window,
         cx: &mut Context<Self>,
     ) {
+        self.cancel_quick_recording(cx);
         self.results.dirty = true;
         self.recording = Some(id.into());
         self.errors.remove(id);

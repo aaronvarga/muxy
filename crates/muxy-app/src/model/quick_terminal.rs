@@ -24,6 +24,7 @@ use crate::views::quick_terminal::{QuickTerminalView, QuickTerminalViewModel};
 pub(crate) struct QuickTerminalRuntime {
     pub(crate) panel: Option<WindowHandle<QuickTerminalView>>,
     pub(crate) visible: bool,
+    recording: bool,
     shortcuts: QuickTerminalShortcutService,
     accessibility: AccessibilityPreferences,
     presentation: PanelPresentation,
@@ -36,11 +37,11 @@ pub(crate) struct QuickTerminalRuntime {
 
 impl QuickTerminalRuntime {
     fn accessibility() -> AccessibilityPreferences {
-        #[cfg(all(target_os = "macos", not(test)))]
+        #[cfg(not(test))]
         {
-            platform::macos::accessibility_preferences()
+            platform::accessibility_preferences()
         }
-        #[cfg(any(not(target_os = "macos"), test))]
+        #[cfg(test)]
         {
             AccessibilityPreferences::default()
         }
@@ -53,9 +54,9 @@ impl QuickTerminalRuntime {
         let mut shortcuts = QuickTerminalShortcutService::new(
             settings.shortcut.clone(),
             settings.enabled,
-            platform::factory(),
+            platform::factory(cx),
             Box::new(|_| Ok(())),
-            Box::new(platform::resolve_key),
+            Box::new(platform::canonicalize),
         );
         // Settings owns persistence; a prepared native registration commits only after a successful save.
         let _ = shortcuts.start();
@@ -84,11 +85,8 @@ impl QuickTerminalRuntime {
                             cx.notify();
                         }
                         SystemMutation::KeyboardLayout => {
-                            if let Some(shortcut) = model
-                                .quick
-                                .shortcuts
-                                .shortcut()
-                                .canonicalized(platform::resolve_key)
+                            if let Some(shortcut) =
+                                platform::canonicalize(model.quick.shortcuts.shortcut())
                             {
                                 let mut settings = model.settings.quick_terminal.clone();
                                 settings.shortcut = shortcut;
@@ -107,6 +105,7 @@ impl QuickTerminalRuntime {
         Self {
             panel: None,
             visible: false,
+            recording: false,
             shortcuts,
             accessibility: Self::accessibility(),
             presentation: PanelPresentation::default(),
@@ -153,7 +152,6 @@ impl AppModel {
     fn quick_view_model(&self) -> QuickTerminalViewModel {
         let configuration = self.quick_configuration();
         QuickTerminalViewModel {
-            #[cfg(target_os = "macos")]
             configuration,
             appearance: effective_appearance(configuration, self.quick.accessibility),
             theme: self.theme.clone(),
@@ -191,7 +189,10 @@ impl AppModel {
     }
 
     pub(crate) fn toggle_quick_terminal(&mut self, cx: &mut Context<Self>) {
-        if self.quitting != Quitting::Idle || !self.settings.quick_terminal.enabled {
+        if self.quitting != Quitting::Idle
+            || !self.settings.quick_terminal.enabled
+            || self.quick.recording
+        {
             return;
         }
         if self.quick.visible {
@@ -204,6 +205,19 @@ impl AppModel {
         if let Err(error) = self.show_quick_terminal(cx) {
             self.fail(error, cx);
         }
+    }
+
+    pub(crate) fn record_quick_shortcut(&mut self, recording: bool, cx: &mut Context<Self>) {
+        if self.quick.recording == recording {
+            return;
+        }
+        self.quick.recording = recording;
+        if recording {
+            self.quick.shortcuts.stop();
+        } else if let Err(error) = self.quick.shortcuts.start() {
+            self.fail(error.to_string(), cx);
+        }
+        self.sync_preferences(cx);
     }
 
     fn show_quick_terminal(&mut self, cx: &mut Context<Self>) -> Result<(), String> {

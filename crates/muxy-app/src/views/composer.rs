@@ -259,7 +259,10 @@ impl Composer {
             return;
         }
         if let Some(recorder) = &self.voice {
-            if self.voice_snapshot.phase == muxy_ui::voice::Phase::Starting {
+            if matches!(
+                self.voice_snapshot.phase,
+                muxy_ui::voice::Phase::Starting | muxy_ui::voice::Phase::Transcribing
+            ) {
                 self.voice = None;
                 self.voice_poll = None;
             } else {
@@ -274,7 +277,10 @@ impl Composer {
             return;
         }
         self.error = None;
-        match muxy_ui::voice::Recorder::start(self.settings.language.clone()) {
+        match muxy_ui::voice::Recorder::start(
+            self.settings.language.clone(),
+            self.settings.voice_model.clone(),
+        ) {
             Ok(recorder) => self.record(recorder, cx),
             Err(error) => {
                 self.error = Some(error);
@@ -335,6 +341,9 @@ impl Composer {
     }
 
     pub(crate) fn pause_voice(&mut self, cx: &mut Context<Self>) {
+        if self.voice_snapshot.phase == muxy_ui::voice::Phase::Transcribing {
+            return;
+        }
         if let Some(voice) = &self.voice {
             voice.pause(self.voice_snapshot.phase != muxy_ui::voice::Phase::Paused);
         }

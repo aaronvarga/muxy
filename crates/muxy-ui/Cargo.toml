@@ -40,9 +40,13 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 ashpd = { version = "0.11", default-features = false, features = ["async-std", "wayland", "raw_handle"] }
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 libloading = "0.8"
+x11rb = { version = "0.13", features = ["randr"] }
 
 [lints]
 workspace = true
 
 [dev-dependencies]
 gpui = { version = "=0.2.2", default-features = false, features = ["test-support"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+x11rb = { version = "0.13", features = ["xtest"] }

@@ -582,6 +582,11 @@ impl PanelAdapter {
         self.window.isKeyWindow()
     }
 
+    #[allow(clippy::unused_self, reason = "Shared panel backend interface")]
+    pub fn is_active(&self, active: bool) -> bool {
+        active
+    }
+
     pub fn native_frame(&self) -> Rect {
         rect_from_ns(self.window.frame())
     }

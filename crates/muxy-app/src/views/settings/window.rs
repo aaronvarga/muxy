@@ -103,6 +103,10 @@ impl SettingsWindow {
         let activation = cx.observe_window_activation(window, |root, window, cx| {
             if window.is_window_active() {
                 root.reload_terminal(cx);
+            } else {
+                root.view.update(cx, |view, cx| {
+                    view.cancel_quick_recording(cx);
+                });
             }
         });
         let mut subscriptions = vec![events, appearance, focus_lost, activation];
@@ -539,6 +543,11 @@ impl SettingsWindow {
 
     fn handle_event(&mut self, event: &SettingsEvent, window: &mut Window, cx: &mut Context<Self>) {
         match event {
+            SettingsEvent::QuickRecording(recording) => {
+                let _ = self
+                    .model
+                    .update(cx, |model, cx| model.record_quick_shortcut(*recording, cx));
+            }
             SettingsEvent::Backup(action) => self.backup_action(*action, cx),
             SettingsEvent::PreviewTerminal(id, value) => {
                 let _ = self.model.update(cx, |model, cx| {

@@ -54,8 +54,51 @@ has:
 SF Symbols exist only on macOS. Linux draws a symbol from a bundled icon when
 there is one, and an extension's symbol without one as the extension icon.
 
-Voice input, global Quick Terminal shortcuts, and automatic updates still need
-Linux backends. Clipboard image submission is unavailable because the current
+Quick Terminal has an experimental X11 backend. Its global shortcut is released
+while recording a replacement, and hiding the window keeps its terminal session.
+Wayland and XWayland report it unavailable: the pinned window backend cannot
+place and hide a dropdown or use a portal activation token, and XWayland grabs
+do not cover native Wayland apps. The macOS panel is unchanged.
+
+Voice input uses local `parec` capture and `whisper-cli` transcription. Install
+PulseAudio's utilities (`pulseaudio-utils` on Ubuntu) and
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp), v1.9.5 or later. The
+audio service must expose its local PulseAudio socket, as PipeWire's PulseAudio
+compatibility service does. Muxy records the default input device; choose it
+and control access in the desktop's sound settings. There is no separate
+microphone permission dialog in this backend.
+
+Download a multilingual GGML model, such as `ggml-base.bin` (about 142 MiB),
+from [whisper.cpp's model collection](https://huggingface.co/ggerganov/whisper.cpp).
+Select its absolute path in Settings → Composer → Offline voice model, or put
+it at `$XDG_DATA_HOME/muxy/voice/ggml-base.bin` (by default
+`~/.local/share/muxy/voice/ggml-base.bin`). English-only models are rejected so
+they cannot silently override the selected language.
+
+Also install the [Silero](https://github.com/snakers4/silero-vad) speech
+detection model
+[`ggml-silero-v6.2.0.bin`](https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin)
+(885,098 bytes) at `$XDG_DATA_HOME/muxy/voice/ggml-silero-v6.2.0.bin`, or
+`~/.local/share/muxy/voice/ggml-silero-v6.2.0.bin` when `XDG_DATA_HOME` is unset.
+Its SHA256 is
+`2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987`.
+This model is required even when the voice model is stored elsewhere. Muxy
+checks for it before opening the microphone and uses it to discard audio
+without detected speech before transcription. This reduces invented text from
+silence or keyboard noise; speech detection and recognition can still make
+mistakes. Model downloads are manual; Muxy does not download anything for
+dictation.
+
+Audio stays in memory and is sent through a pipe to the local model when the
+user finishes. There is no live transcript or network transcription. Pause
+releases the microphone, and Cancel stops capture or transcription. A recording
+pauses at ten minutes, keeping its audio available for Finish. Transcription
+uses at most four CPU threads and times out after ten minutes. One dictation
+session can run in the app at a time. macOS keeps its native speech service and
+resolves language selections imported from Linux to installed speech locales.
+
+Automatic updates still need a Linux backend.
+Clipboard image submission is unavailable because the current
 clipboard API cannot safely preserve all MIME types and detect ownership
 changes. Use inline image paths instead.
 
@@ -65,6 +108,8 @@ libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev
 libwayland-dev libxcb1-dev libvulkan-dev`. Runtime packages include
 `mesa-vulkan-drivers xdg-desktop-portal xdg-desktop-portal-gnome xdg-utils`, and
 `libwebkit2gtk-4.1-0` for extensions.
+The desktop checks also need `xvfb` and `xauth` for isolated X11 shortcut and
+window-lifecycle tests.
 Then run `bash scripts/build-desktop-linux.sh`. `MUXY_ZIG` can point at Zig, and
 `CARGO_TARGET_DIR` must point to a guest-local writable directory when the source
 checkout is shared read-only. Keep `muxy-app`, `muxy`, and `muxy-server` together.

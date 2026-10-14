@@ -346,12 +346,12 @@ impl Composer {
                     }),
             );
         }
-        let transcript = if snapshot.phase == muxy_ui::voice::Phase::Starting {
-            tr!("Preparing on-device dictation…")
-        } else if snapshot.transcript.is_empty() {
-            tr!("Listening…")
-        } else {
-            snapshot.transcript.clone().into()
+        let transcript = match snapshot.phase {
+            muxy_ui::voice::Phase::Starting => tr!("Preparing on-device dictation…"),
+            muxy_ui::voice::Phase::Transcribing => tr!("Transcribing on this computer…"),
+            _ if muxy_ui::voice::LOCAL_MODEL => tr!("Finish recording to transcribe."),
+            _ if snapshot.transcript.is_empty() => tr!("Listening…"),
+            _ => snapshot.transcript.clone().into(),
         };
         let elapsed = snapshot.elapsed.as_secs();
         row.child(
@@ -365,7 +365,9 @@ impl Composer {
                 } else {
                     self.theme.diff_remove
                 })
-                .child(if paused {
+                .child(if snapshot.phase == muxy_ui::voice::Phase::Transcribing {
+                    tr!("PROCESSING")
+                } else if paused {
                     tr!("PAUSED")
                 } else {
                     tr!("● LIVE")
@@ -446,6 +448,8 @@ impl Composer {
         let enabled = !self.sending && !self.recording();
         let recording =
             self.recording() && self.voice_snapshot.phase != muxy_ui::voice::Phase::Starting;
+        let transcribing =
+            recording && self.voice_snapshot.phase == muxy_ui::voice::Phase::Transcribing;
         div()
             .flex()
             .flex_none()
@@ -464,8 +468,16 @@ impl Composer {
                 (self.dictation != muxy_core::capability::Capability::Unsupported).then(|| {
                     self.glyph_button(
                         "composer-voice",
-                        if recording { "stop.fill" } else { "mic" },
-                        if recording {
+                        if transcribing {
+                            "xmark"
+                        } else if recording {
+                            "stop.fill"
+                        } else {
+                            "mic"
+                        },
+                        if transcribing {
+                            tr_key!("Cancel Dictation")
+                        } else if recording {
                             tr_key!("Finish Dictation")
                         } else {
                             tr_key!("Start Dictation")
@@ -550,7 +562,9 @@ impl Composer {
             .capture_action(
                 cx.listener(|view, _: &muxy_ui::text_input::InsertNewline, _, cx| {
                     if view.recording() {
-                        view.toggle_voice(cx);
+                        if view.voice_snapshot.phase != muxy_ui::voice::Phase::Transcribing {
+                            view.toggle_voice(cx);
+                        }
                         cx.stop_propagation();
                     }
                 }),

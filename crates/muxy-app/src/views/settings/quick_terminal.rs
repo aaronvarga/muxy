@@ -60,11 +60,7 @@ fn stored_rows(view: &SettingsView, reason: &str) -> Vec<AnyElement> {
 
 #[allow(clippy::too_many_lines, reason = "Declarative settings layout")]
 pub(super) fn rows(view: &SettingsView, cx: &mut Context<SettingsView>) -> Vec<AnyElement> {
-    if let Some(reason) = view
-        .snapshot
-        .capabilities
-        .unsupported(Feature::QuickTerminal)
-    {
+    if let Some(reason) = view.snapshot.capabilities.reason(Feature::QuickTerminal) {
         return stored_rows(view, &reason);
     }
     let settings = &view.snapshot.settings.quick_terminal;
@@ -260,7 +256,7 @@ impl SettingsView {
     }
 
     fn record_quick_shortcut(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.quick_recording.take().is_some() {
+        if self.cancel_quick_recording(cx) {
             self.results.dirty = true;
             cx.notify();
             return;
@@ -268,11 +264,13 @@ impl SettingsView {
         self.focus.focus(window);
         match muxy_ui::quick_terminal::start_shortcut_recording() {
             Ok((recorder, receiver)) => {
+                self.recording = None;
+                cx.emit(SettingsEvent::QuickRecording(true));
                 let task = cx.spawn(async move |view, cx| {
                     if let Ok(event) = receiver.recv().await {
                         let _ = view.update(cx, |view, cx| {
                             use muxy_ui::quick_terminal::ShortcutRecordingEvent;
-                            view.quick_recording = None;
+                            view.cancel_quick_recording(cx);
                             match event {
                                 ShortcutRecordingEvent::Captured(capture) => {
                                     let mut settings =
@@ -301,5 +299,15 @@ impl SettingsView {
         }
         self.results.dirty = true;
         cx.notify();
+    }
+
+    pub(super) fn cancel_quick_recording(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.quick_recording.take().is_none() {
+            return false;
+        }
+        cx.emit(SettingsEvent::QuickRecording(false));
+        self.results.dirty = true;
+        cx.notify();
+        true
     }
 }

@@ -4,19 +4,20 @@ use std::sync::{
 };
 use std::time::Duration;
 
-#[cfg(not(target_os = "macos"))]
-use muxy_core::capability::Capability;
-
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::{CAPABILITY, languages};
-#[cfg(not(target_os = "macos"))]
-pub fn languages() -> Vec<Language> {
-    Vec::new()
-}
-#[cfg(not(target_os = "macos"))]
-pub const CAPABILITY: Capability = Capability::Unsupported;
+use macos as backend;
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as backend;
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+mod unsupported;
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+use unsupported as backend;
+
+pub use backend::{CAPABILITY, LOCAL_MODEL, languages};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Language {
@@ -31,6 +32,7 @@ pub enum Phase {
     Starting,
     Recording,
     Paused,
+    Transcribing,
     Finished,
     Failed,
 }
@@ -60,18 +62,8 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub fn start(language: String) -> Result<Self, String> {
-        #[cfg(target_os = "macos")]
-        {
-            macos::start(language)
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            drop(language);
-            Err(muxy_core::capability::Feature::Voice
-                .unsupported_reason()
-                .into_owned())
-        }
+    pub fn start(language: String, model: String) -> Result<Self, String> {
+        backend::start(language, model)
     }
 
     pub fn snapshot(&self) -> Snapshot {

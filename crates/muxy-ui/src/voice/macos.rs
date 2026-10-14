@@ -36,6 +36,7 @@ const DEFAULT_LANGUAGE: &str = "en-US";
 
 pub const CAPABILITY: muxy_core::capability::Capability =
     muxy_core::capability::Capability::Supported;
+pub const LOCAL_MODEL: bool = false;
 
 pub fn languages() -> Vec<Language> {
     unsafe {
@@ -91,7 +92,7 @@ fn system_language(available: &[Language], preferences: &NSArray<NSString>) -> O
     Some(matched)
 }
 
-pub(super) fn start(language: String) -> Result<Recorder, String> {
+pub(super) fn start(language: String, _model: String) -> Result<Recorder, String> {
     for key in [
         "NSMicrophoneUsageDescription",
         "NSSpeechRecognitionUsageDescription",
@@ -267,13 +268,52 @@ impl Drop for Capture {
     }
 }
 
+fn language_id(locale: &str) -> &str {
+    match locale.split(['-', '_']).next().unwrap_or_default() {
+        "nb" => "no",
+        "iw" => "he",
+        "jv" => "jw",
+        id => id,
+    }
+}
+
+fn select_language<'a>(available: &'a [Language], requested: &str) -> Option<&'a Language> {
+    let requested = requested.replace('_', "-").to_ascii_lowercase();
+    available
+        .iter()
+        .find(|candidate| {
+            candidate
+                .id
+                .replace('_', "-")
+                .eq_ignore_ascii_case(&requested)
+        })
+        .or_else(|| {
+            if requested.is_empty() || requested.contains('-') {
+                return None;
+            }
+            available
+                .iter()
+                .filter(|candidate| {
+                    language_id(&candidate.id).eq_ignore_ascii_case(language_id(&requested))
+                })
+                .min_by_key(|candidate| !candidate.preferred)
+        })
+        .or_else(|| available.iter().find(|candidate| candidate.preferred))
+        .or_else(|| {
+            available.iter().find(|candidate| {
+                candidate
+                    .id
+                    .replace('_', "-")
+                    .eq_ignore_ascii_case(DEFAULT_LANGUAGE)
+            })
+        })
+        .or_else(|| available.first())
+}
+
 fn capture(language: &str, shared: &Arc<Shared>) -> Result<Capture, String> {
     unsafe {
         let available = languages();
-        let selected = available.iter().find(|candidate| candidate.id.replace('_', "-").eq_ignore_ascii_case(&language.replace('_', "-")))
-            .or_else(|| available.iter().find(|candidate| candidate.preferred))
-            .or_else(|| available.iter().find(|candidate| candidate.id.replace('_', "-").eq_ignore_ascii_case(DEFAULT_LANGUAGE)))
-            .or_else(|| available.first())
+        let selected = select_language(&available, language)
             .ok_or_else(|| tr!("No on-device speech language is installed. Add one in System Settings → Keyboard → Dictation.").to_string())?;
         let locale = NSLocale::initWithLocaleIdentifier(
             NSLocale::alloc(),
@@ -563,6 +603,27 @@ mod tests {
             system_language(&["en-GB", "en-US"].map(language), &british).as_deref(),
             Some("en-GB")
         );
+    }
+
+    #[test]
+    fn linux_languages_select_matching_locales_without_changing_explicit_regions() {
+        let mut available = ["de-DE", "en-US", "en-GB", "nb-NO", "he-IL", "jv-ID"].map(language);
+        available[2].preferred = true;
+        for (requested, expected) in [
+            ("de", "de-DE"),
+            ("en", "en-GB"),
+            ("EN_us", "en-US"),
+            ("no", "nb-NO"),
+            ("he", "he-IL"),
+            ("jw", "jv-ID"),
+            ("", "en-GB"),
+            ("unknown", "en-GB"),
+        ] {
+            assert_eq!(
+                select_language(&available, requested).map(|selected| selected.id.as_str()),
+                Some(expected)
+            );
+        }
     }
 
     fn waiting(phase: Phase) -> Shared {

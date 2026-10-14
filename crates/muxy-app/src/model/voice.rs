@@ -67,6 +67,7 @@ impl AppModel {
         let view = cx.new(|cx| {
             VoicePanel::new(
                 self.settings.composer.language.clone(),
+                self.settings.composer.voice_model.clone(),
                 self.settings.composer.voice_auto_send,
                 self.theme.clone(),
                 self.metrics,

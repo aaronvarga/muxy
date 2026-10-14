@@ -259,6 +259,8 @@
 "Choose a folder inside the home folder on the server." = "Choose a folder inside the home folder on the server.";
 "Choose a new branch name that isn't used yet" = "Choose a new branch name that isn't used yet";
 "Choose a private key" = "Choose a private key";
+"Choose a readable multilingual GGML voice model in Settings → Composer." = "Choose a readable multilingual GGML voice model in Settings → Composer.";
+"Choose a supported dictation language in Settings → Composer." = "Choose a supported dictation language in Settings → Composer.";
 "Choose a target branch that exists on the remote" = "Choose a target branch that exists on the remote";
 "Choose an existing folder, or use Create & Add Project." = "Choose an existing folder, or use Create & Add Project.";
 "Choose an extension folder containing package.json or a built dist folder" = "Choose an extension folder containing package.json or a built dist folder";
@@ -411,6 +413,7 @@
 "Could not read this folder" = "Could not read this folder";
 "Could not reconnect to the updated server." = "Could not reconnect to the updated server.";
 "Could not refresh projects: %@" = "Could not refresh projects: %@";
+"Could not register Quick Terminal shortcut; it may already be in use: %@" = "Could not register Quick Terminal shortcut; it may already be in use: %@";
 "Could not register open terminals: %@" = "Could not register open terminals: %@";
 "Could not reload configuration: %@" = "Could not reload configuration: %@";
 "Could not replace clipboard contents" = "Could not replace clipboard contents";
@@ -505,6 +508,7 @@
 "Devices" = "Devices";
 "Dictation cancelled" = "Dictation cancelled";
 "Dictation delivery failed: %@" = "Dictation delivery failed: %@";
+"Dictation is already active. Finish or cancel it first." = "Dictation is already active. Finish or cancel it first.";
 "Dictation language" = "Dictation language";
 "Disable" = "Disable";
 "Disable built-in bindings" = "Disable built-in bindings";
@@ -590,6 +594,7 @@
 "Finding SSH key…" = "Finding SSH key…";
 "Find…" = "Find…";
 "Finish Dictation" = "Finish Dictation";
+"Finish recording to transcribe." = "Finish recording to transcribe.";
 "Finished working" = "Finished working";
 "Float Panel" = "Float Panel";
 "Focus Current Project" = "Focus Current Project";
@@ -616,6 +621,7 @@
 "Forget" = "Forget";
 "Forget %@?" = "Forget %@?";
 "General" = "General";
+"Global X11 shortcuts cannot cover a Wayland desktop." = "Global X11 shortcuts cannot cover a Wayland desktop.";
 "Global folder: %@" = "Global folder: %@";
 "Global template: %@" = "Global template: %@";
 "Green" = "Green";
@@ -664,6 +670,7 @@
 "Insert" = "Insert";
 "Install" = "Install";
 "Install %@ and open it from there before installing its command line tool." = "Install %@ and open it from there before installing its command line tool.";
+"Install %@ to use offline dictation." = "Install %@ to use offline dictation.";
 "Install Command Line Tool…" = "Install Command Line Tool…";
 "Install Muxy %@ and restart the app? Running terminals will continue, and the server will update when all terminal sessions end. Restarting the server now ends all terminal sessions on this device, including sessions used by other clients." = "Install Muxy %@ and restart the app? Running terminals will continue, and the server will update when all terminal sessions end. Restarting the server now ends all terminal sessions on this device, including sessions used by other clients.";
 "Install Muxy…" = "Install Muxy…";
@@ -674,6 +681,9 @@
 "Install failed: %@" = "Install failed: %@";
 "Install muxy-server & Test Connection" = "Install muxy-server & Test Connection";
 "Install muxy-server on %@?" = "Install muxy-server on %@?";
+"Install the Silero speech detection model at %@ to use offline dictation." = "Install the Silero speech detection model at %@ to use offline dictation.";
+"Install whisper-cli 1.9.5 or later to use offline dictation." = "Install whisper-cli 1.9.5 or later to use offline dictation.";
+"Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under muxy/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish." = "Install whisper-cli and parec, then choose a multilingual GGML model file. Leave blank to use ggml-base.bin in your user data folder under muxy/voice. That folder must also contain ggml-silero-v6.2.0.bin for speech detection. Audio stays on this computer and is transcribed after you finish.";
 "Installed" = "Installed";
 "Installed %@.\n\n%@" = "Installed %@.\n\n%@";
 "Installing muxy-server, then testing connection…" = "Installing muxy-server, then testing connection…";
@@ -765,6 +775,7 @@
 "Merged, but couldn't remove the worktree" = "Merged, but couldn't remove the worktree";
 "Merging PR #%lld" = "Merging PR #%lld";
 "Microphone access is disabled. Enable Muxy in System Settings → Privacy & Security → Microphone." = "Microphone access is disabled. Enable Muxy in System Settings → Privacy & Security → Microphone.";
+"Microphone capture stopped. Check the default input device and its PulseAudio or PipeWire permissions." = "Microphone capture stopped. Check the default input device and its PulseAudio or PipeWire permissions.";
 "Microphone recording stopped. Try again." = "Microphone recording stopped. Try again.";
 "Migration" = "Migration";
 "Minimize" = "Minimize";
@@ -879,6 +890,10 @@
 "Notifications are turned off for Muxy in System Settings." = "Notifications are turned off for Muxy in System Settings.";
 "OK" = "OK";
 "Off" = "Off";
+"Offline transcription failed. Check whisper-cli, the voice model and the Silero speech detection model." = "Offline transcription failed. Check whisper-cli, the voice model and the Silero speech detection model.";
+"Offline transcription returned invalid text." = "Offline transcription returned invalid text.";
+"Offline transcription timed out. Try a smaller model or a shorter recording." = "Offline transcription timed out. Try a smaller model or a shorter recording.";
+"Offline voice model" = "Offline voice model";
 "On" = "On";
 "On-device speech recognition is unavailable for this language. Choose another dictation language." = "On-device speech recognition is unavailable for this language. Choose another dictation language.";
 "Open" = "Open";
@@ -913,6 +928,7 @@
 "PAUSED" = "PAUSED";
 "PR #%lld" = "PR #%lld";
 "PRIMARY" = "PRIMARY";
+"PROCESSING" = "PROCESSING";
 "Padding color" = "Padding color";
 "Pair a phone" = "Pair a phone";
 "Paired devices" = "Paired devices";
@@ -924,6 +940,7 @@
 "Paste" = "Paste";
 "Paste image contents into compatible terminal apps or insert the saved image path." = "Paste image contents into compatible terminal apps or insert the saved image path.";
 "Path template is required." = "Path template is required.";
+"Path to a local multilingual Whisper model. Used by Linux dictation." = "Path to a local multilingual Whisper model. Used by Linux dictation.";
 "Pause" = "Pause";
 "Pause Dictation" = "Pause Dictation";
 "Pending import must use the current backup format" = "Pending import must use the current backup format";
@@ -969,6 +986,8 @@
 "Query is too long" = "Query is too long";
 "Quick Terminal" = "Quick Terminal";
 "Quick Terminal panel unavailable" = "Quick Terminal panel unavailable";
+"Quick Terminal requires an X11 desktop session. Wayland dropdown placement, hiding and activation are not supported by the window backend yet." = "Quick Terminal requires an X11 desktop session. Wayland dropdown placement, hiding and activation are not supported by the window backend yet.";
+"Quick Terminal requires an X11 display." = "Quick Terminal requires an X11 display.";
 "Quick Terminal shortcut" = "Quick Terminal shortcut";
 "Quick Terminal shortcut conflicts with %@" = "Quick Terminal shortcut conflicts with %@";
 "Quick Terminal status" = "Quick Terminal status";
@@ -1234,6 +1253,7 @@
 "Text" = "Text";
 "Text color" = "Text color";
 "Text to send. Write special keys as escapes, such as \\e for Escape or \\x01 for Control-A." = "Text to send. Write special keys as escapes, such as \\e for Escape or \\x01 for Control-A.";
+"The 10-minute recording limit was reached. Finish to transcribe, or cancel." = "The 10-minute recording limit was reached. Finish to transcribe, or cancel.";
 "The AI provider returned an empty commit message" = "The AI provider returned an empty commit message";
 "The AI provider returned an empty pull request title" = "The AI provider returned an empty pull request title";
 "The AI provider returned an invalid response. Update the prompt or try another provider." = "The AI provider returned an invalid response. Update the prompt or try another provider.";
@@ -1261,7 +1281,9 @@
 "The installed app has no valid developer signature" = "The installed app has no valid developer signature";
 "The installed app includes a server update. Restarting the server ends all terminal sessions." = "The installed app includes a server update. Restarting the server ends all terminal sessions.";
 "The installed extension could not be loaded. Reload extensions to try again." = "The installed extension could not be loaded. Reload extensions to try again.";
+"The local audio service is unavailable. Start dictation from a desktop session." = "The local audio service is unavailable. Start dictation from a desktop session.";
 "The microphone could not start recording" = "The microphone could not start recording";
+"The offline transcript was too large." = "The offline transcript was too large.";
 "The pairing code is too long to show." = "The pairing code is too long to show.";
 "The project directory isn't available on this Mac" = "The project directory isn't available on this Mac";
 "The project's tabs changed. Choose the layout again to confirm replacement." = "The project's tabs changed. Choose the layout again to confirm replacement.";
@@ -1278,6 +1300,7 @@
 "The server took too long to check or create the folder." = "The server took too long to check or create the folder.";
 "The server update could not finish." = "The server update could not finish.";
 "The server version does not match the signed app" = "The server version does not match the signed app";
+"The shortcut key is not available in the current keyboard layout." = "The shortcut key is not available in the current keyboard layout.";
 "The signed app has an unexpected %@" = "The signed app has an unexpected %@";
 "The signed beta build number does not match the update feed" = "The signed beta build number does not match the update feed";
 "The staged update metadata changed. Check for updates again." = "The staged update metadata changed. Check for updates again.";
@@ -1285,6 +1308,7 @@
 "The typeface used to render text in every terminal pane." = "The typeface used to render text in every terminal pane.";
 "The update download is incomplete or has an unexpected size" = "The update download is incomplete or has an unexpected size";
 "The updater is starting. Try again shortly." = "The updater is starting. Try again shortly.";
+"The user data folder is unavailable. Set XDG_DATA_HOME or HOME to use offline dictation." = "The user data folder is unavailable. Set XDG_DATA_HOME or HOME to use offline dictation.";
 "The working tree is clean" = "The working tree is clean";
 "The working tree is clean." = "The working tree is clean.";
 "Theme %@ needs valid background and foreground colors" = "Theme %@ needs valid background and foreground colors";
@@ -1317,6 +1341,7 @@
 "Toggle Voice Recording" = "Toggle Voice Recording";
 "Top" = "Top";
 "Trackpad scroll speed" = "Trackpad scroll speed";
+"Transcribing on this computer…" = "Transcribing on this computer…";
 "Transparency of the terminal background." = "Transparency of the terminal background.";
 "Trust & Test" = "Trust & Test";
 "Try a different name or clear your search." = "Try a different name or clear your search.";
@@ -1381,6 +1406,7 @@
 "Updating…" = "Updating…";
 "Use Command, Control, or Option with a supported key" = "Use Command, Control, or Option with a supported key";
 "Use Composer Panel" = "Use Composer Panel";
+"Use Control or Alt with a supported key." = "Use Control or Alt with a supported key.";
 "Use Default" = "Use Default";
 "Use Floating Composer" = "Use Floating Composer";
 "Use Global Prompt" = "Use Global Prompt";
@@ -1432,6 +1458,7 @@
 "Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.muxy/worktrees." = "Worktrees go in <folder>/<project>/<name>. Leave both location settings empty to use ~/.muxy/worktrees.";
 "Writing PR" = "Writing PR";
 "Writing message" = "Writing message";
+"X11 returned an empty keyboard map." = "X11 returned an empty keyboard map.";
 "Yellow" = "Yellow";
 "You can show tips again in Settings → Appearance → Interface by turning on Show tips." = "You can show tips again in Settings → Appearance → Interface by turning on Show tips.";
 "You’re running the latest version of %@." = "You’re running the latest version of %@.";

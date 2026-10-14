@@ -135,6 +135,7 @@ pub(crate) enum Change {
 }
 
 pub(crate) enum SettingsEvent {
+    QuickRecording(bool),
     Backup(backup::Action),
     Change(Change),
     PreviewTerminal(&'static str, String),
@@ -241,7 +242,15 @@ impl SettingsView {
         let recorder = cx.intercept_keystrokes(move |event, window, cx| {
             let _ = weak.update(cx, |pane: &mut Self, cx| {
                 if pane.focus.is_focused(window) {
-                    pane.record_key(&event.keystroke, cx);
+                    if pane
+                        .quick_recording
+                        .as_ref()
+                        .is_some_and(|(recorder, _)| recorder.record(&event.keystroke))
+                    {
+                        cx.stop_propagation();
+                    } else {
+                        pane.record_key(&event.keystroke, cx);
+                    }
                 }
             });
         });
@@ -313,6 +322,7 @@ impl SettingsView {
             "command-text",
             "composer-font",
             "composer-line-height",
+            "composer-voice-model",
             "quick-width",
             "quick-height",
             "sidebar-vibrancy-level",
@@ -410,6 +420,10 @@ impl SettingsView {
         for (id, value) in [
             ("composer-font", settings.composer.font_family.clone()),
             (
+                "composer-voice-model",
+                settings.composer.voice_model.clone(),
+            ),
+            (
                 "composer-line-height",
                 settings.composer.line_height.to_string(),
             ),
@@ -468,7 +482,7 @@ impl SettingsView {
         self.subscriptions
             .push(cx.on_focus_out(&self.focus, window, |pane, _, _, cx| {
                 pane.recording = None;
-                pane.quick_recording = None;
+                pane.cancel_quick_recording(cx);
                 pane.results.dirty = true;
                 cx.notify();
             }));
