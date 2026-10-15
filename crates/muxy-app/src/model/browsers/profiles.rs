@@ -212,6 +212,7 @@ impl AppModel {
                         model.fail(error, cx);
                     }
                     model.refresh_browser_profiles();
+                    model.sync_preferences(cx);
                     cx.notify();
                 });
             })

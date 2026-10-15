@@ -45,8 +45,11 @@ fn cancelling_a_confirmation_cannot_confirm_or_dismiss_its_successor(cx: &mut Te
         .expect("first prompt")
     });
     drop(first);
-    assert_eq!(*answers.borrow(), [ConfirmationResponse::Cancelled]);
+    cx.update(|window, cx| {
+        active(window, cx).update(cx, |view, cx| view.finish(Some(0), cx));
+    });
     cx.run_until_parked();
+    assert_eq!(*answers.borrow(), [ConfirmationResponse::Cancelled]);
     let second = cx.update(|window, cx| {
         let answers = answers.clone();
         confirm(
@@ -79,6 +82,48 @@ fn cancelling_a_confirmation_cannot_confirm_or_dismiss_its_successor(cx: &mut Te
         ]
     );
     drop(third);
+}
+
+#[gpui::test]
+fn cancellation_releases_the_prompt_before_delivering_its_answer(cx: &mut TestAppContext) {
+    let (_, cx) = cx.add_window_view(|_, cx| Host::new(cx));
+    let successor = Rc::new(RefCell::new(None));
+    let first = cx.update(|window, cx| {
+        let window_handle = window.window_handle();
+        let mut async_cx = cx.to_async();
+        let successor = successor.clone();
+        consent(
+            window,
+            cx,
+            "Permission",
+            "Execute a command?",
+            "Block extension",
+            move |answer| {
+                assert_eq!(answer, ConsentResponse::Cancel);
+                let next = window_handle
+                    .update(&mut async_cx, |_, window, cx| {
+                        consent(
+                            window,
+                            cx,
+                            "Permission",
+                            "Read files?",
+                            "Block extension",
+                            |_| {},
+                        )
+                        .expect("next pending request")
+                    })
+                    .expect("live window");
+                *successor.borrow_mut() = Some(next);
+            },
+        )
+        .expect("first prompt")
+    });
+    drop(first);
+    cx.run_until_parked();
+    assert!(successor.borrow().is_some());
+    cx.update(|window, cx| assert!(active(window, cx).read(cx).pending()));
+    drop(successor.borrow_mut().take());
+    cx.run_until_parked();
 }
 
 #[gpui::test]

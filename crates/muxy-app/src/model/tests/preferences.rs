@@ -102,6 +102,57 @@ fn settings_fields_save_on_blur_window_close_and_quit(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn deleted_browser_profiles_are_removed_from_the_settings_snapshot(cx: &mut TestAppContext) {
+    use crate::views::settings::BrowserChange;
+
+    let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let (model, settings) = settings_window(boot, cx);
+    let work = model.update(settings, |model, cx| {
+        model.change_preference(
+            Change::Browser(BrowserChange::AddProfile("Work".into())),
+            cx,
+        );
+        model
+            .browser_profile(Some("Work"))
+            .expect("work")
+            .id()
+            .to_string()
+    });
+    let preferences = model.read_with(settings, |model, _| settings_view(model));
+    assert!(preferences.read_with(settings, |view, _| {
+        view.browser_profiles()
+            .iter()
+            .any(|profile| profile.id == work)
+    }));
+    model.update(settings, |model, cx| {
+        model.change_preference(
+            Change::Browser(BrowserChange::DeleteProfile(work.clone())),
+            cx,
+        );
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        settings.run_until_parked();
+        if model.read_with(settings, |model, _| {
+            !model
+                .settings_browser_profiles()
+                .iter()
+                .any(|profile| profile.id == work)
+        }) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "profile was not deleted");
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(preferences.read_with(settings, |view, _| {
+        !view
+            .browser_profiles()
+            .iter()
+            .any(|profile| profile.id == work)
+    }));
+}
+
+#[gpui::test]
 fn terminal_preferences_apply_to_live_panes_preserve_zoom_and_reject_invalid_edits(
     cx: &mut TestAppContext,
 ) {

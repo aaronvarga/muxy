@@ -278,8 +278,10 @@ impl NativeWebview {
     /// The page sends one frame at a time, so a slow window is never behind
     /// by more than one. Taking a frame lets the next one be sent.
     pub(super) fn accept_snapshot(&self, id: u64, generation: u64) -> bool {
+        let accepted =
+            self.shared.snapshot.load(Ordering::Acquire) == id && self.generation() == generation;
         self.with(|runtime, page| page.snapshot_taken(runtime));
-        self.shared.snapshot.load(Ordering::Acquire) == id && self.generation() == generation
+        accepted
     }
 
     pub(super) fn pointer(&self, event: Pointer) {

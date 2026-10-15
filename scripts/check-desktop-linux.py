@@ -11,8 +11,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGETS = {"x86_64-unknown-linux-gnu": "x86_64", "aarch64-unknown-linux-gnu": "aarch64"}
-SHORTCUT_TESTS = ["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24 -noreset", "cargo", "test", "--locked", "-p", "muxy-ui", "--lib", "quick_terminal::platform::linux", "--", "--ignored"]
-PAGE_TESTS = ["cargo", "test", "--locked", "-p", "muxy-ui", "--lib", "webview::linux", "--", "--ignored"]
+SHORTCUT_TESTS = ["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24 -noreset", "cargo", "test", "--locked", "--workspace", "--all-features", "--lib", "quick_terminal::platform::linux", "--", "--ignored"]
+PAGE_TESTS = ["cargo", "test", "--locked", "--workspace", "--all-features", "--lib", "webview::linux", "--", "--ignored"]
 
 
 def main():
@@ -35,7 +35,6 @@ def main():
         "PATH": str(wrapper) + os.pathsep + os.environ.get("PATH", ""),
         "RUSTDOCFLAGS": (os.environ.get("RUSTDOCFLAGS", "") + " -D warnings").strip(),
     }
-    # Extension pages render in the real engine, which needs a display to start.
     display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
     commands = [
         [sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests"],

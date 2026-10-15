@@ -162,7 +162,6 @@ def verify(directory, version, arch=None):
     build = manifest["build"]
     if build.get("version") != version:
         raise ValueError("Desktop build version mismatch")
-    # Hash every file before executing any downloaded helper. --build-info never opens a window.
     for name in sorted(BINARIES):
         with tempfile.TemporaryFile() as output:
             subprocess.run([str(directory / name), "--build-info"], stdout=output,
@@ -176,7 +175,6 @@ def verify(directory, version, arch=None):
 def extract(archive, destination, expected):
     if not re.fullmatch(r"[0-9a-f]{64}", expected) or archive.stat().st_size > MAX_ARCHIVE or digest(archive) != expected:
         raise ValueError("Desktop archive checksum or size mismatch")
-    # Do not use extractall: only seven named, bounded regular files can be written.
     with tarfile.open(archive, "r:gz") as source:
         seen = set()
         total = 0
@@ -231,7 +229,6 @@ def lease(directory):
 
 
 def prune(root):
-    # Keep one rollback version, plus all versions used by apps, CLIs or servers.
     keep = {current_version(root)}
     previous = root / "previous.json"
     if previous.exists():
@@ -255,7 +252,6 @@ def activate(root, version, current, parent, spawn=subprocess.Popen):
     atomic_json(root / "previous.json", {"version": current})
     try:
         switch(root, version)
-        # This process waits for the old app's profile lock to be released before launching.
         spawn(["/usr/bin/python3", str(Path(__file__).resolve()), "restart", "--root", str(root),
                "--version", version, "--current", current, "--pid", str(parent)],
               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -282,7 +278,6 @@ def restart(root, version, previous, parent):
         except OSError:
             child = None
     if child is not None:
-        # Catch loader/startup failures, restoring all three executables as one unit.
         try:
             if child.wait(timeout=5) == 0:
                 return
@@ -300,7 +295,6 @@ def desktop_entry(root, version):
     identifier = "com.muxy-beta.app" if beta else "com.muxy.app"
     path = data_home() / "applications" / f"{identifier}.desktop"
     executable = str(root / "current/muxy-app")
-    # Desktop Entry quoting is not shell quoting; % introduces a field code.
     executable = executable.replace("\\", "\\\\\\\\").replace('"', '\\\\"').replace("`", "\\\\`").replace("$", "\\\\$").replace("%", "%%")
     icon = str(root / "current/icon.png").replace("\\", "\\\\")
     contents = (f"[Desktop Entry]\nType=Application\nName={'Muxy Beta' if beta else 'Muxy'}\n"
@@ -331,7 +325,6 @@ def integrate(root, version):
 def uninstall(root):
     version = current_version(root)
     installation(root, version)
-    # Hold every lease until removal finishes. Never remove a running server's helpers.
     with contextlib.ExitStack() as stack:
         for directory in (root / "versions").iterdir():
             channel(directory.name)
@@ -351,7 +344,6 @@ def uninstall(root):
         shutil.rmtree(root / "versions")
         for name in ("current", "previous.json", "installation.json", LOCK):
             (root / name).unlink(missing_ok=True)
-        # A user may have put other files here. Never recursively delete those.
         if not any(root.iterdir()):
             root.rmdir()
 

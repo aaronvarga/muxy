@@ -841,7 +841,6 @@ impl AppModel {
             while let Ok(urls) = folders.recv().await {
                 if this
                     .update(cx, |model, cx| {
-                        // A launch that names no folder asks for the window.
                         if urls.is_empty() {
                             model.raise_window(cx);
                         }

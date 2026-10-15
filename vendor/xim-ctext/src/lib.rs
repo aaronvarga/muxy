@@ -119,9 +119,8 @@ macro_rules! decode {
 }
 
 pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
-    let split = bytes.split(|&b| b == 0x1b);
-
-    let mut result = String::new();
+    let mut split = bytes.split(|&b| b == 0x1b);
+    let mut result = encoding_rs::mem::decode_latin1(split.next().unwrap_or_default()).into_owned();
 
     for chunk in split {
         let mut iter = chunk.iter();
@@ -269,6 +268,17 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unescaped_text_is_not_an_escape_sequence() {
+        for text in ["-All", "(Book)", "(June)", "$(echo)", "%Ghello", "%@hello"] {
+            assert_eq!(crate::compound_text_to_utf8(text.as_bytes()).unwrap(), text);
+        }
+        assert_eq!(
+            crate::compound_text_to_utf8(b"$(echo)\x1b$(BEl5~\x1b(B!").unwrap(),
+            "$(echo)東京!"
+        );
+    }
+
     #[test]
     fn korean() {
         const UTF8: &str = "가나다";

@@ -396,6 +396,11 @@ impl SettingsView {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn browser_profiles(&self) -> &[browser::Profile] {
+        &self.snapshot.browser_profiles
+    }
+
     pub(crate) fn sync(&mut self, snapshot: Snapshot, theme: Theme, cx: &mut Context<Self>) {
         self.results.dirty = true;
         self.snapshot = snapshot;

@@ -250,6 +250,16 @@ fn keysym(key: &str) -> Option<u32> {
     })
 }
 
+fn symbol_modifiers(symbols: &[u32], symbol: u32, modifiers: u16) -> Option<u16> {
+    if symbols.first() == Some(&symbol) {
+        return Some(modifiers);
+    }
+    if symbols.get(1) == Some(&symbol) {
+        return Some(modifiers | u16::from(ModMask::SHIFT));
+    }
+    None
+}
+
 fn registrations(
     connection: &RustConnection,
     combo: &muxy_core::quick_terminal::keys::KeyCombo,
@@ -306,9 +316,9 @@ fn registrations(
     }
     let mut grabs = Vec::new();
     for (index, symbols) in mapping.keysyms.chunks(per_key).enumerate() {
-        if symbols.first() != Some(&symbol) {
+        let Some(modifiers) = symbol_modifiers(symbols, symbol, modifiers) else {
             continue;
-        }
+        };
         let key = u8::try_from(index).map_err(|error| error.to_string())? + setup.min_keycode;
         for extra in 0..=u16::from(u8::MAX) {
             if extra & !locks == 0 {
@@ -355,6 +365,58 @@ fn grab(connection: &RustConnection, root: u32, grabs: &[(u8, u16)]) -> Result<(
 mod tests {
     use super::*;
     use muxy_core::quick_terminal::keys::KeyCombo;
+
+    #[test]
+    fn shifted_symbols_restore_consumed_shift_without_grabbing_other_groups() {
+        let modifiers = u16::from(ModMask::CONTROL | ModMask::M1);
+        let shifted = modifiers | u16::from(ModMask::SHIFT);
+        let symbols = [u32::from('='), u32::from('+'), u32::from('~')];
+        assert_eq!(
+            symbol_modifiers(&symbols, u32::from('+'), modifiers),
+            Some(shifted)
+        );
+        assert_eq!(
+            symbol_modifiers(&symbols, u32::from('='), modifiers),
+            Some(modifiers)
+        );
+        assert_eq!(symbol_modifiers(&symbols, u32::from('~'), modifiers), None);
+        assert_eq!(
+            symbol_modifiers(&[u32::from('a'), u32::from('A')], u32::from('a'), shifted),
+            Some(shifted)
+        );
+    }
+
+    #[test]
+    #[ignore = "requires an isolated X server (xvfb-run)"]
+    fn x11_shifted_punctuation_triggers_only_with_the_required_shift() {
+        let _display = super::super::X11_TEST.lock().unwrap();
+        let (connection, _) = x11rb::connect(None).unwrap();
+        let (sender, receiver) = async_channel::bounded(16);
+        let registration =
+            Registration::start(&KeyCombo::new("+", CONTROL | OPTION), sender).unwrap();
+        input(&connection, 0xffe3, true);
+        input(&connection, 0xffe9, true);
+        input(&connection, u32::from('='), true);
+        input(&connection, u32::from('='), false);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        assert!(receiver.try_recv().is_err());
+        input(&connection, 0xffe1, true);
+        input(&connection, u32::from('='), true);
+        await_event(&receiver);
+        input(&connection, u32::from('='), false);
+        input(&connection, 0xffe1, false);
+        input(&connection, 0xffe9, false);
+        input(&connection, 0xffe3, false);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        assert!(receiver.try_recv().is_err());
+        drop(registration);
+        let next = Registration::start(
+            &KeyCombo::new("+", CONTROL | OPTION),
+            async_channel::bounded(1).0,
+        )
+        .unwrap();
+        drop(next);
+    }
 
     #[test]
     #[ignore = "requires an isolated X server (xvfb-run)"]

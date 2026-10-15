@@ -53,7 +53,6 @@ def verify(archive, version):
                 time.sleep(0.025)
             before = subprocess.check_output([str(binaries / "muxy"), "project", "list"], env=env)
             inode = socket.stat().st_ino
-            # Staging a verified cached release never switches binaries or restarts the server.
             subprocess.run([*install, "stage", "--root", str(directory), "--version", version,
                             "--archive", str(archive), "--sha256", checksum.hexdigest()], check=True, env=env)
             blocked = subprocess.run([*install, "uninstall", "--root", str(directory)], env=env, capture_output=True)

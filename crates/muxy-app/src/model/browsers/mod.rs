@@ -145,6 +145,14 @@ impl AppModel {
             .retain(|pane| panes.contains(pane));
         let visible = self.visible_panes();
         for pane in &visible {
+            if self
+                .state
+                .browser(*pane)
+                .and_then(|browser| browser.profile.as_ref())
+                .is_some_and(|profile| self.browsers.retiring.contains(profile))
+            {
+                continue;
+            }
             if panes.contains(pane)
                 && !self.browsers.views.contains_key(pane)
                 && !self.browsers.failures.contains_key(pane)

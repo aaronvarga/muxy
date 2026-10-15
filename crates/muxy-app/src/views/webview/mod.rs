@@ -488,18 +488,15 @@ impl Webview {
                     cx.stop_propagation();
                 }),
             )
-            .child(
+            .child(muxy_ui::popover::contained_dropdown(
+                menu.anchor,
+                px(240.0),
                 muxy_ui::popover::surface(&self.palette, self.metrics)
                     .id("page-options")
-                    .absolute()
-                    .left(menu.anchor.left())
-                    .top(menu.anchor.bottom())
-                    .min_w(menu.anchor.size.width)
-                    .max_h(px(240.0))
                     .overflow_y_scroll()
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .children(rows),
-            )
+            ))
     }
 
     fn resolve_close(&mut self, id: u64, prevent: bool) {

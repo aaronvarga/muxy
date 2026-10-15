@@ -276,6 +276,56 @@ fn tabs_keep_the_profile_they_opened_with_when_the_default_changes(cx: &mut Test
     });
 }
 
+#[cfg(target_os = "linux")]
+#[gpui::test]
+fn retiring_profiles_defer_view_creation_without_caching_a_permanent_failure(
+    cx: &mut TestAppContext,
+) {
+    let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    let (pane, work) = view.update_in(cx, |model, window, cx| {
+        model.add_browser_profile("Work").expect("profile");
+        let work = model
+            .browser_profile(Some("Work"))
+            .expect("work")
+            .id()
+            .to_string();
+        let (_, pane) = model
+            .state
+            .open_browser(
+                model.state.home().id,
+                muxy_app_core::browser::BrowserPane {
+                    profile: Some(work.clone()),
+                    ..Default::default()
+                },
+                true,
+            )
+            .expect("browser");
+        model.delete_browser_profile(&work, cx).expect("delete");
+        model.sync_browsers(false, false, window, cx);
+        assert!(model.browser_view(pane).is_none());
+        assert!(model.browser_unavailable(pane).is_none());
+        (pane, work)
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        cx.run_until_parked();
+        if view.read_with(cx, |model, _| saved_profile(model, pane)) != Some(work.clone()) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "profile was not retired");
+        thread::sleep(Duration::from_millis(10));
+    }
+    view.update_in(cx, |model, window, cx| {
+        model.sync_browsers(false, false, window, cx);
+        assert!(model.browser_view(pane).is_some() || model.browser_unavailable(pane).is_some());
+        assert_ne!(
+            model.browser_unavailable(pane).as_deref(),
+            Some("browser profile is being deleted")
+        );
+    });
+}
+
 #[gpui::test]
 fn deleting_a_profile_moves_its_tabs_only_once_it_is_gone(cx: &mut TestAppContext) {
     let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));

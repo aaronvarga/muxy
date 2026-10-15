@@ -93,11 +93,14 @@ impl std::fmt::Debug for Confirmation {
 
 impl Drop for Confirmation {
     fn drop(&mut self) {
-        self.completion.complete(Answer::default());
+        let Some(callback) = self.completion.0.borrow_mut().take() else {
+            return;
+        };
         let view = self.view.clone();
         self.cx
             .spawn(async move |cx| {
                 let _ = view.update(cx, view::Dialog::dismiss);
+                callback(Answer::default());
             })
             .detach();
     }
