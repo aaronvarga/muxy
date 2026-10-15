@@ -220,14 +220,29 @@ fn run_git(folder: &Path, args: &[&str]) -> TestResult {
 }
 
 /// Pairs through the SDK and returns the saved credential plus the local admin client.
+/// Turns on mobile access at a free port. Tests running alongside can take
+/// the port before the server listens on it, so a taken port is replaced.
+fn listen(local: &Client) -> TestResult<u16> {
+    let mut status = ListenerStatus::Disabled;
+    for _ in 0..8 {
+        let port = TcpListener::bind("127.0.0.1:0")?.local_addr()?.port();
+        status = local
+            .write_remote_access(RemoteAccessSettings {
+                enabled: true,
+                port,
+            })?
+            .status;
+        if status == ListenerStatus::Listening {
+            return Ok(port);
+        }
+    }
+    Err(format!("mobile access never listened: {status:?}").into())
+}
+
 fn paired() -> TestResult<(Server, Client, ServerCredential)> {
     let server = Server::new();
     let local = server.local()?;
-    let port = TcpListener::bind("127.0.0.1:0")?.local_addr()?.port();
-    local.write_remote_access(RemoteAccessSettings {
-        enabled: true,
-        port,
-    })?;
+    let port = listen(&local)?;
     let mut offer = local.start_pairing()?;
     offer.invite.hosts = vec!["127.0.0.1".into()];
     let link = offer.invite.to_link();
