@@ -616,7 +616,7 @@ impl AppModel {
 
     pub(super) fn receive_update_prepared(
         &mut self,
-        result: Result<Option<std::fs::File>, muxy_client::ClientError>,
+        result: Result<Option<muxy_core::file_lock::FileLock>, muxy_client::ClientError>,
         cx: &mut Context<Self>,
     ) {
         if self.quitting != Quitting::Update {

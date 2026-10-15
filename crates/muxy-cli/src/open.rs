@@ -108,15 +108,20 @@ fn containing_app(executable: &Path) -> Option<&Path> {
 mod tests {
     use std::ffi::OsString;
     use std::os::unix::ffi::{OsStrExt, OsStringExt};
-    use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
+    use std::process::Command;
 
     use super::*;
 
     fn stub(root: &Path, script: &str) -> PathBuf {
         let app = root.join("muxy-app");
-        std::fs::write(&app, format!("#!/bin/sh\n{script}\n")).expect("stub");
-        std::fs::set_permissions(&app, std::fs::Permissions::from_mode(0o755)).expect("mode");
+        let status = Command::new("/bin/sh")
+            .args(["-c", r#"printf '%s' "$1" > "$2" && chmod 755 "$2""#, "sh"])
+            .arg(format!("#!/bin/sh\n{script}\n"))
+            .arg(&app)
+            .status()
+            .expect("stub");
+        assert!(status.success(), "stub: {status}");
         app
     }
 

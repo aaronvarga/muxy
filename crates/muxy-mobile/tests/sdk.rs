@@ -349,11 +349,12 @@ fn scrollback_reads_every_line_while_new_output_arrives() -> TestResult {
             .iter()
             .any(|line| line == text)
     };
-    terminal
-        .send_input(b"i=1; while [ $i -le 120 ]; do echo line-$i; i=$((i+1)); done\r".to_vec())?;
+    terminal.send_input(
+        b"printf '\\n'; i=1; while [ $i -le 120 ]; do echo line-$i; i=$((i+1)); done\r".to_vec(),
+    )?;
     wait_for(&events, |_| on_screen("line-120"))?;
     let scrollback = terminal.scrollback(50)?;
-    terminal.send_input(b"echo after-$((1+1))\r".to_vec())?;
+    terminal.send_input(b"printf '\\nafter-%d\\n' $((1+1))\r".to_vec())?;
     wait_for(&events, |_| on_screen("after-2"))?;
     let mut lines = texts(&scrollback.lines());
     loop {

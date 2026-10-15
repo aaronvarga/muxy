@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import fcntl
+import gzip
 import hashlib
 import importlib.util
 import io
@@ -90,11 +91,12 @@ class DesktopDistributionTests(unittest.TestCase):
                                  ("muxy-desktop/muxy", tarfile.REGTYPE, INSTALL.MAX_ARCHIVE + 1)):
             with self.subTest(name=name, kind=kind, size=size):
                 archive = self.home / "bad.tar.gz"
-                with tarfile.open(archive, "w:gz") as output:
+                with gzip.open(archive, "wb") as output:
                     entry = tarfile.TarInfo(name)
                     entry.type, entry.size, entry.linkname = kind, size, "/tmp/escaped"
-                    output.addfile(entry)
-                with tempfile.TemporaryDirectory() as temporary, self.assertRaises(ValueError):
+                    output.write(entry.tobuf())
+                with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(
+                        ValueError, "Unsafe or unexpected desktop archive entry"):
                     INSTALL.extract(archive, Path(temporary), INSTALL.digest(archive))
         archive = self.home / "duplicates.tar.gz"
         with tarfile.open(archive, "w:gz") as output:

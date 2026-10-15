@@ -189,7 +189,7 @@ impl PreparedUpdate {
 
     pub(crate) fn install(
         &self,
-        _server_lock: std::fs::File,
+        _server_lock: muxy_core::file_lock::FileLock,
         _server: &muxy_protocol::ServerInfo,
     ) -> Result<()> {
         self.validate()?;

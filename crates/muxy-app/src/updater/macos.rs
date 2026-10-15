@@ -379,7 +379,7 @@ impl PreparedUpdate {
 
     pub(crate) fn install(
         &self,
-        _server_lock: std::fs::File,
+        _server_lock: muxy_core::file_lock::FileLock,
         server: &muxy_protocol::ServerInfo,
     ) -> Result<()> {
         let _bundle_lock = replacement::lock(
@@ -622,7 +622,6 @@ mod retirement_tests {
         let lock = crate::server::lock_for_update(&socket)?;
         installation.cleanup(&socket)?;
         assert!(directories.iter().all(|path| path.exists()));
-        lock.unlock()?;
         drop(lock);
         assert!(installation.cleanup(&socket).is_err());
         assert!(directories.iter().all(|path| path.exists()));

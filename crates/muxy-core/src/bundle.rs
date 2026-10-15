@@ -1,3 +1,4 @@
+use crate::file_lock::FileLock;
 use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
@@ -9,7 +10,7 @@ pub struct BundleLease {
     _file: File,
 }
 
-pub fn lock_replacement(directory: &Path) -> io::Result<File> {
+pub fn lock_replacement(directory: &Path) -> io::Result<FileLock> {
     crate::file_lock::try_lock(&directory.join(".muxy-beta-update.lock"))
 }
 
@@ -88,7 +89,7 @@ pub fn linux_root(executable: &Path) -> Option<&Path> {
 }
 
 #[cfg(target_os = "linux")]
-fn wait_for_replacement(root: &Path) -> io::Result<File> {
+fn wait_for_replacement(root: &Path) -> io::Result<FileLock> {
     let deadline = Instant::now() + Duration::from_secs(3);
     loop {
         match lock_replacement(root) {

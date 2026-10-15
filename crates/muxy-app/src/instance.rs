@@ -3,7 +3,7 @@
 //! reaches an app that is already running.
 
 use std::ffi::{OsStr, OsString};
-use std::fs::{DirBuilder, File};
+use std::fs::DirBuilder;
 use std::io::{self, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
@@ -25,7 +25,7 @@ pub(crate) type Folders = async_channel::Sender<Vec<String>>;
 /// Holds the profile for as long as this app runs.
 #[derive(Debug)]
 pub(crate) struct Instance {
-    _lock: File,
+    _lock: muxy_core::file_lock::FileLock,
 }
 
 /// Takes the profile for this app and opens `arguments` in it. `None` when

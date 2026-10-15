@@ -55,7 +55,7 @@ impl PreparedUpdate {
     }
     pub(crate) fn install(
         &self,
-        _lock: std::fs::File,
+        _lock: muxy_core::file_lock::FileLock,
         _server: &muxy_protocol::ServerInfo,
     ) -> Result<()> {
         match self.installation {}
