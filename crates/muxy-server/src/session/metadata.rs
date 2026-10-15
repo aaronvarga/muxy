@@ -87,6 +87,9 @@ impl Metadata {
                         self.directory = directory;
                     }
                 }
+                TerminalEvent::ClipboardWrite(text) => {
+                    events.push(MetadataEvent::ClipboardWrite(text));
+                }
                 TerminalEvent::Bell => events.push(MetadataEvent::Bell),
                 TerminalEvent::Progress(_) | TerminalEvent::Title(_) => {}
             }

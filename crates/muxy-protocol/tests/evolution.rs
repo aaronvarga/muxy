@@ -9,8 +9,8 @@ use muxy_protocol::wire::{
     legacy_version_unsupported,
 };
 use muxy_protocol::{
-    CONTROL, ChannelId, ErrorCode, ExitReason, Message, ProjectId, RequestBody, RequestId,
-    SessionId, Topic,
+    CONTROL, ChannelId, ErrorCode, ExitReason, Message, MetadataEvent, ProjectId, RequestBody,
+    RequestId, SessionId, Topic,
 };
 
 /// A frame holding `payload`, as a newer build would write it.
@@ -198,6 +198,22 @@ fn events_naming_unknown_variants_are_skipped() -> Result<(), Box<dyn Error>> {
     })?;
     let bytes = frame(MessageKind::Metadata as u8, ChannelId(1), &payload)?;
     assert_eq!(decode_one(&bytes)?, None);
+    Ok(())
+}
+
+#[test]
+fn clipboard_write_keeps_its_metadata_variant_number() -> Result<(), Box<dyn Error>> {
+    let payload = cbor(|e| {
+        e.array(1)?.array(2)?.u32(9)?.array(1)?.str("copied text")?;
+        Ok(())
+    })?;
+    assert_eq!(
+        decode_one(&frame(MessageKind::Metadata as u8, ChannelId(1), &payload,)?)?,
+        Some((
+            ChannelId(1),
+            Message::Metadata(MetadataEvent::ClipboardWrite("copied text".into()))
+        ))
+    );
     Ok(())
 }
 

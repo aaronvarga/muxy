@@ -102,6 +102,7 @@ fn attach(client: &Client, session: SessionId) -> Result {
                 writeln!(io::stdout(), "metadata: {event:?}")?;
             }
             ClientEvent::SessionMetadata { .. }
+            | ClientEvent::ClipboardWrite { .. }
             | ClientEvent::ActivityChanged { .. }
             | ClientEvent::SessionsChanged { .. }
             | ClientEvent::Progress { .. }
@@ -144,6 +145,7 @@ fn end(client: &Client, session: SessionId) -> Result {
                 return Err("disconnected from server".into());
             }
             ClientEvent::SessionMetadata { .. }
+            | ClientEvent::ClipboardWrite { .. }
             | ClientEvent::ActivityChanged { .. }
             | ClientEvent::SessionsChanged { .. }
             | ClientEvent::Progress { .. }

@@ -317,6 +317,7 @@ fn a_full_event_buffer_preserves_the_only_disconnect_after_history_completion() 
     Ok(())
 }
 
+mod clipboard;
 mod resize;
 mod servers;
 

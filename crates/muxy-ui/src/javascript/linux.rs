@@ -90,6 +90,7 @@ macro_rules! functions {
 }
 
 functions! {
+    fn JSCheckScriptSyntax(context: JSContextRef, script: JSStringRef, source: JSStringRef, line: c_int, exception: *mut JSValueRef) -> bool;
     fn JSGlobalContextCreate(class: JSClassRef) -> JSGlobalContextRef;
     fn JSGlobalContextRelease(context: JSGlobalContextRef);
     fn JSContextGetGlobalObject(context: JSContextRef) -> JSObjectRef;

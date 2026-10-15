@@ -663,6 +663,15 @@ impl TerminalPane {
                 cx.notify();
                 return;
             }
+            MetadataEvent::ClipboardWrite(text) => {
+                if self.state == PaneState::Live
+                    && !text.is_empty()
+                    && text.len() <= muxy_protocol::MAX_CLIPBOARD_TEXT
+                {
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                }
+                return;
+            }
             MetadataEvent::Title(title) => self.title = title,
             MetadataEvent::Directory(directory) => {
                 self.directory = directory;
@@ -1959,6 +1968,54 @@ mod tests {
         pane.update(cx, |pane, cx| pane.set_state(PaneState::Disconnected, cx));
         cx.simulate_keystrokes("cmd-v cmd-shift-v alt-p shift-enter");
         assert!(input.borrow().is_empty());
+    }
+
+    #[gpui::test]
+    fn live_clipboard_metadata_writes_bounded_text_independent_of_copy_on_select(
+        cx: &mut TestAppContext,
+    ) {
+        let (pane, cx) = cx.add_window_view(|_, cx| {
+            TerminalPane::new(
+                Palette::new(true),
+                muxy_app_core::settings::TerminalSettings::default(),
+                cx,
+            )
+        });
+        cx.update(|_, cx| {
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string("baseline".into()));
+            pane.update(cx, |pane, cx| {
+                pane.state = PaneState::Live;
+                pane.copy_on_select = false;
+                pane.metadata(MetadataEvent::ClipboardWrite("first".into()), cx);
+            });
+            assert_eq!(
+                cx.read_from_clipboard().and_then(|item| item.text()),
+                Some("first".into())
+            );
+            pane.update(cx, |pane, cx| {
+                pane.copy_on_select = true;
+                pane.metadata(MetadataEvent::ClipboardWrite("second".into()), cx);
+            });
+            assert_eq!(
+                cx.read_from_clipboard().and_then(|item| item.text()),
+                Some("second".into())
+            );
+            pane.update(cx, |pane, cx| {
+                pane.metadata(MetadataEvent::ClipboardWrite(String::new()), cx);
+                pane.metadata(
+                    MetadataEvent::ClipboardWrite(
+                        "x".repeat(muxy_protocol::MAX_CLIPBOARD_TEXT + 1),
+                    ),
+                    cx,
+                );
+                pane.state = PaneState::Disconnected;
+                pane.metadata(MetadataEvent::ClipboardWrite("disconnected".into()), cx);
+            });
+            assert_eq!(
+                cx.read_from_clipboard().and_then(|item| item.text()),
+                Some("second".into())
+            );
+        });
     }
 
     #[gpui::test]

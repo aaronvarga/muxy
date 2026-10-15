@@ -377,6 +377,7 @@ fn deliver(
                 return;
             }
             ClientEvent::SessionMetadata { .. }
+            | ClientEvent::ClipboardWrite { .. }
             | ClientEvent::Progress { .. }
             | ClientEvent::RemoteAccessChanged { .. } => None,
         };

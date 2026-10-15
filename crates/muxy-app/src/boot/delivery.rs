@@ -173,7 +173,9 @@ impl Delivery {
     fn ready(&self, event: &ClientEvent) -> bool {
         self.pending == 0
             || match event {
-                ClientEvent::Frame { channel, .. } | ClientEvent::Metadata { channel, .. } => {
+                ClientEvent::Frame { channel, .. }
+                | ClientEvent::Metadata { channel, .. }
+                | ClientEvent::ClipboardWrite { channel, .. } => {
                     channel.0 <= self.installed_through
                 }
                 ClientEvent::SessionMetadata { .. }

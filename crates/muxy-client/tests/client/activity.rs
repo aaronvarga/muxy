@@ -77,3 +77,51 @@ fn activity_tracks_unattached_sessions_and_clears_acknowledged_or_ended_events()
     assert!(first.client.activity()?.events.is_empty());
     Ok(())
 }
+
+#[test]
+fn omp_osc_titles_drive_activity_and_notifications_without_screen_markers() -> TestResult {
+    use muxy_protocol::{ActivityKind, AgentProvider};
+
+    let fixture = Fixture::new()?;
+    let connection = fixture.connect()?;
+    let session = fixture.create(&connection.client)?;
+    let handle = fixture.registry.handle(session.id).ok_or("session")?;
+    handle.send(muxy_server::SessionCommand::Input(
+        b"/bin/bash -c 'exec -a omp /bin/cat'\n".to_vec(),
+    ))?;
+    wait_state(&connection.client, session.id, AgentState::Idle)?;
+    for (title, expected, event) in [
+        ("π ⠋ Inspect files", AgentState::Working, None),
+        (
+            "π ! Inspect files",
+            AgentState::Blocked,
+            Some(ActivityKind::Attention),
+        ),
+        (
+            "π ⠙ Inspect files",
+            AgentState::Working,
+            Some(ActivityKind::Attention),
+        ),
+        (
+            "π > Inspect files",
+            AgentState::Idle,
+            Some(ActivityKind::Completed),
+        ),
+    ] {
+        handle.send(muxy_server::SessionCommand::Input(
+            format!("\x1b]0;{title}\x07\n").into_bytes(),
+        ))?;
+        let snapshot = wait_state(&connection.client, session.id, expected)?;
+        assert_eq!(snapshot.agents[0].provider, AgentProvider::OhMyPi);
+        assert_eq!(
+            snapshot
+                .events
+                .iter()
+                .map(|event| event.kind)
+                .collect::<Vec<_>>(),
+            event.into_iter().collect::<Vec<_>>(),
+        );
+    }
+    connection.client.end_session(session.id)?;
+    Ok(())
+}

@@ -134,6 +134,13 @@ pub(crate) const PROVIDERS: &[Provider] = &[
         arguments: &["--print", "--output-format", "text", "--mode=plan"],
         environment: &[],
     },
+    Provider {
+        id: "omp",
+        name: "Oh My Pi",
+        executable: "omp",
+        arguments: &["--print", "--no-session", "--no-tools"],
+        environment: &[],
+    },
 ];
 
 pub(crate) fn selected(installed: &[Provider], configured: Option<&str>) -> Option<Provider> {

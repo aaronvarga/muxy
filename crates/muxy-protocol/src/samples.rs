@@ -421,6 +421,9 @@ fn terminal_metadata_samples(samples: &mut Vec<Message>) {
         },
     });
     samples.push(Message::Metadata(MetadataEvent::CursorBlinking(true)));
+    samples.push(Message::Metadata(MetadataEvent::ClipboardWrite(
+        "copied text".into(),
+    )));
     samples.push(Message::Metadata(MetadataEvent::Links {
         seq: 1,
         rows: vec![crate::LinkRow {

@@ -6,10 +6,11 @@
 )]
 
 pub(super) use objc2_javascript_core::{
-    JSContextGetGlobalObject, JSContextRef, JSEvaluateScript, JSGlobalContextCreate,
-    JSGlobalContextRef, JSGlobalContextRelease, JSObjectMakeFunctionWithCallback, JSObjectRef,
-    JSObjectSetProperty, JSStringCreateWithCharacters, JSStringGetCharactersPtr, JSStringGetLength,
-    JSStringRef, JSStringRelease, JSValueIsNumber, JSValueMakeString, JSValueRef, JSValueToNumber,
+    JSCheckScriptSyntax, JSContextGetGlobalObject, JSContextRef, JSEvaluateScript,
+    JSGlobalContextCreate, JSGlobalContextRef, JSGlobalContextRelease,
+    JSObjectMakeFunctionWithCallback, JSObjectRef, JSObjectSetProperty,
+    JSStringCreateWithCharacters, JSStringGetCharactersPtr, JSStringGetLength, JSStringRef,
+    JSStringRelease, JSValueIsNumber, JSValueMakeString, JSValueRef, JSValueToNumber,
     JSValueToStringCopy, kJSPropertyAttributeDontDelete, kJSPropertyAttributeReadOnly,
 };
 

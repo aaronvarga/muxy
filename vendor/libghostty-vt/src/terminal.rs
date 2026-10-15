@@ -1277,9 +1277,15 @@ impl<'t> ClipboardWrite<'t> {
     pub fn contents(&self) -> ClipboardContents<'t> {
         // SAFETY: We trust libghostty to give us a valid pointer and length
         // within the lifetime of the callback.
-        ClipboardContents(unsafe {
-            std::slice::from_raw_parts((*self.ptr).contents, (*self.ptr).contents_len).iter()
-        })
+        let contents = unsafe {
+            let write = *self.ptr;
+            if write.contents_len == 0 {
+                &[]
+            } else {
+                std::slice::from_raw_parts(write.contents, write.contents_len)
+            }
+        };
+        ClipboardContents(contents.iter())
     }
 }
 
@@ -1312,14 +1318,14 @@ impl std::iter::FusedIterator for ClipboardContents<'_> {}
 /// One MIME representation in a clipboard write.
 ///
 /// The data is binary-safe and has already been decoded from any protocol-level
-/// encoding. A zero-length data string is an explicit empty representation; it
+/// encoding. A zero-length byte string is an explicit empty representation; it
 /// does not clear the clipboard.
 #[derive(Clone, Copy, Debug)]
 pub struct ClipboardContent<'t> {
     /// MIME type of the representation.
-    pub mime: &'t str,
+    pub mime: &'t [u8],
     /// Decoded, binary-safe representation data.
-    pub data: &'t str,
+    pub data: &'t [u8],
 }
 impl<'t> ClipboardContent<'t> {
     /// # Safety
@@ -1329,10 +1335,17 @@ impl<'t> ClipboardContent<'t> {
     unsafe fn from_raw(value: &ffi::ClipboardContent) -> Self {
         // SAFETY: Upheld by caller
         unsafe {
-            Self {
-                mime: value.mime.to_str(),
-                data: value.data.to_str(),
-            }
+            let mime = if value.mime.len == 0 {
+                &[]
+            } else {
+                std::slice::from_raw_parts(value.mime.ptr, value.mime.len)
+            };
+            let data = if value.data.len == 0 {
+                &[]
+            } else {
+                std::slice::from_raw_parts(value.data.ptr, value.data.len)
+            };
+            Self { mime, data }
         }
     }
 }

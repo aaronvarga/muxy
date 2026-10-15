@@ -23,3 +23,7 @@ impl Script {
         match *self {}
     }
 }
+
+pub fn is_async_function_body(_body: &str) -> bool {
+    false
+}

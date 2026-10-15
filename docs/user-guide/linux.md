@@ -29,7 +29,7 @@ sudo apt-get install python3 ca-certificates libfreetype6 libfontconfig1 libxcb1
 Use your desktop's portal backend too: `xdg-desktop-portal-gnome`,
 `xdg-desktop-portal-kde` or `xdg-desktop-portal-gtk`. Use your GPU vendor's
 Vulkan driver where appropriate. WebKitGTK 4.1, version 2.40 or newer, is
-required for extensions. Voice is optional and needs the additional
+required for extensions; the integrated browser needs version 2.42 or newer. Voice is optional and needs the additional
 [local transcription tools and models](../tech/constraints.md#experimental-linux-desktop).
 
 Choose a release containing `muxy-desktop-<version>-linux-<arch>.tar.gz` from

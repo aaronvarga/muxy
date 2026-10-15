@@ -1033,6 +1033,45 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn clipboard_writes_reach_current_attachments_without_replaying_on_attach() -> Result<(), Fault>
+    {
+        let mut owner = owner()?;
+        let (first, first_events) = mpsc::channel();
+        owner.attach(AttachmentId(1), ChannelId(1), owner.size, first.into())?;
+        first_events.try_iter().for_each(drop);
+
+        owner.feed(b"\x1b]52;c;b2xk\x07")?;
+        owner.tick()?;
+        assert!(first_events.try_iter().any(|event| matches!(
+            event,
+            AttachmentEvent::Metadata(MetadataEvent::ClipboardWrite(text)) if text == "old"
+        )));
+
+        owner.feed(b"\x1b]52;c;cGVuZGluZw==\x07")?;
+        let (second, second_events) = mpsc::channel();
+        owner.attach(AttachmentId(2), ChannelId(2), owner.size, second.into())?;
+        assert!(first_events.try_iter().any(|event| matches!(
+            event,
+            AttachmentEvent::Metadata(MetadataEvent::ClipboardWrite(text)) if text == "pending"
+        )));
+        assert!(!second_events.try_iter().any(|event| matches!(
+            event,
+            AttachmentEvent::Metadata(MetadataEvent::ClipboardWrite(_))
+        )));
+
+        owner.feed(b"\x1b]52;c;bGl2ZQ==\x1b\\")?;
+        owner.tick()?;
+        for events in [&first_events, &second_events] {
+            assert!(events.try_iter().any(|event| matches!(
+                event,
+                AttachmentEvent::Metadata(MetadataEvent::ClipboardWrite(text)) if text == "live"
+            )));
+        }
+        Ok(())
+    }
+
     #[test]
     fn new_attachment_receives_its_own_baseline_correction() -> Result<(), Fault> {
         let mut owner = owner()?;

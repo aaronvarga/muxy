@@ -81,6 +81,13 @@ pub(crate) enum Command {
     CopyRemotePath,
     /// A row of the menu the composer with this identity opened.
     Composer(gpui::EntityId, super::composer::menu::Command),
+    /// Opens a browser pane's page in the default browser, or the installed
+    /// browser at an index of `opener::web_browsers`.
+    OpenInBrowser(muxy_app_core::PaneId, Option<usize>),
+    /// Browses a pane with the profile at an index of Settings' profile list.
+    BrowserProfile(muxy_app_core::PaneId, usize),
+    BrowserInspect(muxy_app_core::PaneId),
+    ManageBrowserProfiles,
 }
 
 #[derive(Clone, Debug)]
@@ -657,6 +664,20 @@ impl AppModel {
                     composer.update(cx, |composer, cx| composer.menu_action(command, cx));
                 }
                 return;
+            }
+            Command::OpenInBrowser(pane, index) => self.open_browser_page_in(pane, index, cx),
+            Command::BrowserProfile(pane, index) => {
+                if let Some(profile) = self.settings_browser_profiles().into_iter().nth(index) {
+                    self.switch_browser_profile(pane, profile.id, cx);
+                }
+            }
+            Command::ManageBrowserProfiles => self.show_browser_settings(cx),
+            Command::BrowserInspect(pane) => {
+                if let Some(view) = self.browser_view(pane)
+                    && let Err(error) = view.read(cx).native.browser().open_devtools()
+                {
+                    self.fail(error.to_string(), cx);
+                }
             }
         }
         self.focus_active(window, cx);

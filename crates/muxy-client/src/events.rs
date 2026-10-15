@@ -12,6 +12,11 @@ use crate::ClientError;
 use crate::handshake;
 use crate::requests::Pending;
 
+mod clipboard;
+
+pub use clipboard::ClipboardWrite;
+use clipboard::ClipboardWrites;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientEvent {
     SessionMetadata {
@@ -49,6 +54,10 @@ pub enum ClientEvent {
         channel: ChannelId,
         event: MetadataEvent,
     },
+    ClipboardWrite {
+        channel: ChannelId,
+        write: ClipboardWrite,
+    },
     SessionEnded {
         session: SessionId,
         reason: ExitReason,
@@ -67,8 +76,9 @@ pub(crate) fn route(
     let handshake = handshake::accept(decoder.next());
     let accepted = handshake.is_ok();
     let _ = connected.send(handshake);
+    let mut clipboard = ClipboardWrites::default();
     if accepted {
-        while let Some(event) = next_event(decoder, pending) {
+        while let Some(event) = next_event(decoder, pending, &mut clipboard) {
             if events.send(event).is_err() {
                 break;
             }
@@ -79,7 +89,11 @@ pub(crate) fn route(
     let _ = events.send(ClientEvent::Disconnected);
 }
 
-fn next_event(decoder: &mut Decoder<impl Read>, pending: &Pending) -> Option<ClientEvent> {
+fn next_event(
+    decoder: &mut Decoder<impl Read>,
+    pending: &Pending,
+    clipboard: &mut ClipboardWrites,
+) -> Option<ClientEvent> {
     loop {
         let (channel, message) = decoder.next().ok()?;
         if message.validate().is_err() {
@@ -117,6 +131,13 @@ fn next_event(decoder: &mut Decoder<impl Read>, pending: &Pending) -> Option<Cli
             }
             (channel, Message::Frame(frame)) if channel != CONTROL => {
                 return Some(ClientEvent::Frame { channel, frame });
+            }
+            (channel, Message::Metadata(MetadataEvent::ClipboardWrite(text)))
+                if channel != CONTROL =>
+            {
+                if let Some(write) = clipboard.push(channel, text) {
+                    return Some(ClientEvent::ClipboardWrite { channel, write });
+                }
             }
             (channel, Message::Metadata(event)) if channel != CONTROL => {
                 return Some(ClientEvent::Metadata { channel, event });

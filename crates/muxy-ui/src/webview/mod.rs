@@ -2,7 +2,11 @@
 //! page is allowed to do is the same for every backend and lives in `rules`.
 
 pub mod assets;
+#[cfg(target_os = "macos")]
+pub(crate) mod host;
 mod rules;
+#[cfg(target_os = "macos")]
+pub(crate) use macos::parent_view;
 
 use std::path::Path;
 
@@ -13,7 +17,7 @@ use muxy_core::capability::Capability;
 use assets::Source;
 
 #[cfg(target_os = "linux")]
-mod linux;
+pub(crate) mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]

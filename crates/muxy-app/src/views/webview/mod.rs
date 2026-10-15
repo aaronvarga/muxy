@@ -1,4 +1,4 @@
-mod input;
+pub(crate) mod input;
 pub(crate) mod modal;
 pub(crate) mod panel;
 pub(crate) mod popover;
@@ -602,7 +602,13 @@ impl Render for Webview {
                     },
                     move |bounds, page, window, _| {
                         if let Some((native, hitbox)) = page {
-                            pointer.forward(native, bounds, hitbox, cursor, window);
+                            pointer.forward(
+                                move |event| native.pointer(event),
+                                bounds,
+                                hitbox,
+                                cursor,
+                                window,
+                            );
                         }
                     },
                 )

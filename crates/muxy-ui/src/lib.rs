@@ -70,6 +70,12 @@ pub mod native_menu;
 #[allow(unsafe_code, reason = "Main-thread WebKit and native view integration")]
 pub mod webview;
 
+#[allow(
+    unsafe_code,
+    reason = "The browser view is built inside a native container"
+)]
+pub mod browser;
+
 pub mod transcript;
 
 #[allow(

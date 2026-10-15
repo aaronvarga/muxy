@@ -843,6 +843,29 @@ mod tests {
     }
 
     #[test]
+    fn clipboard_metadata_keeps_only_the_latest_write_and_is_retired() {
+        let outbox = Outbox::new(Arc::default());
+        let channel = ChannelId(1);
+        outbox.lock().credit.insert(channel, false);
+        outbox.push_metadata(channel, MetadataEvent::ClipboardWrite("first".into()));
+        outbox.push_metadata(channel, MetadataEvent::ClipboardWrite("last".into()));
+        assert_eq!(outbox.lock().metadata[&channel].len(), 1);
+        assert_eq!(
+            outbox.next(),
+            Some((
+                channel,
+                Message::Metadata(MetadataEvent::ClipboardWrite("last".into()))
+            ))
+        );
+        outbox.push_metadata(channel, MetadataEvent::ClipboardWrite("pending".into()));
+        outbox.lock().retire(
+            channel,
+            &ServerError::new(ErrorCode::UnknownChannel, "detached"),
+        );
+        assert!(outbox.lock().metadata.is_empty());
+    }
+
+    #[test]
     fn closing_wakes_writer_and_discards_pending_but_drains_control()
     -> Result<(), Box<dyn std::error::Error>> {
         let outbox = Arc::new(Outbox::new(Arc::default()));

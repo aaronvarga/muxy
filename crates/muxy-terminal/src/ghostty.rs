@@ -8,8 +8,8 @@ use libghostty_vt::render::{
 use libghostty_vt::screen::{CellContentTag, CellWide, Screen, TrackedGridRef};
 use libghostty_vt::style::{PaletteIndex, RgbColor, StyleColor, Underline as EngineUnderline};
 use libghostty_vt::terminal::{
-    ColorScheme, CompressionMode, Mode, Options, Point, PointCoordinate, PointSpace,
-    ScrollViewport, Terminal as Engine,
+    ClipboardLocation, ClipboardWriteError, ColorScheme, CompressionMode, Mode, Options, Point,
+    PointCoordinate, PointSpace, ScrollViewport, Terminal as Engine,
 };
 use libghostty_vt::{key, mouse};
 
@@ -82,12 +82,34 @@ impl Terminal {
         let events = Events::default();
         let title = Rc::clone(&events.title);
         let directory = Rc::clone(&events.directory);
+        let clipboard_write = Rc::clone(&events.clipboard_write);
         let bell = Rc::clone(&events.bell);
         engine
             .on_title_changed(move |_| title.set(true))
             .map_err(create)?;
         engine
             .on_pwd_changed(move |_| directory.set(true))
+            .map_err(create)?;
+        engine
+            .on_clipboard_write(move |_, write| {
+                if write.location() != ClipboardLocation::Standard {
+                    return Err(ClipboardWriteError::Unsupported);
+                }
+                let Some(content) = write
+                    .contents()
+                    .find(|content| content.mime == b"text/plain")
+                else {
+                    return Err(ClipboardWriteError::Unsupported);
+                };
+                if content.data.is_empty() || content.data.len() > muxy_protocol::MAX_CLIPBOARD_TEXT
+                {
+                    return Err(ClipboardWriteError::InvalidData);
+                }
+                let text = std::str::from_utf8(content.data)
+                    .map_err(|_| ClipboardWriteError::InvalidData)?;
+                clipboard_write.borrow_mut().replace(text.to_owned());
+                Ok(())
+            })
             .map_err(create)?;
         engine.on_bell(move |_| bell.set(true)).map_err(create)?;
         engine
@@ -269,6 +291,9 @@ impl Terminal {
             && let Ok(directory) = self.engine.pwd()
         {
             events.push(TerminalEvent::Directory(directory.to_owned()));
+        }
+        if let Some(text) = self.events.clipboard_write.borrow_mut().take() {
+            events.push(TerminalEvent::ClipboardWrite(text));
         }
         if self.events.bell.replace(false) {
             events.push(TerminalEvent::Bell);

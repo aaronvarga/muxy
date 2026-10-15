@@ -257,6 +257,8 @@ pub enum MetadataEvent {
         #[n(1)]
         rows: Vec<u16>,
     },
+    #[n(9)]
+    ClipboardWrite(#[n(0)] String),
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

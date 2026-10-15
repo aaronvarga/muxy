@@ -36,9 +36,10 @@ Every payload value is a string.
 | `modal.opened`, `modal.closed` | `extensionID`, `modalID` | |
 
 **Tab context:** `tabID`, `projectID`, `worktreeID`, `areaID`, `title`,
-`projectPath`, and `kind` (`terminal` or `extensionWebView`). Terminal tabs add
-`paneID` and `cwd`. Extension tabs add `extensionID`, `tabTypeID`,
-`tabInstanceID`, and `data` as a JSON string.
+`projectPath`, and `kind` (`terminal`, `extensionWebView`, or `browser`).
+Terminal tabs add `paneID` and `cwd`. Extension tabs add `extensionID`,
+`tabTypeID`, `tabInstanceID`, and `data` as a JSON string. Browser tabs add
+`paneID` and `url`.
 
 - `projectID` is the top-level project. `worktreeID` is the project or
   worktree the tab belongs to.
@@ -46,7 +47,7 @@ Every payload value is a string.
   tabs open.
 - `agent.status` reports the busiest agent per worktree; `providerID` is
   `claude`, `codex`, `opencode`, `cursor`, `copilot`, `droid`, `pi`, `grok`,
-  `kiro`, `xal`, `antigravity`, or `other`.
+  `kiro`, `xal`, `antigravity`, `omp`, or `other`.
 
 ## Command events
 

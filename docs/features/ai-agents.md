@@ -6,11 +6,23 @@ plugins, and works while no app is open.
 
 ## Supported agents
 
-Antigravity, Claude Code, Codex, Copilot, Cursor, Droid, Grok, Kiro, OpenCode,
-Pi, and Xal.
+Antigravity, Claude Code, Codex, Copilot, Cursor, Droid, Grok, Kiro, Oh My Pi,
+OpenCode, Pi, and Xal.
 
 The server spots them from the running program and what's on screen.
 Recognition is best effort.
+
+Oh My Pi detection reads its OSC terminal-title run state: a spinner while
+working, `!` when waiting, and `>` when idle. It also recognizes optional OSC
+progress reports, `⎋` working messages, and the older `Working… [esc]` spinner.
+In `omp --print` sessions, a final non-empty
+`Working...` line signals work; once output follows it, that progress line
+no longer keeps the session busy. Detection uses terminal escape sequences
+and screen text, so disabling or customizing these signals can affect recognition.
+
+For foreground `omp` and `oh-my-pi` processes, automatic terminal titles omit
+the leading `π ` prefix. The provider icon remains visible, and custom tab
+titles are unchanged.
 
 ## States
 

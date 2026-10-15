@@ -17,6 +17,7 @@ use crate::tr;
 
 pub(super) type gboolean = c_int;
 pub(super) type gpointer = *mut c_void;
+
 pub(super) type GType = usize;
 pub(super) type GQuark = u32;
 
@@ -355,6 +356,7 @@ libraries! {
         fn gdk_event_handler_set(handler: EventFunc, data: gpointer, notify: Option<DestroyNotify>);
         fn gdk_event_new(kind: c_int) -> gpointer;
         fn gdk_event_free(event: gpointer);
+        fn gdk_event_get_coords(event: gpointer, x: *mut c_double, y: *mut c_double) -> gboolean;
         fn gdk_event_set_device(event: gpointer, device: gpointer);
         fn gdk_display_get_default() -> gpointer;
         fn gdk_display_get_default_seat(display: gpointer) -> gpointer;
@@ -385,6 +387,10 @@ libraries! {
         fn gtk_widget_destroy(widget: gpointer);
         fn gtk_widget_set_size_request(widget: gpointer, width: c_int, height: c_int);
         fn gtk_window_resize(window: gpointer, width: c_int, height: c_int);
+        fn gtk_window_get_focus(window: gpointer) -> gpointer;
+        fn gtk_widget_get_allocated_width(widget: gpointer) -> c_int;
+        fn gtk_widget_get_allocated_height(widget: gpointer) -> c_int;
+        fn gtk_widget_translate_coordinates(source: gpointer, destination: gpointer, x: c_int, y: c_int, translated_x: *mut c_int, translated_y: *mut c_int) -> gboolean;
         fn gtk_widget_get_window(widget: gpointer) -> gpointer;
         fn gtk_widget_get_scale_factor(widget: gpointer) -> c_int;
         fn gtk_widget_grab_focus(widget: gpointer);
@@ -408,6 +414,25 @@ libraries! {
         fn jsc_value_object_get_property(value: gpointer, name: *const c_char) -> gpointer;
     }
     "libwebkit2gtk-4.1.so.0" {
+        fn webkit_web_context_new_ephemeral() -> gpointer;
+        fn webkit_web_context_get_cookie_manager(context: gpointer) -> gpointer;
+        fn webkit_cookie_manager_set_persistent_storage(manager: gpointer, filename: *const c_char, kind: c_int);
+        fn webkit_web_view_get_title(view: gpointer) -> *const c_char;
+        fn webkit_web_view_get_estimated_load_progress(view: gpointer) -> c_double;
+        fn webkit_web_view_can_go_back(view: gpointer) -> gboolean;
+        fn webkit_web_view_can_go_forward(view: gpointer) -> gboolean;
+        fn webkit_web_view_go_back(view: gpointer);
+        fn webkit_web_view_go_forward(view: gpointer);
+        fn webkit_web_view_reload(view: gpointer);
+        fn webkit_web_view_get_settings(view: gpointer) -> gpointer;
+        fn webkit_settings_set_enable_developer_extras(settings: gpointer, enabled: gboolean);
+        fn webkit_web_view_get_inspector(view: gpointer) -> gpointer;
+        fn webkit_web_inspector_get_web_view(inspector: gpointer) -> gpointer;
+        fn webkit_web_inspector_is_attached(inspector: gpointer) -> gboolean;
+        fn webkit_web_inspector_show(inspector: gpointer);
+        fn webkit_web_inspector_close(inspector: gpointer);
+        fn webkit_context_menu_get_n_items(menu: gpointer) -> c_uint;
+        fn webkit_navigation_action_is_user_gesture(action: gpointer) -> gboolean;
         fn webkit_web_context_get_type() -> GType;
         fn webkit_web_view_get_type() -> GType;
         fn webkit_user_content_manager_get_type() -> GType;
@@ -438,6 +463,7 @@ libraries! {
             block: *const *const c_char
         ) -> gpointer;
         fn webkit_user_script_unref(script: gpointer);
+        fn webkit_user_script_new_for_world(source: *const c_char, frames: c_int, time: c_int, world: *const c_char, allow: *const *const c_char, block: *const *const c_char) -> gpointer;
         fn webkit_user_content_manager_add_style_sheet(manager: gpointer, sheet: gpointer);
         fn webkit_user_style_sheet_new(
             source: *const c_char,

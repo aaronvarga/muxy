@@ -14,15 +14,16 @@ pub(crate) fn run(word: &Path) -> Result<(), Box<dyn Error>> {
                 word.display()
             )
         })?;
-    if crate::terminal::over_ssh() || !desktop(&folder) {
+    if crate::terminal::over_ssh() || !desktop_app(Some(&folder)) {
         crate::tui::run(None, Some(&folder))?;
     }
     Ok(())
 }
 
-/// Opens `folder` in the desktop app, returning false if it can't.
+/// Opens the desktop app, with `folder` as a project if given, returning
+/// false if it can't.
 #[cfg(target_os = "macos")]
-fn desktop(folder: &Path) -> bool {
+pub(crate) fn desktop_app(folder: Option<&Path>) -> bool {
     use std::process::{Command, Stdio};
     let Ok(executable) = muxy_core::executable::current_path() else {
         return false;
@@ -35,7 +36,7 @@ fn desktop(folder: &Path) -> bool {
             muxy_core::release::Channel::current().bundle_identifier(),
         ]),
     };
-    open.arg(folder)
+    open.args(folder)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -46,7 +47,7 @@ fn desktop(folder: &Path) -> bool {
 /// On Linux the app is installed beside this tool. It needs a desktop
 /// session to open in.
 #[cfg(not(target_os = "macos"))]
-fn desktop(folder: &Path) -> bool {
+pub(crate) fn desktop_app(folder: Option<&Path>) -> bool {
     let Ok(executable) = muxy_core::executable::current_path() else {
         return false;
     };
@@ -65,12 +66,12 @@ fn desktop_session(variable: impl Fn(&str) -> Option<std::ffi::OsString>) -> boo
 /// already running takes the folder from the new one, which then leaves:
 /// that, or an app still running after a moment, is a folder opened.
 #[cfg(not(target_os = "macos"))]
-fn launch(app: &Path, folder: &Path) -> bool {
+fn launch(app: &Path, folder: Option<&Path>) -> bool {
     use std::os::unix::process::CommandExt;
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
     let Ok(mut child) = Command::new(app)
-        .arg(folder)
+        .args(folder)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -154,7 +155,7 @@ mod tests {
         .into_bytes();
         name.push(0xff);
         let folder = PathBuf::from(OsString::from_vec(name));
-        assert!(launch(&app, &folder));
+        assert!(launch(&app, Some(&folder)));
         let mut expected = folder.as_os_str().as_bytes().to_vec();
         expected.extend_from_slice(b"1\n");
         assert_eq!(std::fs::read(&seen).expect("seen"), expected);
@@ -164,10 +165,13 @@ mod tests {
     #[test]
     fn an_app_that_cannot_start_leaves_the_folder_to_the_terminal_ui() {
         let root = tempfile::tempdir().expect("root");
-        assert!(!launch(&root.path().join("muxy-app"), Path::new("/srv")));
+        assert!(!launch(
+            &root.path().join("muxy-app"),
+            Some(Path::new("/srv"))
+        ));
         let failing = stub(root.path(), "exit 3");
-        assert!(!launch(&failing, Path::new("/srv")));
+        assert!(!launch(&failing, Some(Path::new("/srv"))));
         let starting = stub(root.path(), "exec sleep 2");
-        assert!(launch(&starting, Path::new("/srv")), "still running");
+        assert!(launch(&starting, Some(Path::new("/srv"))), "still running");
     }
 }

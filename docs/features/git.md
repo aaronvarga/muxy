@@ -38,7 +38,7 @@ signed in on the project's server.
 Muxy uses the first installed of: Claude Code (`claude`), Codex (`codex`),
 OpenCode (`opencode`), GitHub Copilot (`copilot`), Cursor (`cursor-agent`),
 Droid (`droid`), Grok (`grok`), Kiro CLI (`kiro-cli`), Pi (`pi`), Xal (`xal`),
-and Antigravity (`agy`).
+Antigravity (`agy`), and Oh My Pi (`omp`).
 
 In **Settings → AI**, pick the tool for commits and for pull requests, and edit
 their prompts. A project can have its own pull request prompt, set from the

@@ -133,6 +133,7 @@ const MANIFESTS: &[(AgentProvider, &str)] = &[
         AgentProvider::Antigravity,
         include_str!("manifests/antigravity.toml"),
     ),
+    (AgentProvider::OhMyPi, include_str!("manifests/omp.toml")),
 ];
 
 fn compile(source: &str) -> Result<Vec<CompiledRule>, String> {
@@ -314,6 +315,7 @@ fn alias(value: &str) -> Option<AgentProvider> {
         "kiro" | "kiro-cli" => AgentProvider::Kiro,
         "xal" | "xal-dev" => AgentProvider::Xal,
         "agy" | "antigravity" | "antigravity-cli" => AgentProvider::Antigravity,
+        "omp" | "oh-my-pi" => AgentProvider::OhMyPi,
         _ => return None,
     })
 }

@@ -1,5 +1,6 @@
 pub(crate) mod ai;
 pub(crate) mod banners;
+pub(crate) mod browsers;
 pub(crate) mod capabilities;
 mod catalog;
 pub(crate) mod commands;
@@ -106,6 +107,7 @@ pub(crate) struct AppModel {
     pub(crate) extensions: extensions::Runtime,
     pub(crate) sidebar_view: Entity<crate::views::cached::CachedView<Self>>,
     pub(crate) webviews: webviews::Webviews,
+    pub(crate) browsers: browsers::Browsers,
     pub(crate) panels: muxy_ui::panel::PanelHost,
     pub(crate) composer: composer::ComposerRuntime,
     pub(crate) voice: voice::VoiceRuntime,
@@ -476,6 +478,7 @@ impl AppModel {
                 cx,
             ),
             webviews: webviews::Webviews::default(),
+            browsers: browsers::Browsers::default(),
             panels: muxy_ui::panel::PanelHost::default(),
             composer: composer::ComposerRuntime::new(boot.composer),
             voice: voice::VoiceRuntime::default(),
@@ -1403,7 +1406,7 @@ impl AppModel {
             .find(|pane| pane.id == id)
             .and_then(|pane| match pane.content {
                 PaneContent::Terminal { session } => session,
-                PaneContent::Settings | PaneContent::Webview(_) => None,
+                PaneContent::Settings | PaneContent::Webview(_) | PaneContent::Browser(_) => None,
             })
     }
 
@@ -2559,6 +2562,15 @@ impl AppModel {
                     pane.update(cx, |pane, cx| pane.metadata(event, cx));
                 }
             }
+            ClientEvent::ClipboardWrite { channel, write } => {
+                if let Some(pane) = self.attached_view(server, channel, cx)
+                    && let Some(text) = write.take()
+                {
+                    pane.update(cx, |pane, cx| {
+                        pane.metadata(muxy_protocol::MetadataEvent::ClipboardWrite(text), cx);
+                    });
+                }
+            }
         }
     }
 
@@ -2683,6 +2695,7 @@ mod tests {
     use muxy_protocol::ExitReason;
     mod activity;
     mod ai;
+    mod browsers;
     mod commands;
     mod composer;
     mod detach;

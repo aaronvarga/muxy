@@ -7,6 +7,7 @@ pub const MAX_COLS: u16 = 4096;
 pub const MAX_ROWS: u16 = 1024;
 pub const MAX_LINK_SPANS: usize = 1024;
 pub const MAX_LINK_URI: usize = 2048;
+pub const MAX_CLIPBOARD_TEXT: usize = 1024 * 1024;
 
 pub const MAX_INPUT: usize = 1024 * 1024;
 
@@ -79,6 +80,13 @@ impl Message {
             }
             Self::Metadata(MetadataEvent::Links { rows, .. }) => validate_links(rows),
             Self::Metadata(MetadataEvent::Directory(path)) => validate_path(path),
+            Self::Metadata(MetadataEvent::ClipboardWrite(text)) => {
+                if text.is_empty() || text.len() > MAX_CLIPBOARD_TEXT {
+                    Err(ErrorCode::BadRequest)
+                } else {
+                    Ok(())
+                }
+            }
             Self::Progress { progress, .. } => {
                 if progress
                     .progress

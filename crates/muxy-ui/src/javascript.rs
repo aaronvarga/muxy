@@ -24,6 +24,6 @@ mod jsc;
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 mod unsupported;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-pub use jsc::{CAPABILITY, Script, probe};
+pub use jsc::{CAPABILITY, Script, is_async_function_body, probe};
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-pub use unsupported::{CAPABILITY, Script, probe};
+pub use unsupported::{CAPABILITY, Script, is_async_function_body, probe};

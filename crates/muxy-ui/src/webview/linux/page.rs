@@ -15,7 +15,6 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
-use async_channel::Sender;
 use gpui::{Bounds, CursorStyle, Modifiers, MouseButton, Pixels, Point, point, px, size};
 use muxy_core::worker::WorkerPool;
 
@@ -24,7 +23,7 @@ use super::ffi::{
     GdkEventCrossing, GdkEventFocus, GdkEventKey, GdkEventMotion, GdkEventScroll,
     GdkEventSelection, GdkKeymapKey, GdkRGBA, GdkRectangle, TRUE, gboolean, gpointer,
 };
-use super::{Job, Shared, post};
+use super::{Events, Job, Shared, post};
 use crate::tr;
 use crate::webview::{
     AssetResult, Event, MenuOption, OptionMenu, Pointer, Snapshot, assets, assets::Source, rules,
@@ -45,14 +44,18 @@ macro_rules! callback {
     }};
 }
 
+pub(super) mod browser;
+mod input;
+
 /// What a page is created from.
 pub(super) struct Setup {
     pub(super) id: u64,
     pub(super) url: String,
-    pub(super) source: Source,
+    pub(super) source: Option<Source>,
+    pub(super) browser: Option<browser::Setup>,
     pub(super) script: String,
     pub(super) transparent: bool,
-    pub(super) events: Sender<Event>,
+    pub(super) events: Events,
     pub(super) shared: Arc<Shared>,
 }
 
@@ -201,20 +204,43 @@ impl Runtime {
 
     pub(super) fn open(self: &Rc<Self>, setup: Setup) {
         let g = self.g;
-        let Ok(worker) = WorkerPool::new("webview-assets", 2, 32) else {
-            let _ = setup.events.try_send(Event::Failed(unloadable()));
-            return;
+        let worker = if setup.source.is_some() {
+            let Ok(worker) = WorkerPool::new("webview-assets", 2, 32) else {
+                let _ = setup.events.try_send(Event::Failed(unloadable()));
+                return;
+            };
+            Some(worker)
+        } else {
+            None
         };
         #[allow(clippy::cast_possible_truncation, reason = "Linux desktops are 64-bit")]
         let data = setup.id as usize;
         // SAFETY: Each object is made here and kept by the page until it closes.
         let page = unsafe {
-            let (manager, view) = web_view(g, self.context(), data);
+            let browser = match setup
+                .browser
+                .map(|setup| browser::State::new(self, &setup))
+                .transpose()
+            {
+                Ok(browser) => browser,
+                Err(error) => {
+                    setup.events.browser(polybrowser::BrowserEvent::LoadFailed {
+                        url: setup.url,
+                        error: error.to_string(),
+                    });
+                    return;
+                }
+            };
+            let context = browser
+                .as_ref()
+                .map_or_else(|| self.context(), browser::State::context);
+            let (manager, view) = web_view(g, context, data, browser.is_some());
             let window = offscreen_window(g, view, setup.transparent, data);
             Rc::new(Page {
                 id: setup.id,
                 token: token(),
                 source: setup.source,
+                browser,
                 events: setup.events,
                 shared: setup.shared,
                 worker,
@@ -229,6 +255,7 @@ impl Runtime {
                 failed: Cell::new(false),
                 visible: Cell::new(false),
                 focused: Cell::new(false),
+                input: input::State::default(),
                 unit: Cell::new(1.0),
                 scale: Cell::new(1.0),
                 size: Cell::new((0, 0)),
@@ -238,7 +265,18 @@ impl Runtime {
             })
         };
         self.pages.borrow_mut().insert(page.id, page.clone());
-        page.install(self, &setup.script);
+        if page.browser.is_some() {
+            if let Err(failure) = page.install_browser(self) {
+                page.events.browser(polybrowser::BrowserEvent::LoadFailed {
+                    url: setup.url,
+                    error: failure.to_string(),
+                });
+                self.close(page.id);
+                return;
+            }
+        } else {
+            page.install(self, &setup.script);
+        }
         let url = cstring(&setup.url);
         // SAFETY: The view is live and the URL a valid string.
         unsafe { g.webkit_web_view_load_uri(page.view, url.as_ptr()) };
@@ -265,7 +303,12 @@ impl Runtime {
             g.webkit_web_view_stop_loading(page.view);
             g.gtk_widget_destroy(page.window);
             g.g_object_unref(page.manager);
-            if self.pages.borrow().is_empty() {
+            if !self
+                .pages
+                .borrow()
+                .values()
+                .any(|page| page.browser.is_none())
+            {
                 let context = self.context.replace(ptr::null_mut());
                 if !context.is_null() {
                     g.g_object_unref(context);
@@ -387,7 +430,7 @@ unsafe fn web_context(g: &Api, data: Option<&Path>) -> gpointer {
 
 /// A web view in `context` whose signals carry `data`, and the manager of
 /// what its pages are given.
-unsafe fn web_view(g: &Api, context: gpointer, data: usize) -> (gpointer, gpointer) {
+unsafe fn web_view(g: &Api, context: gpointer, data: usize, browser: bool) -> (gpointer, gpointer) {
     // SAFETY: The context is live, and the handlers have the signatures
     // `WebKitGTK` documents for their signals.
     unsafe {
@@ -396,7 +439,11 @@ unsafe fn web_view(g: &Api, context: gpointer, data: usize) -> (gpointer, gpoint
         g.webkit_user_content_manager_register_script_message_handler_with_reply(
             manager,
             handler.as_ptr(),
-            ptr::null(),
+            if browser {
+                c"muxy-browser".as_ptr()
+            } else {
+                ptr::null()
+            },
         );
         let signal = cstring(&format!(
             "script-message-with-reply-received::{}",
@@ -602,10 +649,11 @@ pub(super) struct Page {
     /// What the page's own script adds to a request. Nothing in another
     /// frame can read it, so a request without it is not the page's.
     token: String,
-    source: Source,
-    events: Sender<Event>,
+    source: Option<Source>,
+    browser: Option<browser::State>,
+    events: Events,
     shared: Arc<Shared>,
-    worker: WorkerPool,
+    worker: Option<WorkerPool>,
     window: gpointer,
     view: gpointer,
     manager: gpointer,
@@ -617,6 +665,7 @@ pub(super) struct Page {
     failed: Cell<bool>,
     visible: Cell<bool>,
     focused: Cell<bool>,
+    input: input::State,
     /// Device pixels in one GTK unit.
     unit: Cell<f64>,
     /// Device pixels in one of the app's points.
@@ -730,6 +779,9 @@ impl Page {
 
     /// Voids the requests of a document that is gone.
     fn retire(&self, g: &Api) {
+        if let Some(browser) = &self.browser {
+            browser.cancel(g);
+        }
         let message = cstring(rules::DOCUMENT_RETIRED);
         for pending in self.replies.take().into_values() {
             // SAFETY: The reply was retained when its request was taken in.
@@ -749,7 +801,15 @@ impl Page {
         let url = unsafe { text(g.webkit_web_view_get_uri(self.view)) };
         url.as_deref()
             .and_then(rules::origin)
-            .is_some_and(|(scheme, host)| rules::owns(scheme, host, &self.source.owner))
+            .is_some_and(|(scheme, host)| {
+                rules::owns(
+                    scheme,
+                    host,
+                    self.source
+                        .as_ref()
+                        .map_or("", |source| source.owner.as_str()),
+                )
+            })
     }
 
     pub(super) fn install(&self, runtime: &Runtime, script: &str) {
@@ -782,7 +842,11 @@ impl Page {
                 self.view,
                 script.as_ptr(),
                 -1,
-                ptr::null(),
+                if self.browser.is_some() {
+                    c"muxy-browser".as_ptr()
+                } else {
+                    ptr::null()
+                },
                 ptr::null(),
                 ptr::null_mut(),
                 None,
@@ -840,7 +904,14 @@ impl Page {
             self.size.set((width, height));
             g.gtk_widget_set_size_request(self.view, units(width), units(height));
             g.gtk_window_resize(self.window, units(width), units(height));
-            g.webkit_web_view_set_zoom_level(self.view, f64::from(scale) / unit);
+            g.webkit_web_view_set_zoom_level(
+                self.view,
+                f64::from(scale) / unit
+                    * self
+                        .browser
+                        .as_ref()
+                        .map_or(1.0, |browser| browser.zoom.get()),
+            );
         }
     }
 
@@ -849,6 +920,15 @@ impl Page {
             return;
         }
         let g = runtime.g;
+        if let Some(browser) = &self.browser
+            && let Some(native) = browser.native.borrow().as_ref()
+        {
+            if !visible {
+                self.focus(runtime, false);
+            }
+            native.set_visible(visible);
+            return;
+        }
         // SAFETY: The view is live. Hiding it has WebKit stop drawing the page.
         unsafe {
             if visible {
@@ -861,6 +941,9 @@ impl Page {
     }
 
     pub(super) fn focus(&self, runtime: &Runtime, focused: bool) {
+        if !focused {
+            self.input.release();
+        }
         if (focused && !self.visible.get()) || self.focused.replace(focused) == focused {
             return;
         }
@@ -880,7 +963,7 @@ impl Page {
                 |event| event.focused = i16::from(focused),
             );
             if focused {
-                g.gtk_widget_grab_focus(self.view);
+                g.gtk_widget_grab_focus(self.input_focus(g));
             }
         }
     }
@@ -998,20 +1081,18 @@ impl Page {
     pub(super) fn pointer(&self, runtime: &Runtime, event: Pointer) {
         let g = runtime.g;
         let time = runtime.time();
+        let (view, x, y) = self.pointer_target(g, event);
         // SAFETY: The view is live, and each event is filled as its type.
         unsafe {
-            let window = g.gtk_widget_get_window(self.view);
+            let window = g.gtk_widget_get_window(view);
             if window.is_null() {
                 return;
             }
             let device = g.gdk_seat_get_pointer(seat(g));
             match event {
                 Pointer::Moved {
-                    position,
-                    pressed,
-                    modifiers,
+                    pressed, modifiers, ..
                 } => {
-                    let (x, y) = self.units(position);
                     let state = state(modifiers) | pressed.map_or(0, button_mask);
                     Self::dispatch::<GdkEventMotion>(
                         g,
@@ -1028,20 +1109,15 @@ impl Page {
                     );
                 }
                 Pointer::Pressed {
-                    position,
-                    button,
-                    modifiers,
+                    button, modifiers, ..
                 }
                 | Pointer::Released {
-                    position,
-                    button,
-                    modifiers,
+                    button, modifiers, ..
                 } => {
                     let Some(number) = button_number(button) else {
                         return;
                     };
                     let pressed = matches!(event, Pointer::Pressed { .. });
-                    let (x, y) = self.units(position);
                     let held = if pressed { 0 } else { button_mask(button) };
                     Self::dispatch::<GdkEventButton>(
                         g,
@@ -1063,11 +1139,8 @@ impl Page {
                     );
                 }
                 Pointer::Scrolled {
-                    position,
-                    delta,
-                    modifiers,
+                    delta, modifiers, ..
                 } => {
-                    let (x, y) = self.units(position);
                     let (delta_x, delta_y) = self.units(delta);
                     Self::dispatch::<GdkEventScroll>(
                         g,
@@ -1104,7 +1177,7 @@ impl Page {
         // SAFETY: The view is live, and the keymap entries GDK allocates are
         // freed once the first is read.
         unsafe {
-            let window = g.gtk_widget_get_window(self.view);
+            let window = g.gtk_widget_get_window(self.input_focus(g));
             let keyval = keyval(g, key);
             if window.is_null() || keyval == 0 {
                 return;
@@ -1152,6 +1225,9 @@ impl Page {
     /// guard pastes it when that key arrives, so it lands in order with what
     /// was typed before: a script would overtake keys `WebKit` still holds.
     pub(super) fn offer_paste(&self, runtime: &Runtime, text: &str) {
+        if self.input_focus(runtime.g) != self.view {
+            return;
+        }
         self.evaluate(
             runtime,
             &format!("window.__muxyPaste&&__muxyPaste({})", quoted(text)),
@@ -1440,9 +1516,15 @@ unsafe extern "C" fn on_asset(request: gpointer, _data: gpointer) {
         let url = text(g.webkit_uri_scheme_request_get_uri(request)).unwrap_or_default();
         let admitted = page
             .filter(|page| {
-                rules::origin(&url)
-                    .is_some_and(|(scheme, host)| rules::owns(scheme, host, &page.source.owner))
-                    && rules::admits_asset(page.assets.borrow().len())
+                rules::origin(&url).is_some_and(|(scheme, host)| {
+                    rules::owns(
+                        scheme,
+                        host,
+                        page.source
+                            .as_ref()
+                            .map_or("", |source| source.owner.as_str()),
+                    )
+                }) && rules::admits_asset(page.assets.borrow().len())
             })
             .zip(rules::path(&url));
         let Some((page, relative)) = admitted else {
@@ -1451,9 +1533,12 @@ unsafe extern "C" fn on_asset(request: gpointer, _data: gpointer) {
         };
         let id = page.next();
         page.assets.borrow_mut().insert(id, g.g_object_ref(request));
-        let root = page.source.directory.clone();
+        let (Some(source), Some(worker)) = (&page.source, &page.worker) else {
+            return;
+        };
+        let root = source.directory.clone();
         let owner = page.id;
-        let spawned = page.worker.try_spawn(move || {
+        let spawned = worker.try_spawn(move || {
             let result = assets::read(&root, &relative).map_err(|error| error.to_string());
             post(move |runtime| {
                 if let Ok(runtime) = runtime {
@@ -1498,7 +1583,7 @@ unsafe extern "C" fn on_message(
             g.g_object_unref(document);
             stamp.as_deref() == Some(page.token.as_str())
         };
-        if !stamped || !page.shows_own_document(g) {
+        if !stamped || (page.browser.is_none() && !page.shows_own_document(g)) {
             return reject(rules::NOT_MAIN_DOCUMENT);
         }
         let copied = g.jsc_value_object_get_property(value, c"copied".as_ptr());
@@ -1514,6 +1599,9 @@ unsafe extern "C" fn on_message(
             g.webkit_script_message_reply_return_value(reply, done);
             g.g_object_unref(done);
             return TRUE;
+        }
+        if page.browser.is_some() {
+            return reject(rules::NOT_MAIN_DOCUMENT);
         }
         let body = g.jsc_value_object_get_property(value, c"body".as_ptr());
         let json = owned(g, g.jsc_value_to_json(body, 0));
@@ -1565,6 +1653,11 @@ unsafe extern "C" fn on_policy(
     };
     // SAFETY: WebKit passes a live decision of the type `kind` names.
     unsafe {
+        if let Some((runtime, page)) = target(data)
+            && page.browser.is_some()
+        {
+            return page.browser_policy(&runtime, decision, kind);
+        }
         let allowed = match kind {
             ffi::POLICY_NAVIGATION_ACTION => target(data).is_some_and(|(_, page)| {
                 let action = g.webkit_navigation_policy_decision_get_navigation_action(decision);
@@ -1573,7 +1666,13 @@ unsafe extern "C" fn on_policy(
                     .as_deref()
                     .and_then(rules::origin)
                     .is_some_and(|(scheme, host)| {
-                        rules::may_navigate(scheme, host, &page.source.owner)
+                        rules::may_navigate(
+                            scheme,
+                            host,
+                            page.source
+                                .as_ref()
+                                .map_or("", |source| source.owner.as_str()),
+                        )
                     })
             }),
             // Anything WebKit cannot show would become a download.
@@ -1598,6 +1697,10 @@ unsafe extern "C" fn on_load_changed(_view: gpointer, event: c_int, data: gpoint
     };
     match event {
         ffi::LOAD_STARTED => {
+            if let Some(browser) = &page.browser {
+                browser.cancel(runtime.g);
+            }
+            page.browser_load(runtime.g, event);
             page.committed.set(false);
             page.failed.set(false);
         }
@@ -1605,10 +1708,12 @@ unsafe extern "C" fn on_load_changed(_view: gpointer, event: c_int, data: gpoint
             page.retire(runtime.g);
             page.shared.generation.fetch_add(1, Ordering::AcqRel);
             page.committed.set(true);
+            page.browser_load(runtime.g, event);
             let _ = page.events.try_send(Event::Navigated);
         }
         // A navigation that was refused or failed finishes too.
         ffi::LOAD_FINISHED if page.committed.get() && !page.failed.get() => {
+            page.browser_load(runtime.g, event);
             let _ = page.events.try_send(Event::Loaded);
         }
         _ => {}
@@ -1618,7 +1723,7 @@ unsafe extern "C" fn on_load_changed(_view: gpointer, event: c_int, data: gpoint
 unsafe extern "C" fn on_load_failed(
     _view: gpointer,
     _event: c_int,
-    _url: *const c_char,
+    url: *const c_char,
     error: *const GError,
     data: gpointer,
 ) -> gboolean {
@@ -1634,6 +1739,10 @@ unsafe extern "C" fn on_load_failed(
             || (error.domain == g.webkit_policy_error_quark()
                 && error.code == ffi::POLICY_ERROR_INTERRUPTED);
         if !stopped {
+            page.events.browser(polybrowser::BrowserEvent::LoadFailed {
+                url: text(url).unwrap_or_default(),
+                error: text(error.message).unwrap_or_default(),
+            });
             let _ = page
                 .events
                 .try_send(Event::Failed(text(error.message).unwrap_or_default()));
@@ -1648,6 +1757,10 @@ unsafe extern "C" fn on_terminated(_view: gpointer, _reason: c_int, data: gpoint
         return;
     };
     page.retire(runtime.g);
+    page.events.browser(polybrowser::BrowserEvent::LoadFailed {
+        url: page.browser_url(runtime.g),
+        error: tr!("Web content process terminated").to_string(),
+    });
     let _ = page.events.try_send(Event::Failed(
         tr!("Web content process terminated").to_string(),
     ));
@@ -1697,11 +1810,36 @@ unsafe extern "C" fn on_tooltip(
 
 unsafe extern "C" fn on_context_menu(
     _view: gpointer,
-    _menu: gpointer,
-    _event: gpointer,
+    menu: gpointer,
+    event: gpointer,
     _hit: gpointer,
-    _data: gpointer,
+    data: gpointer,
 ) -> gboolean {
+    if let Some((runtime, page)) = target(data)
+        && page.visible.get()
+        && let Events::Browser(sender, _) = &page.events
+    {
+        if unsafe { runtime.g.webkit_context_menu_get_n_items(menu) } == 0 {
+            return TRUE;
+        }
+        let (mut x, mut y) = (0.0, 0.0);
+        if !event.is_null() {
+            unsafe {
+                runtime
+                    .g
+                    .gdk_event_get_coords(event, &raw mut x, &raw mut y)
+            };
+        }
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "Coordinates in page points"
+        )]
+        let position = point(
+            px((x * page.unit.get() / page.scale.get()) as f32),
+            px((y * page.unit.get() / page.scale.get()) as f32),
+        );
+        let _ = sender.try_send(crate::browser::Event::ContextMenu(position));
+    }
     TRUE
 }
 

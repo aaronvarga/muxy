@@ -428,6 +428,9 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             Message::Metadata(MetadataEvent::CursorBlinking(_)) => {
                 ("CursorBlinking", ChannelKind::Session)
             }
+            Message::Metadata(MetadataEvent::ClipboardWrite(_)) => {
+                ("ClipboardWrite", ChannelKind::Session)
+            }
             Message::Progress { .. } => ("Progress", ChannelKind::Control),
             Message::Metadata(_) => ("Metadata", ChannelKind::Session),
             Message::CellSize(_) => ("CellSize", ChannelKind::Session),
@@ -531,6 +534,7 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "Mouse",
             "InputModes",
             "CursorBlinking",
+            "ClipboardWrite",
             "Progress",
             "Frame",
             "Metadata",
@@ -690,6 +694,24 @@ fn history_limits_and_page_shape_are_validated() {
         assert_eq!(
             reply(ReplyBody::HistoryPage(page)).validate(),
             Err(ErrorCode::BadRequest)
+        );
+    }
+}
+
+#[test]
+fn clipboard_writes_require_nonempty_bounded_text() {
+    for (text, expected) in [
+        ("copied text".into(), Ok(())),
+        ("x".repeat(muxy_protocol::MAX_CLIPBOARD_TEXT), Ok(())),
+        (String::new(), Err(ErrorCode::BadRequest)),
+        (
+            "x".repeat(muxy_protocol::MAX_CLIPBOARD_TEXT + 1),
+            Err(ErrorCode::BadRequest),
+        ),
+    ] {
+        assert_eq!(
+            Message::Metadata(MetadataEvent::ClipboardWrite(text)).validate(),
+            expected
         );
     }
 }

@@ -145,13 +145,33 @@ impl AppModel {
                 self.extension_server_call(call, cx);
                 return;
             }
-            "browser.list" => Ok(json!([])),
-            verb if verb.starts_with("browser.") => Err("the built-in browser is disabled".into()),
+            verb if verb.starts_with("browser.") => {
+                self.extension_browser_call(call, window, cx);
+                return;
+            }
             _ => Err(format!("unsupported extension API: {}", call.verb)),
         };
         call.reply.send(result, cx);
         self.sync_extension_events(cx);
         cx.notify();
+    }
+
+    /// `muxy.browser`: the same requests `muxy browser` makes, answered when
+    /// the page is done.
+    fn extension_browser_call(&mut self, call: Call, window: &mut Window, cx: &mut Context<Self>) {
+        let args = crate::model::browsers::automation::extension_args(&call.verb, &call.args);
+        let reply = self.browser_call(&call.verb, &args, window, cx);
+        cx.spawn(async move |model, cx| {
+            let result = reply.await;
+            let _ = model.update(cx, |model, cx| {
+                if model.call_live(&call, cx) {
+                    call.reply.send(result, cx);
+                } else {
+                    call.reply.send(Err("extension call expired".into()), cx);
+                }
+            });
+        })
+        .detach();
     }
 
     /// Log lines from `console.*`: one per script call, or a batch from a page.

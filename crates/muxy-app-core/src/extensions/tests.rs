@@ -153,6 +153,23 @@ fn files_and_git_bridge_payloads_match_main_contract() {
         required_permission("exec.start", &json!({})),
         Some("commands:exec")
     );
+    for (args, permission) in [
+        (
+            json!({"tabId": "t", "args": [{"text": "Done"}]}),
+            "browser:read",
+        ),
+        (json!({"tabId": "t", "function": "go()"}), "browser:write"),
+        (
+            json!({"tabId": "t", "args": [{"function": "go()"}]}),
+            "browser:write",
+        ),
+    ] {
+        assert_eq!(
+            required_permission("browser.wait", &args),
+            Some(permission),
+            "{args}"
+        );
+    }
     assert_eq!(
         api::git_reply("git.commit", GitReply::Commit("abc123".into())).unwrap(),
         json!({"hash":"abc123"})
@@ -202,6 +219,8 @@ fn earlier_grant_keys_keep_their_decisions() {
     assert!(Request::for_call("git", "git.worktree.switch", &json!({}), "").is_none());
     let own = json!({"kind":"extensionWebView","extension":{"id":"git","tabType":"diff"}});
     assert!(Request::for_call("git", "tabs.open", &own, "").is_none());
+    let browser = json!({"kind":"browser","url":"localhost:3000"});
+    assert!(Request::for_call("git", "tabs.open", &browser, "").is_none());
     let foreign = Request::for_call(
         "git",
         "tabs.open",

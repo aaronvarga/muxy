@@ -41,7 +41,8 @@ Extensions run on the system's WebKitGTK 4.1, version 2.40 or later, which the
 app loads once an extension is enabled. Without it the app still runs, and
 Settings says why extensions are off. Scripts use its JavaScriptCore, the engine
 macOS uses. A GPUI window cannot hold a WebKitGTK view, so pages render off
-screen and the app draws them and passes them input. On Linux a page therefore
+screen and the app draws them and passes them input. Browser panes use the same
+renderer and need WebKitGTK 2.42 or later for cookie automation. On Linux a page therefore
 has:
 
 - no context menu, tooltips, or drag and drop;

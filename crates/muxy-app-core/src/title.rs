@@ -6,6 +6,11 @@ use muxy_protocol::{ForegroundProcess, ServerPath};
 
 pub fn derive(title: &str, process: Option<&ForegroundProcess>, directory: &ServerPath) -> String {
     if !title.trim().is_empty() {
+        let title = process
+            .filter(|process| matches!(process.name.as_str(), "omp" | "oh-my-pi"))
+            .and_then(|_| title.strip_prefix("π "))
+            .filter(|title| !title.trim().is_empty())
+            .unwrap_or(title);
         return title.to_owned();
     }
     if let Some(process) = process

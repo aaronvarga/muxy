@@ -342,6 +342,7 @@ fn server_exit_disconnects_the_client() -> TestResult {
             ClientEvent::ServerRestarting | ClientEvent::Disconnected => break,
             ClientEvent::Frame { .. }
             | ClientEvent::Metadata { .. }
+            | ClientEvent::ClipboardWrite { .. }
             | ClientEvent::SessionsChanged { .. }
             | ClientEvent::SessionMetadata { .. }
             | ClientEvent::ActivityChanged { .. }

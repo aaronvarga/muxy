@@ -200,6 +200,16 @@ pub enum ShortcutId {
     VoiceFinish,
     VoiceCancel,
     VoicePause,
+    NewBrowserTab,
+    BrowserFocusAddress,
+    BrowserReload,
+    BrowserBack,
+    BrowserForward,
+    BrowserZoomIn,
+    BrowserZoomOut,
+    BrowserZoomReset,
+    BrowserCopyUrl,
+    BrowserInspect,
 }
 
 impl ShortcutId {
@@ -1341,5 +1351,65 @@ pub const ALL: &[Shortcut] = &[
         keys: &["space"],
         contexts: &[Some("VoiceRecording")],
         key_contexts: &[&[Some("VoiceRecording")]],
+    },
+    Shortcut {
+        id: "new_browser_tab",
+        keys: platform_keys!(&["cmd-alt-b"], &["ctrl-alt-b"]),
+        contexts: &[Some("WorkspaceTabs")],
+        key_contexts: &[&[Some("WorkspaceTabs")]],
+    },
+    Shortcut {
+        id: "browser.focus_address",
+        keys: platform_keys!(&["cmd-l"], &["ctrl-l"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.reload",
+        keys: platform_keys!(&["cmd-r"], &["ctrl-r"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.back",
+        keys: platform_keys!(&["cmd-["], &["alt-left"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.forward",
+        keys: platform_keys!(&["cmd-]"], &["alt-right"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.zoom_in",
+        keys: platform_keys!(&["cmd-=", "cmd-+", "cmd-shift-="], &["ctrl-=", "ctrl-+"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")], &[Some("Browser")], &[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.zoom_out",
+        keys: platform_keys!(&["cmd--"], &["ctrl--"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.zoom_reset",
+        keys: platform_keys!(&["cmd-0"], &["ctrl-0"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.copy_url",
+        keys: platform_keys!(&["cmd-shift-c"], &["ctrl-shift-c"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
+    },
+    Shortcut {
+        id: "browser.inspect",
+        keys: platform_keys!(&["cmd-alt-i"], &["ctrl-shift-i"]),
+        contexts: &[Some("Browser")],
+        key_contexts: &[&[Some("Browser")]],
     },
 ];

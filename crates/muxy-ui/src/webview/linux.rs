@@ -2,6 +2,7 @@
 //! be placed inside one. Each page renders into an offscreen GTK window on a
 //! thread that runs GTK; the app draws its frames and passes it input.
 
+pub(crate) mod browser;
 mod ffi;
 mod page;
 
@@ -119,7 +120,7 @@ static NEXT: AtomicU64 = AtomicU64::new(1);
 #[derive(Debug)]
 pub(super) struct NativeWebview {
     id: u64,
-    events: Sender<Event>,
+    events: Events,
     shared: Arc<Shared>,
     modal: Cell<bool>,
     passthrough: Cell<bool>,
@@ -154,10 +155,11 @@ impl NativeWebview {
         let setup = Setup {
             id,
             url,
-            source,
+            source: Some(source),
+            browser: None,
             script: script.to_owned(),
             transparent,
-            events: events.clone(),
+            events: Events::Extension(events.clone()),
             shared: shared.clone(),
         };
         post(move |runtime| match runtime {
@@ -169,7 +171,7 @@ impl NativeWebview {
         Ok((
             Self {
                 id,
-                events,
+                events: Events::Extension(events),
                 shared,
                 modal: Cell::new(false),
                 passthrough: Cell::new(false),
@@ -343,3 +345,34 @@ fn pastes(keystroke: &Keystroke) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Clone, Debug)]
+enum Events {
+    Extension(Sender<Event>),
+    Browser(Sender<crate::browser::Event>, Arc<AtomicU64>),
+}
+impl Events {
+    fn try_send(&self, event: Event) -> Result<(), ()> {
+        match self {
+            Self::Extension(sender) => sender.try_send(event).map_err(|_| ()),
+            Self::Browser(_, _) if matches!(event, Event::Failed(_)) => Ok(()),
+            Self::Browser(sender, _) => sender
+                .try_send(crate::browser::Event::Surface(event))
+                .map_err(|_| ()),
+        }
+    }
+    fn browser(&self, event: polybrowser::BrowserEvent) {
+        if let Self::Browser(sender, navigation) = self {
+            let _ = sender.try_send(crate::browser::Event::Page {
+                navigation: navigation.load(Ordering::Acquire),
+                event,
+            });
+        }
+    }
+
+    fn begin_navigation(&self, id: u64) {
+        if let Self::Browser(_, navigation) = self {
+            navigation.store(id, Ordering::Release);
+        }
+    }
+}

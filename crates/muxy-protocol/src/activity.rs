@@ -19,6 +19,7 @@ open_enum! {
         Kiro = 8,
         Xal = 9,
         Antigravity = 10,
+        OhMyPi = 11,
     }
 }
 
@@ -36,6 +37,7 @@ impl AgentProvider {
             Self::Kiro => "Kiro",
             Self::Xal => "Xal",
             Self::Antigravity => "Antigravity",
+            Self::OhMyPi => "Oh My Pi",
             Self::Unrecognized(_) => "Agent",
         }
     }

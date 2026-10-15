@@ -7,11 +7,11 @@ use gpui::{
     Bounds, CursorStyle, DispatchPhase, Hitbox, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, Pixels, ScrollWheelEvent, Window,
 };
-use muxy_ui::webview::{NativeWebview, Pointer};
+use muxy_ui::webview::Pointer;
 
 /// What the pointer is doing to a page, kept from one frame to the next.
 #[derive(Default)]
-pub(super) struct PointerState {
+pub(crate) struct PointerState {
     held: Cell<Option<MouseButton>>,
     over: Cell<bool>,
 }
@@ -20,9 +20,9 @@ impl PointerState {
     /// Passes the pointer to `native` while it is over `hitbox`, and for as
     /// long as a button pressed there is held: a drag that leaves the page,
     /// as when selecting text, still ends in it.
-    pub(super) fn forward(
+    pub(crate) fn forward(
         self: Rc<Self>,
-        native: Rc<NativeWebview>,
+        native: impl Fn(Pointer) + Clone + 'static,
         bounds: Bounds<Pixels>,
         hitbox: Hitbox,
         cursor: CursorStyle,
@@ -34,7 +34,7 @@ impl PointerState {
             move |event: &MouseDownEvent, phase, window, _| {
                 if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
                     state.held.set(Some(event.button));
-                    native.pointer(Pointer::Pressed {
+                    native(Pointer::Pressed {
                         position: event.position - bounds.origin,
                         button: event.button,
                         modifiers: event.modifiers,
@@ -50,7 +50,7 @@ impl PointerState {
                     if held {
                         state.held.set(None);
                     }
-                    native.pointer(Pointer::Released {
+                    native(Pointer::Released {
                         position: event.position - bounds.origin,
                         button: event.button,
                         modifiers: event.modifiers,
@@ -66,19 +66,19 @@ impl PointerState {
                 }
                 if state.held.get().is_some() || hitbox.is_hovered(window) {
                     state.over.set(true);
-                    native.pointer(Pointer::Moved {
+                    native(Pointer::Moved {
                         position: event.position - bounds.origin,
                         pressed: event.pressed_button,
                         modifiers: event.modifiers,
                     });
                 } else if state.over.replace(false) {
-                    native.pointer(Pointer::Left);
+                    native(Pointer::Left);
                 }
             }
         });
         window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, _| {
             if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
-                native.pointer(Pointer::Scrolled {
+                native(Pointer::Scrolled {
                     position: event.position - bounds.origin,
                     delta: event.delta.pixel_delta(window.line_height()),
                     modifiers: event.modifiers,

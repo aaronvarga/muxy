@@ -230,6 +230,45 @@ fn missing(program: &Path, error: io::Error) -> io::Error {
     )
 }
 
+/// Opens `url` with the system's handler for it, or with the app at `app`.
+#[cfg(target_os = "macos")]
+pub(crate) fn open_url(url: &str, app: Option<&Path>) -> io::Result<()> {
+    let mut args = Vec::new();
+    if let Some(app) = app {
+        args.extend([OsString::from("-a"), app.as_os_str().to_owned()]);
+    }
+    args.push(OsString::from(url));
+    launch(&Launch::system(args))
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn open_url(url: &str, app: Option<&Path>) -> io::Result<()> {
+    match app {
+        Some(app) => launch(&Launch::program(
+            "gio",
+            ["launch".into(), app.as_os_str().to_owned(), url.into()],
+        )),
+        None => launch(&Launch::system([url.into()])),
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct WebBrowser {
+    pub name: String,
+    pub path: PathBuf,
+}
+
+/// The browsers installed on this computer, by name.
+pub(crate) fn web_browsers() -> &'static [WebBrowser] {
+    static BROWSERS: OnceLock<Vec<WebBrowser>> = OnceLock::new();
+    BROWSERS.get_or_init(|| {
+        muxy_ui::browser::installed_browsers()
+            .into_iter()
+            .map(|(name, path)| WebBrowser { name, path })
+            .collect()
+    })
+}
+
 /// Opens a file with this computer's default app for its type.
 pub(crate) fn open_with_default_app(path: &Path) -> io::Result<()> {
     launch(&Launch::system([path.as_os_str().to_owned()]))

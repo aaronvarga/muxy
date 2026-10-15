@@ -23,7 +23,7 @@ const PATIENCE: Duration = Duration::from_secs(20);
 
 /// The pages share one engine, so the tests that count what it holds, or
 /// use the clipboard, run one at a time.
-fn alone() -> MutexGuard<'static, ()> {
+pub(super) fn alone() -> MutexGuard<'static, ()> {
     static ALONE: Mutex<()> = Mutex::new(());
     ALONE.lock().unwrap_or_else(PoisonError::into_inner)
 }
