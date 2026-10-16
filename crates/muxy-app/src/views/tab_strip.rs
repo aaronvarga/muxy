@@ -21,6 +21,7 @@ pub(crate) fn tab_strip(
     model: &AppModel,
     sidebar_width: f32,
     window: &Window,
+    actions: (gpui::Div, f32),
     cx: &mut Context<AppModel>,
 ) -> AnyElement {
     let strip = titlebar::background("tab-strip")
@@ -29,13 +30,13 @@ pub(crate) fn tab_strip(
         .items_center()
         .h(px(32.0))
         .flex_none();
-    let (actions, actions_width) = titlebar::actions(model, cx);
+    let (actions, actions_width) = actions;
     if model.state.current_project().status() == muxy_app_core::ProjectStatus::Missing {
         return strip.justify_end().child(actions).into_any_element();
     }
     let leading = (titlebar::navigation_width(model, window) - sidebar_width).max(0.0);
     let new_tab_width = f32::from(model.metrics.control_medium() + model.metrics.spacing2());
-    let available = (f32::from(window.viewport_size().width)
+    let available = (f32::from(titlebar::content_size(window).width)
         - sidebar_width
         - leading
         - actions_width

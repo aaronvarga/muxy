@@ -185,6 +185,8 @@ fn run() -> ExitCode {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_min_size: Some(size(px(640.0), px(400.0))),
             window_background: WindowBackgroundAppearance::Transparent,
+            #[cfg(target_os = "linux")]
+            window_decorations: Some(gpui::WindowDecorations::Client),
             // Empty titlebar space explicitly starts native movement, not tab presses.
             is_movable: !cfg!(target_os = "macos"),
             titlebar: Some(TitlebarOptions {
@@ -196,7 +198,7 @@ fn run() -> ExitCode {
         };
         if let Err(error) = cx.open_window(options, |window, cx| {
             #[cfg(target_os = "linux")]
-            views::titlebar::linux::adopt_system_frame(window, app_name());
+            window.set_window_title(app_name());
             let model = cx.new(|cx| AppModel::new(boot, window, cx));
             model.update(cx, |_, cx| AppModel::open_folders_from(opened_folders, cx));
             model.update(cx, |model, cx| model.start_app_socket(window, cx));
