@@ -127,6 +127,132 @@ fn the_panel_lists_each_shown_session_once_most_urgent_first(cx: &mut TestAppCon
 }
 
 #[gpui::test]
+fn the_active_card_follows_tabs_and_projects_without_a_fallback(cx: &mut TestAppContext) {
+    let (view, cx, fixture) = agents(cx);
+    view.update_in(cx, |model, window, cx| {
+        let active = |model: &AppModel| model.active_agents_entry(&model.agents_panel_entries());
+        let local = ServerId::local();
+        let key = |id| EntryKey::Agent(local, SessionId::new(id).expect("session"));
+        let root_tab = model.pane_tab(fixture.panes[0]).expect("root tab");
+        assert_eq!(active(model), Some(key(1)));
+
+        model.open_agents_entry(key(2), window, cx);
+        assert_eq!(active(model), Some(key(2)));
+        model.select_tab(root_tab, cx);
+        assert_eq!(active(model), Some(key(1)));
+
+        let tab = model.state.open_terminal_tab(fixture.root).expect("tab");
+        assert_eq!(active(model), None, "a plain terminal has no active agent");
+        let pane = model.active_pane().expect("pane");
+        model.receive_attached(
+            local,
+            pane,
+            SessionId::new(4).expect("session"),
+            attachment(),
+            true,
+            cx,
+        );
+        assert_eq!(active(model), Some(key(4)));
+        model.select_tab(root_tab, cx);
+        assert_eq!(active(model), Some(key(1)));
+        model.select_tab(tab, cx);
+        assert_eq!(active(model), Some(key(4)));
+
+        model
+            .servers
+            .local
+            .activity
+            .snapshot
+            .agents
+            .retain(|agent| agent.session != SessionId::new(4).expect("session"));
+        assert_eq!(
+            active(model),
+            None,
+            "an agent that stops leaves no stale highlight"
+        );
+        model.appearance.agents_panel_grouping = AgentsPanelGrouping::Worktrees;
+        assert_eq!(active(model), Some(EntryKey::Worktree(fixture.root)));
+        model.select_project(fixture.worktree, cx);
+        assert_eq!(active(model), Some(EntryKey::Worktree(fixture.worktree)));
+        let empty = model
+            .state
+            .projects()
+            .iter()
+            .find(|project| project.parent_id == Some(fixture.root) && project.tabs.is_empty())
+            .expect("empty worktree")
+            .id;
+        model.select_project(empty, cx);
+        assert_eq!(
+            active(model),
+            None,
+            "an unlisted project has no active card"
+        );
+    });
+}
+
+#[gpui::test]
+fn the_active_card_prefers_the_focused_session_in_a_split_tab(cx: &mut TestAppContext) {
+    let (view, cx, fixture) = agents(cx);
+    view.update(cx, |model, cx| {
+        let active = |model: &AppModel| model.active_agents_entry(&model.agents_panel_entries());
+        let local = ServerId::local();
+        let session = |id| SessionId::new(id).expect("session");
+        let key = |id| EntryKey::Agent(local, session(id));
+        let [root_pane, mirror, ..] = fixture.panes;
+        model.focus_pane(mirror, cx);
+        assert_eq!(active(model), Some(key(1)), "mirrored panes share a card");
+        model.receive_attached(local, mirror, session(4), attachment(), false, cx);
+        assert_eq!(active(model), Some(key(4)));
+        model.focus_pane(root_pane, cx);
+        assert_eq!(
+            active(model),
+            Some(key(1)),
+            "focus takes priority over urgency"
+        );
+        model.detach_terminal(mirror, cx);
+        model.focus_pane(mirror, cx);
+        assert_eq!(
+            active(model),
+            Some(key(1)),
+            "a non-agent split still follows its tab"
+        );
+    });
+}
+
+#[gpui::test]
+fn the_active_card_follows_a_mirrored_session_from_another_tab(cx: &mut TestAppContext) {
+    let (view, cx, fixture) = agents(cx);
+    view.update(cx, |model, cx| {
+        let active = |model: &AppModel| model.active_agents_entry(&model.agents_panel_entries());
+        let local = ServerId::local();
+        let session = SessionId::new(1).expect("session");
+        model.state.open_terminal_tab(fixture.root).expect("tab");
+        let mirror = model.active_pane().expect("pane");
+        model.receive_attached(local, mirror, session, attachment(), true, cx);
+        assert_eq!(active(model), Some(EntryKey::Agent(local, session)));
+
+        let plain = model
+            .state
+            .split_pane(mirror, Direction::Right)
+            .expect("split");
+        model.receive_attached(
+            local,
+            plain,
+            SessionId::new(5).expect("session"),
+            attachment(),
+            true,
+            cx,
+        );
+        assert_eq!(model.active_pane(), Some(plain));
+        assert_eq!(
+            active(model),
+            Some(EntryKey::Agent(local, session)),
+            "the active tab's sessions take priority over the card's representative tab"
+        );
+    });
+}
+
+#[gpui::test]
 fn long_agent_labels_stay_inside_the_card_in_every_placement(cx: &mut TestAppContext) {
     let (view, cx, fixture) = agents(cx);
     cx.simulate_resize(size(px(1200.0), px(800.0)));
@@ -235,7 +361,7 @@ fn the_shortcut_shows_and_focuses_then_hides_and_keys_open_only_live_panes(
         "focus is not handed back on the next frame"
     );
 
-    cx.simulate_keystrokes("down enter");
+    cx.simulate_keystrokes("up down enter");
     view.read_with(cx, |model, _| {
         assert_eq!(model.state.current_project().id, fixture.root);
         assert_eq!(model.active_pane(), Some(root_pane));
@@ -458,6 +584,74 @@ fn a_collapsed_sidebar_opens_the_panel_as_a_popup_that_escape_closes(cx: &mut Te
 }
 
 #[gpui::test]
+fn keyboard_navigation_keeps_the_active_card_until_confirmed(cx: &mut TestAppContext) {
+    let (view, cx, fixture) = agents(cx);
+    cx.update(|_, cx| {
+        crate::views::workspace::bind_keys(&muxy_app_core::settings::Keymap::default(), cx);
+    });
+    view.update_in(cx, |model, window, cx| {
+        model.appearance.sidebar_expanded = true;
+        model.appearance.agents_panel_visible = true;
+        model.focus_agents_panel(window);
+        cx.notify();
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes("up");
+    view.read_with(cx, |model, _| {
+        let entries = model.agents_panel_entries();
+        assert_eq!(model.state.current_project().id, fixture.root);
+        assert_eq!(
+            model.active_agents_entry(&entries),
+            Some(EntryKey::Agent(
+                ServerId::local(),
+                SessionId::new(1).expect("session")
+            ))
+        );
+        assert_eq!(
+            model.selected_agents_entry(&entries),
+            Some(EntryKey::Agent(
+                ServerId::local(),
+                SessionId::new(2).expect("session")
+            ))
+        );
+    });
+    cx.simulate_keystrokes("escape");
+    view.update_in(cx, |model, window, cx| {
+        model.focus_agents_panel(window);
+        let entries = model.agents_panel_entries();
+        assert_eq!(
+            model.selected_agents_entry(&entries),
+            model.active_agents_entry(&entries),
+            "refocusing discards the temporary cursor"
+        );
+        cx.notify();
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes("up enter");
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.current_project().id, fixture.worktree);
+        assert_eq!(model.active_pane(), Some(fixture.panes[2]));
+    });
+    view.update_in(cx, |model, window, cx| {
+        model.select_project(fixture.root, cx);
+        model.focus_agents_panel(window);
+        let entries = model.agents_panel_entries();
+        assert_eq!(
+            model.selected_agents_entry(&entries),
+            model.active_agents_entry(&entries),
+            "keyboard navigation restarts at the newly active tab"
+        );
+        cx.notify();
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes("enter");
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.current_project().id, fixture.root);
+        assert_eq!(model.active_pane(), Some(fixture.panes[0]));
+    });
+}
+
+#[gpui::test]
 fn keyboard_navigation_uses_the_highlighted_row_after_selection_changes(cx: &mut TestAppContext) {
     let (view, cx, fixture) = agents(cx);
     cx.update(|_, cx| {
@@ -470,7 +664,7 @@ fn keyboard_navigation_uses_the_highlighted_row_after_selection_changes(cx: &mut
         cx.notify();
     });
     cx.run_until_parked();
-    cx.simulate_keystrokes("enter");
+    cx.simulate_keystrokes("up enter");
     view.read_with(cx, |model, _| {
         assert_eq!(model.active_pane(), Some(fixture.panes[2]));
         assert_eq!(model.state.current_project().id, fixture.worktree);

@@ -143,8 +143,8 @@ fn leading(entry: &Entry, owner: gpui::EntityId, model: &AppModel) -> AnyElement
 
 fn entry_row(
     entry: &Entry,
+    active: bool,
     selected: bool,
-    focused: bool,
     model: &AppModel,
     cx: &mut Context<AppModel>,
 ) -> AnyElement {
@@ -177,9 +177,8 @@ fn entry_row(
         .py(m.spacing2())
         .rounded(m.radius_md())
         .cursor_pointer()
-        .when(selected, |row| {
-            row.bg(if focused { theme.hover } else { theme.surface })
-        })
+        .when(active, |row| row.bg(theme.surface))
+        .when(selected, |row| row.bg(theme.hover))
         .hover(|style| style.bg(theme.hover))
         .on_click(cx.listener(move |model, _, window, cx| {
             model.open_agents_entry(key, window, cx);
@@ -223,7 +222,12 @@ fn rows(
     let m = model.metrics;
     let theme = &model.theme;
     let focused = model.agents_panel.focus.contains_focused(window, cx);
-    let selected = model.selected_agents_entry(entries);
+    let active = model.active_agents_entry(entries);
+    let selected = if focused {
+        model.selected_agents_entry(entries)
+    } else {
+        None
+    };
     let mut list = div()
         .id("agents-panel-rows")
         .flex()
@@ -262,8 +266,9 @@ fn rows(
             );
         }
         previous = Some(status);
+        let is_active = active == Some(entry.key());
         let is_selected = selected == Some(entry.key());
-        list = list.child(entry_row(entry, is_selected, focused, model, cx));
+        list = list.child(entry_row(entry, is_active, is_selected, model, cx));
     }
     div()
         .relative()
