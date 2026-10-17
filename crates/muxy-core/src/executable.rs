@@ -1,5 +1,5 @@
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -55,10 +55,15 @@ pub fn command_arguments(source: &str) -> io::Result<Vec<String>> {
     Ok(arguments)
 }
 
-pub fn current_path() -> io::Result<std::path::PathBuf> {
+/// The program `name` installed next to `executable`.
+pub fn sibling(executable: &Path, name: &str) -> PathBuf {
+    executable.with_file_name(format!("{name}{}", std::env::consts::EXE_SUFFIX))
+}
+
+pub fn current_path() -> io::Result<PathBuf> {
     // macOS current_exe can retain the launch symlink after its target changes.
     #[cfg(target_os = "macos")]
-    let path = std::path::PathBuf::from(
+    let path = PathBuf::from(
         libproc::libproc::proc_pid::pidpath(
             i32::try_from(std::process::id()).map_err(io::Error::other)?,
         )
@@ -66,7 +71,7 @@ pub fn current_path() -> io::Result<std::path::PathBuf> {
     );
     #[cfg(not(target_os = "macos"))]
     let path = std::env::current_exe()?;
-    path.canonicalize()
+    crate::files::canonicalize(&path)
 }
 
 pub fn build_metadata(executable: &Path) -> io::Result<Vec<u8>> {

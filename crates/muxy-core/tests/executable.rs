@@ -1,7 +1,13 @@
+#[cfg(unix)]
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
+#[cfg(unix)]
 use std::os::unix::fs::symlink;
+use std::path::Path;
+#[cfg(unix)]
 use std::process::{Command, Stdio};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -45,6 +51,31 @@ fn malformed_commands_cannot_turn_into_a_different_invocation() {
     }
 }
 
+#[test]
+fn siblings_are_programs_in_the_same_directory() {
+    let sibling =
+        muxy_core::executable::sibling(Path::new("/opt/muxy/bin/muxy-app"), "muxy-server");
+    let expected = if cfg!(windows) {
+        "/opt/muxy/bin/muxy-server.exe"
+    } else {
+        "/opt/muxy/bin/muxy-server"
+    };
+    assert_eq!(sibling, Path::new(expected));
+}
+
+#[test]
+fn the_current_executable_has_a_plain_canonical_path() -> Result {
+    let path = muxy_core::executable::current_path()?;
+    assert!(path.is_absolute());
+    assert!(!path.to_string_lossy().starts_with(r"\\?\"));
+    assert!(muxy_core::files::same_file(
+        &path,
+        &std::env::current_exe()?
+    )?);
+    Ok(())
+}
+
+#[cfg(unix)]
 #[test]
 fn current_path_keeps_the_running_generation_after_a_link_switch() -> Result {
     if let Some(directory) = std::env::var_os("MUXY_TEST_EXECUTABLE_PATH") {
