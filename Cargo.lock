@@ -4708,6 +4708,7 @@ dependencies = [
  "libghostty-vt",
  "muxy-protocol",
  "portable-pty",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
