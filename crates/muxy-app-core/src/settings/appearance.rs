@@ -101,7 +101,7 @@ impl Default for Appearance {
             sidebar_project_order: ProjectOrder::default(),
             extension_sidebar: String::new(),
             language: String::new(),
-            agents_panel_visible: false,
+            agents_panel_visible: true,
             agents_panel_detached: false,
             agents_panel_frame: None,
             agents_panel_docked_height: None,

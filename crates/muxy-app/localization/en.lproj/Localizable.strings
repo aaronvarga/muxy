@@ -1259,6 +1259,7 @@
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
 "Show project names alongside their icons in the workspace sidebar." = "Show project names alongside their icons in the workspace sidebar.";
 "Show status bar" = "Show status bar";
+"Show the agents panel, or its button when the sidebar is collapsed." = "Show the agents panel, or its button when the sidebar is collapsed.";
 "Show tips" = "Show tips";
 "Show unread completion counts beside worktrees." = "Show unread completion counts beside worktrees.";
 "Show unread worktree indicators" = "Show unread worktree indicators";

@@ -29,7 +29,12 @@ impl Category {
                 tr_key!("Window size"),
                 tr_key!("Worktrees"),
             ],
-            Self::Appearance => &[tr_key!("Language"), tr_key!("Themes"), tr_key!("Interface")],
+            Self::Appearance => &[
+                tr_key!("Language"),
+                tr_key!("Themes"),
+                tr_key!("Interface"),
+                tr_key!("Agents Panel"),
+            ],
             Self::Keyboard => &[tr_key!("Shortcuts")],
             Self::Terminal => super::terminal::SECTIONS,
             Self::Server => &[

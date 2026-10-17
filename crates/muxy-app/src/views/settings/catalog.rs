@@ -408,6 +408,13 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Interface"),
     },
     Setting {
+        id: "agents-panel",
+        label: tr_key!("Show agents panel"),
+        description: tr_key!("Show the agents panel, or its button when the sidebar is collapsed."),
+        category: Category::Appearance,
+        section: tr_key!("Agents Panel"),
+    },
+    Setting {
         id: "agents-panel-grouping",
         label: tr_key!("Agents panel rows"),
         description: tr_key!(

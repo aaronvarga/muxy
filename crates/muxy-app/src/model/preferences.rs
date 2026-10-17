@@ -6,7 +6,7 @@ use muxy_app_core::ServerId;
 use muxy_app_core::settings::TerminalEdit;
 use muxy_ui::tr;
 
-use super::{AppModel, Quitting};
+use super::{AppModel, Overlay, Quitting};
 use crate::boot::Work;
 use crate::views::settings::window::SettingsWindow;
 use crate::views::settings::{BrowserChange, Change, SettingsView, Snapshot};
@@ -379,6 +379,17 @@ impl AppModel {
             Change::SidebarCollapsedStyle(style) => {
                 settings.appearance.sidebar_collapsed_style = style;
                 settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
+            }
+            Change::AgentsPanel(value) => {
+                settings.appearance.agents_panel_visible = value;
+                settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
+                if !settings.appearance.agents_panel_visible {
+                    self.agents_panel.drag = None;
+                    self.focus_requested = true;
+                    if matches!(self.overlay, Some(Overlay::Agents)) {
+                        self.dismiss_overlay(cx);
+                    }
+                }
             }
             Change::AgentsPanelGrouping(grouping) => {
                 settings.appearance.agents_panel_grouping = grouping;
@@ -950,6 +961,7 @@ fn change_id(change: &Change) -> &str {
         Change::Language(_) => "app-language",
         Change::Worktrees(key, _) => key,
         Change::SidebarCollapsedStyle(_) => "sidebar-collapsed-style",
+        Change::AgentsPanel(_) => "agents-panel",
         Change::AgentsPanelGrouping(_) => "agents-panel-grouping",
         Change::StatusBar(_) => "status-bar",
         Change::Tips(_) => "tips",

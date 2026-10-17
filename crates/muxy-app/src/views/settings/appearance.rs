@@ -186,6 +186,18 @@ pub(super) fn rows(
             pane.picker(PickerKind::ExtensionSidebar, selected, cx),
         ));
     }
+    if category == Category::Appearance && pane.matches(category, tr_key!("Show agents panel")) {
+        rows.push(pane.row(
+            "agents-panel",
+            tr_key!("Show agents panel"),
+            pane.toggle(
+                "agents-panel",
+                appearance.agents_panel_visible,
+                Change::AgentsPanel(!appearance.agents_panel_visible),
+                cx,
+            ),
+        ));
+    }
     if category == Category::Appearance && pane.matches(category, tr_key!("Agents panel rows")) {
         rows.push(agents_panel_grouping(pane, cx));
     }

@@ -44,6 +44,28 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn agents_panel_visibility_preserves_saved_choices_and_older_settings() -> Result {
+    let fixture = Fixture::new()?;
+    for (source, visible) in [
+        ("[window]\nconfirm_running_process = false\n", true),
+        ("[appearance]\nstatus_bar_visible = false\n", true),
+        ("[appearance]\nagents_panel_visible = false\n", false),
+    ] {
+        let path = fixture.write("settings.toml", source)?;
+        let mut settings = Settings::load(&path)?;
+        assert_eq!(settings.appearance.agents_panel_visible, visible);
+        assert_eq!(fs::read_to_string(&path)?, source);
+
+        let previous = settings.appearance.clone();
+        settings.appearance.tips_visible = false;
+        settings.appearance = settings.appearance.save_changes(&previous, &path)?;
+        assert_eq!(Settings::load(&path)?, settings);
+        assert_eq!(settings.appearance.agents_panel_visible, visible);
+    }
+    Ok(())
+}
+
+#[test]
 fn saving_close_confirmation_preserves_invalid_files_and_in_memory_preferences() -> Result {
     let fixture = Fixture::new()?;
     for source in ["not valid TOML", "window = 'invalid'"] {

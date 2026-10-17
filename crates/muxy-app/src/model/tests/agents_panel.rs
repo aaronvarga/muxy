@@ -311,8 +311,8 @@ fn a_collapsed_sidebar_opens_the_panel_as_a_popup_that_escape_closes(cx: &mut Te
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
     assert!(
-        cx.debug_bounds("agents-panel-button").is_none(),
-        "the button waits until the panel is shown"
+        cx.debug_bounds("agents-panel-button").is_some(),
+        "the visible panel has a button while the sidebar is collapsed"
     );
     cx.simulate_keystrokes(ShortcutId::ToggleAgentsPanel.definition().keys[0]);
     view.read_with(cx, |model, _| {
@@ -346,6 +346,33 @@ fn a_collapsed_sidebar_opens_the_panel_as_a_popup_that_escape_closes(cx: &mut Te
         assert!(
             !model.appearance.agents_panel_visible,
             "hiding the panel removes the button"
+        );
+    });
+    view.update(cx, |model, cx| {
+        model.change_preference(crate::views::settings::Change::AgentsPanel(true), cx);
+        assert!(model.overlay.is_none());
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let button = cx
+        .debug_bounds("agents-panel-button")
+        .expect("button")
+        .center();
+    cx.simulate_keystrokes(ShortcutId::ToggleAgentsPanel.definition().keys[0]);
+    view.update(cx, |model, cx| {
+        assert!(model.agents_panel_shown());
+        model.change_preference(crate::views::settings::Change::AgentsPanel(false), cx);
+        assert!(!model.agents_panel_shown());
+        assert!(model.overlay.is_none());
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    cx.simulate_click(button, Modifiers::none());
+    view.read_with(cx, |model, _| {
+        assert!(!model.appearance.agents_panel_visible);
+        assert!(
+            !model.agents_panel_shown(),
+            "the hidden button cannot reopen the popup"
         );
     });
 }
