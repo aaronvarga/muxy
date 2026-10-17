@@ -943,6 +943,7 @@ impl Render for AppModel {
         };
         let content = super::splits::render(self, window, cx).unwrap_or_else(|| empty(self, cx));
         let content = self.webview_panel_content(content, window, cx);
+        let content = super::agents_panel::right_panel_content(content, self, window, cx);
         let content = self.composer_content(content, window, cx);
         let workspace = action_handlers(cx)
             .on_action(cx.listener(|model, _: &ToggleVoiceRecording, window, cx| {

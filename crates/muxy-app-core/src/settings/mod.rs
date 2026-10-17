@@ -21,7 +21,8 @@ pub use worktrees::{
 };
 
 pub use appearance::{
-    AgentsPanelGrouping, AppLayout, Appearance, ProjectOrder, SidebarCollapsedStyle,
+    AgentsPanelDock, AgentsPanelGrouping, AppLayout, Appearance, ProjectOrder,
+    SidebarCollapsedStyle,
 };
 pub use browser::BrowserSettings;
 pub use chord::KeyChord;

@@ -186,6 +186,7 @@ impl AppModel {
     /// through to it.
     fn resizing_surfaces(&self, window: &Window, cx: &gpui::App) -> bool {
         self.sidebar_resize.is_some()
+            || self.agents_panel.resize.is_active()
             || self.split_resize.active()
             || self.layout_drag_pending()
             || self

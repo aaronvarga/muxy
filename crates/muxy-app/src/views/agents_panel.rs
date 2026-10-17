@@ -4,8 +4,10 @@ use gpui::{
     MouseButton, MouseMoveEvent, MouseUpEvent, ParentElement, SharedString,
     StatefulInteractiveElement, Styled, Window, canvas, div, px,
 };
+use muxy_app_core::settings::AgentsPanelDock;
 use muxy_ui::components::{IconButton, IconGlyph};
 use muxy_ui::icon::Icon;
+use muxy_ui::panel::{PanelFrame, PanelSizeBounds, PanelSizing, PanelStyle};
 use muxy_ui::picker::{Confirm, Dismiss, SelectNext, SelectPrevious};
 use muxy_ui::theme::contrasting_foreground;
 use muxy_ui::tr;
@@ -273,7 +275,7 @@ fn rows(
         .into_any_element()
 }
 
-fn header_buttons(detached: bool, model: &AppModel, cx: &mut Context<AppModel>) -> [IconButton; 2] {
+fn header_buttons(detached: bool, model: &AppModel, cx: &mut Context<AppModel>) -> [AnyElement; 3] {
     let m = model.metrics;
     let theme = &model.theme;
     let button = |id: &'static str, icon: Icon, tooltip: SharedString| {
@@ -287,6 +289,32 @@ fn header_buttons(detached: bool, model: &AppModel, cx: &mut Context<AppModel>) 
         )
         .tooltip(tooltip, theme.raised(), theme.fg, theme.border, theme.bg)
     };
+    let right = model.appearance.agents_panel_dock == AgentsPanelDock::Right;
+    let move_dock = button(
+        "agents-panel-move",
+        if right {
+            Icon::PanelLeft
+        } else {
+            Icon::PanelRight
+        },
+        if right {
+            tr!("Move to Left Sidebar")
+        } else {
+            tr!("Move to Right")
+        },
+    )
+    .on_click(cx.listener(move |model, _, window, cx| {
+        cx.stop_propagation();
+        model.set_agents_panel_dock(
+            if right {
+                AgentsPanelDock::Left
+            } else {
+                AgentsPanelDock::Right
+            },
+            window,
+            cx,
+        );
+    }));
     let dock = button(
         if detached {
             "agents-panel-reattach"
@@ -294,12 +322,20 @@ fn header_buttons(detached: bool, model: &AppModel, cx: &mut Context<AppModel>) 
             "agents-panel-detach"
         },
         if detached {
-            Icon::PanelLeft
+            if right {
+                Icon::PanelRight
+            } else {
+                Icon::PanelLeft
+            }
         } else {
             Icon::Maximize
         },
         if detached {
-            tr!("Reattach to Sidebar")
+            if right {
+                tr!("Reattach to Right Panel")
+            } else {
+                tr!("Reattach to Sidebar")
+            }
         } else {
             tr!("Detach")
         },
@@ -314,7 +350,17 @@ fn header_buttons(detached: bool, model: &AppModel, cx: &mut Context<AppModel>) 
             model.hide_agents_panel(window, cx);
         },
     ));
-    [dock, close]
+    [
+        ("agents-panel-move", move_dock),
+        ("agents-panel-dock", dock),
+        ("agents-panel-hide", close),
+    ]
+    .map(|(id, button)| {
+        div()
+            .debug_selector(move || id.into())
+            .child(button)
+            .into_any_element()
+    })
 }
 
 fn header(
@@ -434,6 +480,67 @@ fn body(
         .child(header(placement, &agents, model, cx))
         .child(rows(&entries, model, cx, window))
         .child(drag_tracker(cx))
+}
+
+pub(crate) fn right_panel_content(
+    content: AnyElement,
+    model: &AppModel,
+    window: &Window,
+    cx: &mut Context<AppModel>,
+) -> AnyElement {
+    if model.agents_panel_placement() != Placement::Right || !model.agents_panel_shown() {
+        return content;
+    }
+    let m = model.metrics;
+    let scale = f32::from(m.scaled(1.0));
+    let maximum = f32::from(window.viewport_size().width) - model.sidebar_width() - 100.0;
+    let placement = AppModel::agents_right_placement();
+    let sizing = PanelSizing::new(
+        &placement,
+        model.appearance.agents_panel_right_width.unwrap_or(320.0) * scale,
+        PanelSizeBounds::new(
+            f32::from(m.scaled(MIN_WIDTH)),
+            maximum.min(f32::from(m.scaled(800.0))),
+        ),
+        model.agents_panel.resize.clone(),
+    );
+    let owner = cx.weak_entity();
+    let frame = PanelFrame::new(
+        placement,
+        sizing,
+        div(),
+        body(Placement::Right, model, window, cx).flex_1(),
+        move |width, _, cx| {
+            let _ = owner.update(cx, |model, cx| {
+                model.appearance.agents_panel_right_width = Some(width / scale);
+                if !model.agents_panel.resize.is_active()
+                    && model.appearance.agents_panel_right_width
+                        != model.settings.appearance.agents_panel_right_width
+                {
+                    model.save_appearance(cx);
+                }
+                cx.notify();
+            });
+        },
+        PanelStyle::new(model.theme.clone(), m),
+    )
+    .grip(model.webview_grip(None, gpui::CursorStyle::ResizeLeftRight));
+    div()
+        .debug_selector(|| "agents-panel-right".into())
+        .flex()
+        .size_full()
+        .min_w_0()
+        .min_h_0()
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .min_h_0()
+                .overflow_hidden()
+                .child(content),
+        )
+        .child(frame)
+        .into_any_element()
 }
 
 pub(crate) fn docked(

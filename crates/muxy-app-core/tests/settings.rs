@@ -66,6 +66,33 @@ fn agents_panel_visibility_preserves_saved_choices_and_older_settings() -> Resul
 }
 
 #[test]
+fn agents_panel_docking_preserves_legacy_floating_settings_and_saved_geometry() -> Result {
+    use muxy_app_core::settings::AgentsPanelDock;
+
+    let fixture = Fixture::new()?;
+    let path = fixture.write(
+        "settings.toml",
+        "[appearance]\nagents_panel_detached = true\nagents_panel_frame = [80.0, 90.0, 300.0, 400.0]\nagents_panel_docked_height = 200.0\n",
+    )?;
+    let mut settings = Settings::load(&path)?;
+    assert_eq!(settings.appearance.agents_panel_dock, AgentsPanelDock::Left);
+    assert!(settings.appearance.agents_panel_detached);
+    let previous = settings.appearance.clone();
+    settings.appearance.agents_panel_dock = AgentsPanelDock::Right;
+    settings.appearance.agents_panel_right_width = Some(410.0);
+    settings.appearance = settings.appearance.save_changes(&previous, &path)?;
+    let loaded = Settings::load(&path)?;
+    assert_eq!(loaded, settings);
+    assert_eq!(
+        loaded.appearance.agents_panel_frame,
+        previous.agents_panel_frame
+    );
+    assert_eq!(loaded.appearance.agents_panel_docked_height, Some(200.0));
+    assert!(loaded.appearance.agents_panel_detached);
+    Ok(())
+}
+
+#[test]
 fn saving_close_confirmation_preserves_invalid_files_and_in_memory_preferences() -> Result {
     let fixture = Fixture::new()?;
     for source in ["not valid TOML", "window = 'invalid'"] {

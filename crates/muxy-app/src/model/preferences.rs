@@ -537,6 +537,7 @@ impl AppModel {
         let language_changed = self.appearance.language != settings.appearance.language;
         self.appearance = settings.appearance.clone();
         self.settings = settings;
+        self.sync_agents_panel(cx);
         self.invalidate_webview_shortcuts();
         if bindings_changed {
             self.bind_extension_keys(cx);

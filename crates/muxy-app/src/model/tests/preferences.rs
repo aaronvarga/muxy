@@ -115,8 +115,13 @@ fn agents_panel_settings_toggle_applies_and_persists_without_changing_placement(
     click_preference(settings, "settings-category-Appearance");
     click_preference(settings, "settings-disclosure-Appearance");
     click_preference(settings, "settings-subcategory-Agents Panel");
-    for detached in [false, true] {
+    for (dock, detached) in [
+        (muxy_app_core::settings::AgentsPanelDock::Left, false),
+        (muxy_app_core::settings::AgentsPanelDock::Right, false),
+        (muxy_app_core::settings::AgentsPanelDock::Right, true),
+    ] {
         model.update(settings, |model, cx| {
+            model.appearance.agents_panel_dock = dock;
             model.appearance.agents_panel_detached = detached;
             model.save_appearance(cx);
         });
@@ -130,6 +135,8 @@ fn agents_panel_settings_toggle_applies_and_persists_without_changing_placement(
                     model.agents_panel_placement(),
                     if detached {
                         Placement::Floating
+                    } else if dock == muxy_app_core::settings::AgentsPanelDock::Right {
+                        Placement::Right
                     } else {
                         Placement::Docked
                     }

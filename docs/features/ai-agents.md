@@ -59,9 +59,15 @@ focus. Use the arrow keys and Return to open a row.
   taller or shorter. With the sidebar collapsed it
   opens as a popup that closes when you click elsewhere. Once you have shown
   the panel, the collapsed sidebar keeps a button for it until you hide it.
+- **Move to Right** docks it in the right panel, even when the left sidebar is
+  collapsed. Drag its left edge to resize it; Muxy remembers the side and width.
+  It shares this area with extension panels and the panel-mode composer: opening
+  one replaces the other. Use `Cmd+Opt+A` to bring Agents back. **Move to Left
+  Sidebar** returns it to the sidebar.
 - **Detach** floats it over the workspace. Drag its header to move it and its
-  edges or corner to resize it; Muxy remembers where. **Reattach to Sidebar** docks it
-  again.
+  edges or corner to resize it; Muxy remembers where. **Reattach to Sidebar** or
+  **Reattach to Right Panel** docks it on its last side. The other side's move
+  button is also available while floating.
 - **Settings → Appearance → Agents panel rows** lists each agent, grouped as
   needs input, working, completed, and idle, where Return opens its pane; or
   each project and worktree running agents, with counts, where Return opens

@@ -836,6 +836,7 @@
 "Move %@.app to Applications and reopen it before installing its command line tool." = "Move %@.app to Applications and reopen it before installing its command line tool.";
 "Move %@.app to Applications and reopen it before updating" = "Move %@.app to Applications and reopen it before updating";
 "Move to Bottom" = "Move to Bottom";
+"Move to Left Sidebar" = "Move to Left Sidebar";
 "Move to Right" = "Move to Right";
 "Muxy %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there." = "Muxy %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there.";
 "Muxy %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain." = "Muxy %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain.";
@@ -1053,6 +1054,7 @@
 "Range" = "Range";
 "Reading changes" = "Reading changes";
 "Ready" = "Ready";
+"Reattach to Right Panel" = "Reattach to Right Panel";
 "Reattach to Sidebar" = "Reattach to Sidebar";
 "Rebase" = "Rebase";
 "Rebase and Merge" = "Rebase and Merge";

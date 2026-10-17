@@ -1,11 +1,13 @@
 use gpui::{AppContext, Context, FocusHandle, Pixels, Point, Window, px};
-use muxy_app_core::settings::AgentsPanelGrouping;
+use muxy_app_core::settings::{AgentsPanelDock, AgentsPanelGrouping};
 use muxy_app_core::{PaneContent, PaneId, ProjectId, ServerId, TabId};
 use muxy_protocol::{ActivityKind, AgentProvider, AgentState, SessionId};
+use muxy_ui::panel::{PanelId, PanelMode, PanelPlacement, PanelPosition, PanelResizeState};
 
 use super::AppModel;
 use crate::views::overlays::Overlay;
 
+pub(crate) const PANEL: &str = "builtin:agents";
 pub(crate) const MIN_WIDTH: f32 = 220.0;
 pub(crate) const MIN_HEIGHT: f32 = 140.0;
 const DEFAULT_FRAME: [f32; 4] = [80.0, 80.0, 320.0, 360.0];
@@ -80,6 +82,7 @@ impl Entry {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Placement {
     Docked,
+    Right,
     Popup,
     Floating,
 }
@@ -111,6 +114,7 @@ pub(crate) struct AgentsPanel {
     pub(crate) selected: Option<EntryKey>,
     pub(crate) drag: Option<Drag>,
     pub(crate) scroll: gpui::ScrollHandle,
+    pub(crate) resize: PanelResizeState,
     pub(crate) docked_height: std::rc::Rc<std::cell::Cell<Pixels>>,
     pub(crate) owner: gpui::Entity<()>,
 }
@@ -122,6 +126,7 @@ impl AgentsPanel {
             selected: None,
             drag: None,
             scroll: gpui::ScrollHandle::new(),
+            resize: PanelResizeState::default(),
             docked_height: std::rc::Rc::default(),
             owner: cx.new(|_| ()),
         }
@@ -241,6 +246,8 @@ impl AppModel {
     pub(crate) fn agents_panel_placement(&self) -> Placement {
         if self.appearance.agents_panel_detached {
             Placement::Floating
+        } else if self.appearance.agents_panel_dock == AgentsPanelDock::Right {
+            Placement::Right
         } else if self.appearance.sidebar_expanded && !self.extension_sidebar_active() {
             Placement::Docked
         } else {
@@ -251,6 +258,10 @@ impl AppModel {
     pub(crate) fn agents_panel_shown(&self) -> bool {
         match self.agents_panel_placement() {
             Placement::Popup => matches!(self.overlay, Some(Overlay::Agents)),
+            Placement::Right => {
+                self.appearance.agents_panel_visible
+                    && self.panels.placement(&PanelId::new(PANEL)).is_some()
+            }
             Placement::Docked | Placement::Floating => self.appearance.agents_panel_visible,
         }
     }
@@ -264,6 +275,11 @@ impl AppModel {
             self.hide_agents_panel(window, cx);
             return;
         }
+        if !self.appearance.agents_panel_visible {
+            self.appearance.agents_panel_visible = true;
+            self.save_appearance(cx);
+        }
+        self.sync_agents_panel(cx);
         match self.agents_panel_placement() {
             Placement::Popup => {
                 if !matches!(self.overlay, Some(Overlay::Agents)) {
@@ -271,15 +287,11 @@ impl AppModel {
                     self.overlay = Some(Overlay::Agents);
                 }
             }
-            Placement::Docked | Placement::Floating => {
+            Placement::Docked | Placement::Right | Placement::Floating => {
                 if matches!(self.overlay, Some(Overlay::Agents)) {
                     self.dismiss_overlay(cx);
                 }
             }
-        }
-        if !self.appearance.agents_panel_visible {
-            self.appearance.agents_panel_visible = true;
-            self.save_appearance(cx);
         }
         self.agents_panel.selected = self.selected_agents_entry(&self.agents_panel_entries());
         self.focus_agents_panel(window);
@@ -295,6 +307,7 @@ impl AppModel {
             self.save_appearance(cx);
         }
         self.agents_panel.drag = None;
+        self.sync_agents_panel(cx);
         self.focus_active(window, cx);
         cx.notify();
     }
@@ -387,6 +400,38 @@ impl AppModel {
         self.focus_pane(pane, cx);
     }
 
+    pub(crate) fn sync_agents_panel(&mut self, cx: &mut Context<Self>) {
+        let placement = self.agents_panel_placement();
+        if (placement != Placement::Popup || !self.appearance.agents_panel_visible)
+            && matches!(self.overlay, Some(Overlay::Agents))
+        {
+            self.dismiss_overlay(cx);
+        }
+        let id = PanelId::new(PANEL);
+        if self.appearance.agents_panel_visible && placement == Placement::Right {
+            if self.panels.placement(&id).is_none() {
+                self.place_panel(Self::agents_right_placement(), cx);
+            }
+        } else {
+            self.panels.remove(&id);
+            self.agents_panel.resize.end();
+        }
+    }
+
+    pub(crate) fn agents_right_placement() -> PanelPlacement {
+        PanelPlacement::new(PANEL, PanelPosition::Right, PanelMode::Pinned)
+    }
+
+    pub(crate) fn set_agents_panel_dock(
+        &mut self,
+        dock: AgentsPanelDock,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.appearance.agents_panel_dock = dock;
+        self.set_agents_panel_detached(false, window, cx);
+    }
+
     pub(crate) fn set_agents_panel_detached(
         &mut self,
         detached: bool,
@@ -402,7 +447,9 @@ impl AppModel {
             self.appearance.agents_panel_frame = Some(DEFAULT_FRAME);
         }
         self.agents_panel.drag = None;
+        self.agents_panel.resize.end();
         self.save_appearance(cx);
+        self.sync_agents_panel(cx);
         if self.agents_panel_placement() == Placement::Popup {
             self.focus_active(window, cx);
         } else {

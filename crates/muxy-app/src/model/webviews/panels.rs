@@ -294,7 +294,7 @@ impl AppModel {
         self.webviews
             .panel_sessions
             .retain_projects(|project| state.project(project).is_some());
-        if self.composer_panel_open() {
+        if self.builtin_panel_open() {
             return;
         }
         if let Some(panel) = self.webviews.panel_sessions.take(root)
@@ -309,12 +309,15 @@ impl AppModel {
         }
     }
 
-    /// The built-in composer panel is global, so a project's panel never
-    /// displaces it; that panel reopens on a later visit instead.
-    fn composer_panel_open(&self) -> bool {
-        self.panels
-            .placement(&PanelId::new(crate::views::composer::PANEL))
-            .is_some()
+    /// Built-in panels are global, so a project's panel never displaces
+    /// them; that panel reopens on a later visit instead.
+    fn builtin_panel_open(&self) -> bool {
+        [
+            crate::views::composer::PANEL,
+            crate::model::agents_panel::PANEL,
+        ]
+        .into_iter()
+        .any(|id| self.panels.placement(&PanelId::new(id)).is_some())
     }
 
     /// Creates the page of a panel reopened by a project switch. Panel
@@ -333,7 +336,7 @@ impl AppModel {
             self.panel_event("panel.closed", &panel.owner, &panel.kind, cx);
             return;
         };
-        if self.composer_panel_open() {
+        if self.builtin_panel_open() {
             self.panel_event("panel.closed", &panel.owner, &panel.kind, cx);
             self.webviews.panel_sessions.keep(panel);
             return;
@@ -395,6 +398,11 @@ impl AppModel {
             let id = displacement.displaced.id;
             if id.as_str() == crate::views::composer::PANEL {
                 self.dismiss_composer(false, cx);
+            } else if id.as_str() == crate::model::agents_panel::PANEL {
+                self.agents_panel.drag = None;
+                self.agents_panel.resize.end();
+                self.appearance.agents_panel_visible = false;
+                self.save_appearance(cx);
             } else if let Some(panel) = self.webviews.panels.get(&id) {
                 panel.resize.end();
                 self.panel_event("panel.closed", &panel.owner, &panel.kind, cx);

@@ -336,6 +336,7 @@ impl AppModel {
                     || self.appearance.light_theme != saved.light_theme;
                 self.appearance = saved;
                 self.settings.appearance = self.appearance.clone();
+                self.sync_agents_panel(cx);
                 if theme_changed {
                     self.refresh_theme(cx);
                 }
@@ -593,6 +594,7 @@ impl AppModel {
             let home = model.state.home().id;
             let _ = model.state.select_project(home);
         }
+        model.sync_agents_panel(cx);
         model.bind_extension_keys(cx);
         model.refresh_installed_extensions(cx);
         #[cfg(not(test))]

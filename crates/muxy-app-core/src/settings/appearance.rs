@@ -40,6 +40,14 @@ pub enum AgentsPanelGrouping {
     Worktrees,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentsPanelDock {
+    #[default]
+    Left,
+    Right,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 #[allow(
@@ -73,6 +81,8 @@ pub struct Appearance {
     pub language: String,
     pub agents_panel_visible: bool,
     pub agents_panel_detached: bool,
+    pub agents_panel_dock: AgentsPanelDock,
+    pub agents_panel_right_width: Option<f32>,
     pub agents_panel_frame: Option<[f32; 4]>,
     pub agents_panel_docked_height: Option<f32>,
     pub agents_panel_grouping: AgentsPanelGrouping,
@@ -103,6 +113,8 @@ impl Default for Appearance {
             language: String::new(),
             agents_panel_visible: true,
             agents_panel_detached: false,
+            agents_panel_dock: AgentsPanelDock::default(),
+            agents_panel_right_width: None,
             agents_panel_frame: None,
             agents_panel_docked_height: None,
             agents_panel_grouping: AgentsPanelGrouping::default(),

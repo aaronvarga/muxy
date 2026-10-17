@@ -2,7 +2,7 @@ use super::worktrees::{Sent, connected, pruning_fixture};
 use super::*;
 use crate::model::agents_panel::{AgentStatus, Entry, EntryKey, Placement};
 use gpui::Modifiers;
-use muxy_app_core::settings::{AgentsPanelGrouping, AppLayout};
+use muxy_app_core::settings::{AgentsPanelDock, AgentsPanelGrouping, AppLayout};
 use muxy_core::shortcuts::ShortcutId;
 use muxy_protocol::{
     ActivityEvent, ActivityKind, ActivitySnapshot, AgentActivity, AgentProvider, AgentState,
@@ -254,8 +254,13 @@ fn the_panel_keeps_keyboard_focus_over_an_empty_project(cx: &mut TestAppContext)
     cx.update(|_, cx| {
         crate::views::workspace::bind_keys(&muxy_app_core::settings::Keymap::default(), cx);
     });
-    for detached in [false, true] {
+    for (dock, detached) in [
+        (AgentsPanelDock::Left, false),
+        (AgentsPanelDock::Right, false),
+        (AgentsPanelDock::Right, true),
+    ] {
         view.update(cx, |model, cx| {
+            model.appearance.agents_panel_dock = dock;
             let empty = model
                 .state
                 .projects()
@@ -423,6 +428,307 @@ fn keyboard_navigation_uses_the_highlighted_row_after_selection_changes(cx: &mut
     cx.simulate_keystrokes("down enter");
     view.read_with(cx, |model, _| {
         assert_eq!(model.state.current_project().id, model.state.home().id);
+    });
+}
+
+#[gpui::test]
+fn header_controls_move_between_sides_and_reattach_to_the_last_side(cx: &mut TestAppContext) {
+    let (view, cx, _fixture) = agents(cx);
+    cx.update(|_, cx| {
+        crate::views::workspace::bind_keys(&muxy_app_core::settings::Keymap::default(), cx);
+    });
+    cx.simulate_resize(size(px(1200.0), px(800.0)));
+    let click = |selector: &'static str, cx: &mut VisualTestContext| {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let bounds = cx.debug_bounds(selector).expect(selector);
+        cx.simulate_click(bounds.center(), Modifiers::none());
+        cx.run_until_parked();
+    };
+    for layout in [
+        AppLayout::ProjectFocused,
+        AppLayout::TabFocused,
+        AppLayout::AgentsFocused,
+    ] {
+        view.update(cx, |model, cx| {
+            model.appearance.layout = layout;
+            model.appearance.sidebar_expanded = true;
+            cx.notify();
+        });
+        click("agents-panel-move", cx);
+        view.update_in(cx, |model, window, cx| {
+            assert_eq!(model.agents_panel_placement(), Placement::Right);
+            assert!(model.agents_panel.focus.contains_focused(window, cx));
+            assert_eq!(
+                model.settings.appearance.agents_panel_dock,
+                AgentsPanelDock::Right
+            );
+            model.appearance.sidebar_expanded = false;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        let bounds = cx.debug_bounds("agents-panel").expect("right panel");
+        assert!(
+            bounds.left() > px(800.0),
+            "Agents occupies the right, not the sidebar"
+        );
+        view.update(cx, |model, cx| {
+            assert!(crate::views::agents_panel::collapsed_button(model, cx).is_none());
+        });
+        click("agents-panel-dock", cx);
+        view.read_with(cx, |model, _| {
+            assert_eq!(model.agents_panel_placement(), Placement::Floating);
+            assert!(model.panels.is_empty());
+        });
+        click("agents-panel-dock", cx);
+        view.read_with(cx, |model, _| {
+            assert_eq!(model.agents_panel_placement(), Placement::Right);
+            assert!(model.agents_panel_shown());
+        });
+        click("agents-panel-move", cx);
+        view.read_with(cx, |model, _| {
+            assert_eq!(model.agents_panel_placement(), Placement::Popup);
+            assert!(model.panels.is_empty());
+            assert_eq!(
+                model.settings.appearance.agents_panel_dock,
+                AgentsPanelDock::Left
+            );
+        });
+        cx.simulate_keystrokes(ShortcutId::ToggleAgentsPanel.definition().keys[0]);
+        click("agents-panel-move", cx);
+        view.read_with(cx, |model, _| {
+            assert!(
+                model.overlay.is_none(),
+                "moving out of a popup dismisses it"
+            );
+            assert_eq!(model.agents_panel_placement(), Placement::Right);
+        });
+        view.update_in(cx, |model, window, cx| {
+            model.set_agents_panel_detached(true, window, cx);
+        });
+        click("agents-panel-move", cx);
+        view.read_with(cx, |model, _| {
+            assert_eq!(model.agents_panel_placement(), Placement::Popup);
+            assert!(!model.appearance.agents_panel_detached);
+        });
+    }
+}
+
+#[gpui::test]
+fn right_agents_share_the_panel_host_without_losing_the_composer_draft(cx: &mut TestAppContext) {
+    use muxy_app_core::settings::ComposerPresentation;
+    use muxy_ui::panel::{PanelId, PanelMode, PanelPlacement, PanelPosition};
+
+    let (view, cx, fixture) = agents(cx);
+    cx.update(|_, cx| {
+        crate::views::workspace::bind_keys(&muxy_app_core::settings::Keymap::default(), cx);
+    });
+    view.update_in(cx, |model, window, cx| {
+        model.set_agents_panel_dock(AgentsPanelDock::Right, window, cx);
+        model.settings.composer.presentation = ComposerPresentation::Panel;
+        model.toggle_composer(window, cx);
+        assert!(!model.agents_panel_shown());
+        assert!(!model.settings.appearance.agents_panel_visible);
+    });
+    cx.run_until_parked();
+    cx.simulate_input("keep this draft");
+    cx.simulate_keystrokes(ShortcutId::ToggleAgentsPanel.definition().keys[0]);
+    view.update_in(cx, |model, window, cx| {
+        assert!(model.agents_panel_shown());
+        assert!(model.composer.view.is_none());
+        assert_eq!(model.panels.len(), 1);
+        model.toggle_composer(window, cx);
+        let composer = model
+            .composer
+            .view
+            .as_ref()
+            .expect("reopened composer")
+            .read(cx);
+        assert_eq!(composer.input.read(cx).text(), "keep this draft");
+        model.toggle_agents_panel(window, cx);
+        let extension =
+            PanelPlacement::new("test-extension", PanelPosition::Right, PanelMode::Pinned);
+        model.place_panel(extension, cx);
+        assert!(!model.agents_panel_shown());
+        assert!(!model.appearance.agents_panel_visible);
+        model.toggle_agents_panel(window, cx);
+        assert!(
+            model
+                .panels
+                .placement(&PanelId::new("test-extension"))
+                .is_none()
+        );
+        assert!(model.agents_panel.focus.contains_focused(window, cx));
+        model.select_project(fixture.worktree, cx);
+        assert!(
+            model.agents_panel_shown(),
+            "Agents is global across project switches"
+        );
+        let home = model.state.home().id;
+        let saved = crate::model::webviews::panel_sessions::SavedPanel {
+            owner: "test-extension".into(),
+            kind: "right".into(),
+            position: PanelPosition::Right,
+            data: serde_json::Value::Null,
+        };
+        model.webviews.panel_sessions.save(home, saved.clone());
+        model.select_project(home, cx);
+        assert!(model.agents_panel_shown());
+        assert!(model.webviews.panel_sessions.pending.is_none());
+        assert_eq!(model.webviews.panel_sessions.take(home), Some(saved));
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes(ShortcutId::ToggleAgentsPanel.definition().keys[0]);
+    cx.simulate_keystrokes(ShortcutId::ToggleAgentsPanel.definition().keys[0]);
+    view.read_with(cx, |model, _| {
+        assert!(!model.agents_panel_shown());
+        assert!(model.panels.is_empty());
+    });
+}
+
+#[gpui::test]
+fn right_panel_width_is_saved_on_release_and_restored_at_startup(cx: &mut TestAppContext) {
+    use muxy_app_core::settings::Settings;
+
+    let settings = {
+        let (view, cx, _fixture) = agents(cx);
+        cx.simulate_resize(size(px(1200.0), px(800.0)));
+        view.update_in(cx, |model, window, cx| {
+            model.set_agents_panel_dock(AgentsPanelDock::Right, window, cx);
+        });
+        cx.run_until_parked();
+        let start = cx
+            .debug_bounds("panel-resize-builtin:agents")
+            .expect("resize grip")
+            .center();
+        let end = start - gpui::point(px(80.0), px(0.0));
+        cx.simulate_mouse_down(start, gpui::MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_move(end, Some(gpui::MouseButton::Left), Modifiers::none());
+        view.read_with(cx, |model, _| {
+            assert_eq!(
+                model.settings.appearance.agents_panel_right_width, None,
+                "no disk writes during the drag"
+            );
+        });
+        cx.simulate_mouse_up(end, gpui::MouseButton::Left, Modifiers::none());
+        cx.run_until_parked();
+        view.read_with(cx, |model, _| {
+            let settings = Settings::load(&model.path.with_file_name("settings.toml"))
+                .expect("saved settings");
+            let width = settings
+                .appearance
+                .agents_panel_right_width
+                .expect("saved width");
+            assert!((width - 400.0).abs() < 1.0);
+            settings
+        })
+    };
+    let (mut boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    boot.settings = settings;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1200.0), px(800.0)));
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert!(model.agents_panel_shown());
+        assert_eq!(model.agents_panel_placement(), Placement::Right);
+    });
+    let bounds = cx
+        .debug_bounds("agents-panel")
+        .expect("restored right panel");
+    assert!((f32::from(bounds.size.width) - 400.0).abs() < 1.0);
+    cx.simulate_resize(size(px(500.0), px(400.0)));
+    cx.run_until_parked();
+    let bounds = cx
+        .debug_bounds("agents-panel")
+        .expect("clamped right panel");
+    assert!(bounds.left() >= px(100.0) && bounds.right() <= px(500.0));
+    view.update(cx, |model, cx| {
+        model.appearance.agents_panel_right_width = Some(f32::NAN);
+        cx.notify();
+    });
+    cx.run_until_parked();
+    let bounds = cx.debug_bounds("agents-panel").expect("finite right panel");
+    assert!(f32::from(bounds.size.width).is_finite());
+}
+
+#[gpui::test]
+fn appearance_merges_keep_the_panel_host_in_sync_with_another_windows_dock_choice(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx, _fixture) = agents(cx);
+    view.update(cx, |model, cx| {
+        model.appearance.sidebar_expanded = true;
+        model.save_appearance(cx);
+        for dock in [AgentsPanelDock::Right, AgentsPanelDock::Left] {
+            let mut other = model.appearance.clone();
+            other.agents_panel_dock = dock;
+            other
+                .save(&model.path.with_file_name("settings.toml"))
+                .expect("other window's choice");
+            model.appearance.tips_visible = !model.appearance.tips_visible;
+            model.save_appearance(cx);
+            assert_eq!(model.appearance.agents_panel_dock, dock);
+            assert!(
+                model.agents_panel_shown(),
+                "merging a dock choice must not lose the panel"
+            );
+            assert_eq!(model.panels.is_empty(), dock == AgentsPanelDock::Left);
+        }
+    });
+}
+
+#[gpui::test]
+fn the_shortcut_uses_the_merged_dock_choice_with_a_collapsed_sidebar(cx: &mut TestAppContext) {
+    let (view, cx, _fixture) = agents(cx);
+    cx.update(|_, cx| {
+        crate::views::workspace::bind_keys(&muxy_app_core::settings::Keymap::default(), cx);
+    });
+    for (from, to) in [
+        (AgentsPanelDock::Right, AgentsPanelDock::Left),
+        (AgentsPanelDock::Left, AgentsPanelDock::Right),
+    ] {
+        view.update_in(cx, |model, window, cx| {
+            model.appearance.sidebar_expanded = false;
+            model.appearance.agents_panel_dock = from;
+            model.hide_agents_panel(window, cx);
+            let mut other = model.appearance.clone();
+            other.agents_panel_dock = to;
+            other
+                .save(&model.path.with_file_name("settings.toml"))
+                .expect("other window's choice");
+        });
+        cx.simulate_keystrokes(ShortcutId::ToggleAgentsPanel.definition().keys[0]);
+        cx.run_until_parked();
+        view.update_in(cx, |model, window, cx| {
+            assert_eq!(model.appearance.agents_panel_dock, to);
+            assert!(
+                model.agents_panel_shown(),
+                "the first shortcut must show the merged placement"
+            );
+            assert!(model.agents_panel.focus.contains_focused(window, cx));
+            assert_eq!(
+                matches!(model.overlay, Some(Overlay::Agents)),
+                to == AgentsPanelDock::Left
+            );
+            assert_eq!(model.panels.is_empty(), to == AgentsPanelDock::Left);
+        });
+    }
+    view.update_in(cx, |model, window, cx| {
+        model.set_agents_panel_dock(AgentsPanelDock::Left, window, cx);
+        model.toggle_agents_panel(window, cx);
+        assert!(matches!(model.overlay, Some(Overlay::Agents)));
+        let mut other = model.appearance.clone();
+        other.agents_panel_dock = AgentsPanelDock::Right;
+        other
+            .save(&model.path.with_file_name("settings.toml"))
+            .expect("other window's choice");
+        model.appearance.tips_visible = !model.appearance.tips_visible;
+        model.save_appearance(cx);
+        assert!(
+            model.overlay.is_none(),
+            "an unrelated save must not leave a duplicate popup"
+        );
+        assert!(model.agents_panel_shown());
     });
 }
 
