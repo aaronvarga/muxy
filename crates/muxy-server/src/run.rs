@@ -12,7 +12,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use muxy_protocol::transport::{
-    BindError, ByteStream, Listener, StreamCancellation, UnixSocketListener,
+    BindError, ByteStream, Listener, StreamCancellation, UnixSocketListener, lock_socket_directory,
 };
 use muxy_protocol::wire::WireError;
 use muxy_server::{Registry, RemoteAccess, ServerEvent, connection};
@@ -206,8 +206,7 @@ impl Socket {
             .parent()
             .filter(|path| !path.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        let directory = fs::File::open(parent)?;
-        directory.lock()?;
+        let _lock = lock_socket_directory(parent)?;
         self.listener.close();
         match fs::symlink_metadata(&self.path) {
             Ok(metadata) if (metadata.dev(), metadata.ino()) == identity => {

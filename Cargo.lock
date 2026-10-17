@@ -4671,8 +4671,10 @@ dependencies = [
  "rustix 1.1.4",
  "rustls",
  "serde",
+ "uds_windows",
  "unicode-segmentation",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
