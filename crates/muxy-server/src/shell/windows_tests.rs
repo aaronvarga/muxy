@@ -62,12 +62,31 @@ impl Shell {
     /// Output up to `expected`, answering the pseudoconsole's queries as the
     /// server does.
     fn until(&mut self, expected: &[u8]) -> TestResult<Vec<u8>> {
-        let deadline = Instant::now() + Duration::from_secs(30);
         let mut bytes = Vec::new();
-        while !bytes
-            .windows(expected.len())
-            .any(|window| window == expected)
-        {
+        let Err(failure) = self.read_until(expected, &mut bytes, Duration::from_secs(30)) else {
+            return Ok(bytes);
+        };
+        // TEMPORARY: what PowerShell is doing when the CI runner stalls.
+        let diagnosis = diagnose(self.pty.child_pid());
+        let started = Instant::now();
+        let late = self
+            .read_until(expected, &mut bytes, Duration::from_secs(90))
+            .map(|()| started.elapsed());
+        Err(format!(
+            "waiting for {expected:?}: {failure}; output={:?}; arrived 30s late after {late:?}; diagnosis:\n{diagnosis}",
+            String::from_utf8_lossy(&bytes)
+        )
+        .into())
+    }
+
+    fn read_until(
+        &mut self,
+        expected: &[u8],
+        bytes: &mut Vec<u8>,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        let deadline = Instant::now() + timeout;
+        while !contains(bytes, expected) {
             match self
                 .events
                 .recv_timeout(deadline.saturating_duration_since(Instant::now()))
@@ -76,20 +95,39 @@ impl Shell {
                     self.terminal.feed(&output);
                     let reply = self.terminal.take_pty_output();
                     if !reply.is_empty() {
-                        self.pty.write(&reply)?;
+                        self.pty.write(&reply).map_err(|error| error.to_string())?;
                     }
                     bytes.extend(output);
                 }
-                other => {
-                    return Err(format!(
-                        "waiting for {expected:?}: {other:?}; output={:?}",
-                        String::from_utf8_lossy(&bytes)
-                    )
-                    .into());
-                }
+                other => return Err(format!("{other:?}")),
             }
         }
-        Ok(bytes)
+        Ok(())
+    }
+}
+
+/// TEMPORARY: the stalled process, its children, and recent Defender and
+/// shell events.
+fn diagnose(pid: u32) -> String {
+    let script = format!(
+        r#"
+Get-Process -Id {pid} -ErrorAction SilentlyContinue | Format-List Id, CPU, StartTime, @{{n='Threads';e={{$_.Threads.Count}}}}, @{{n='Waits';e={{($_.Threads | Group-Object WaitReason | ForEach-Object {{ "$($_.Name)=$($_.Count)" }}) -join ' '}}}}
+Get-CimInstance Win32_Process | Where-Object ParentProcessId -eq {pid} | Format-Table ProcessId, Name, CommandLine -AutoSize
+Get-MpComputerStatus -ErrorAction SilentlyContinue | Format-List RealTimeProtectionEnabled, BehaviorMonitorEnabled, IsTamperProtected, AMRunningMode
+Get-WinEvent -LogName 'Microsoft-Windows-Windows Defender/Operational' -MaxEvents 8 -ErrorAction SilentlyContinue | Format-Table TimeCreated, Id, @{{n='Message';e={{$_.Message.Substring(0, [Math]::Min(200, $_.Message.Length))}}}} -Wrap
+Get-WinEvent -LogName 'Microsoft-Windows-PowerShell/Operational' -MaxEvents 40 -ErrorAction SilentlyContinue | Where-Object ProcessId -eq {pid} | Format-Table TimeCreated, Id, @{{n='Message';e={{$_.Message.Substring(0, [Math]::Min(200, $_.Message.Length))}}}} -Wrap
+"#
+    );
+    match std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+    {
+        Ok(output) => format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ),
+        Err(error) => error.to_string(),
     }
 }
 
