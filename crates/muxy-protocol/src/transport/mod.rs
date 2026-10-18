@@ -17,6 +17,6 @@ pub use stream::{ByteStream, Listener, StreamCancellation};
 #[cfg(windows)]
 pub use unix::peer_pid;
 pub use unix::{
-    LocalListener, LocalStream, SocketDirectoryLock, UnixSocketListener, connect,
+    LocalListener, LocalStream, SocketDirectoryLock, UnixSocketListener, connect, connect_local,
     lock_socket_directory, socket_pair,
 };

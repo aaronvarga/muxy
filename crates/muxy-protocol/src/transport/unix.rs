@@ -108,9 +108,15 @@ impl Listener for UnixSocketListener {
 }
 
 pub fn connect(path: impl AsRef<Path>) -> io::Result<Box<dyn ByteStream>> {
+    Ok(Box::new(connect_local(path)?))
+}
+
+/// Like [`connect`], but keeps the socket's type, so a caller can ask who is
+/// at the other end before it carries any data.
+pub fn connect_local(path: impl AsRef<Path>) -> io::Result<LocalStream> {
     let stream = LocalStream::connect(socket_address(path.as_ref()))?;
     stream.set_nonblocking(false)?;
-    Ok(Box::new(stream))
+    Ok(stream)
 }
 
 /// Held while a socket in `parent` is bound, replaced or removed, so those
