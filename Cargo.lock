@@ -4583,6 +4583,7 @@ dependencies = [
  "muxy-ui",
  "serde_json",
  "tempfile",
+ "windows 0.62.2",
  "xim-ctext",
  "zed-reqwest",
  "zip",
@@ -4744,6 +4745,8 @@ dependencies = [
  "raw-window-handle",
  "serde_json",
  "unicode-segmentation",
+ "windows 0.62.2",
+ "windows-core 0.62.2",
  "x11rb",
  "zbus",
 ]

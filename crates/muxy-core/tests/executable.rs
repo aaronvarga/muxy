@@ -144,3 +144,52 @@ fn current_path_keeps_the_running_generation_after_a_link_switch() -> Result {
     );
     Ok(())
 }
+
+#[cfg(unix)]
+#[test]
+fn programs_are_found_only_where_they_can_run() -> Result {
+    use std::os::unix::fs::PermissionsExt;
+    let first = tempfile::tempdir()?;
+    let second = tempfile::tempdir()?;
+    fs::write(first.path().join("code"), "")?;
+    fs::write(second.path().join("code"), "")?;
+    fs::set_permissions(
+        second.path().join("code"),
+        fs::Permissions::from_mode(0o755),
+    )?;
+    let directories = [first.path().to_owned(), second.path().to_owned()];
+    assert_eq!(
+        muxy_core::executable::find_program(&directories, "code"),
+        Some(second.path().join("code")),
+        "a file that can't run is skipped"
+    );
+    assert_eq!(
+        muxy_core::executable::find_program(&directories, "zed"),
+        None
+    );
+    Ok(())
+}
+
+#[cfg(windows)]
+#[test]
+fn programs_are_found_by_their_pathext_extensions() -> Result {
+    use muxy_core::executable::find_with_extensions;
+    let first = tempfile::tempdir()?;
+    let second = tempfile::tempdir()?;
+    std::fs::write(first.path().join("code"), "")?;
+    std::fs::write(second.path().join("code.cmd"), "")?;
+    std::fs::write(second.path().join("zed.ps1"), "")?;
+    let directories = [first.path().to_owned(), second.path().to_owned()];
+    assert_eq!(
+        find_with_extensions(&directories, "code", ".COM;.EXE;.BAT;.CMD"),
+        Some(second.path().join("code.cmd")),
+        "a file without an extension doesn't run"
+    );
+    assert_eq!(
+        find_with_extensions(&directories, "code", ""),
+        Some(second.path().join("code.cmd")),
+        "an empty PATHEXT falls back to the usual extensions"
+    );
+    assert_eq!(find_with_extensions(&directories, "zed", ".EXE;.CMD"), None);
+    Ok(())
+}
