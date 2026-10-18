@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
 use std::io;
-use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
@@ -454,9 +453,7 @@ impl Registry {
     ) -> Result<SessionInfo, ServerError> {
         let _operation = self.session_operation();
         let directory_bytes = session_directory(directory)?;
-        self.git
-            .operations
-            .check_session(Path::new(std::ffi::OsStr::from_bytes(&directory_bytes.0)))?;
+        self.git.operations.check_session(directory)?;
         if let Some(info) = self
             .catalog
             .creation(operation, project, &directory_bytes)?
@@ -495,10 +492,10 @@ impl Registry {
             size.into(),
             (self.catalog.identity(), id),
         )
-        .and_then(|pty| {
+        .and_then(|shell| {
             session::start(
                 info.clone(),
-                pty,
+                shell,
                 size,
                 budget,
                 self.archive.clone(),
@@ -874,7 +871,7 @@ mod update_tests {
             let (events, _receiver) = std::sync::mpsc::channel();
             let registry = Arc::new(Registry::new(
                 ServerSettings {
-                    default_shell: Some("/bin/sh".into()),
+                    default_shell: Some(crate::test_support::shell()),
                     ..ServerSettings::default()
                 },
                 events,
@@ -884,7 +881,7 @@ mod update_tests {
             let start = gate.clone();
             let worker = std::thread::spawn(move || {
                 start.wait();
-                spawning.create(Path::new("/tmp"), Size { cols: 80, rows: 24 })
+                spawning.create(&crate::test_support::folder(), Size { cols: 80, rows: 24 })
             });
             gate.wait();
             let stopped = registry.stop_if_idle();
@@ -906,12 +903,15 @@ mod update_tests {
 mod recovery;
 
 fn session_directory(directory: &Path) -> Result<ServerPath, ServerError> {
-    let bytes = directory.as_os_str().as_bytes();
-    if !directory.is_absolute() || bytes.len() > 4096 || bytes.contains(&0) {
-        return Err(ServerError::new(
+    let invalid = || {
+        ServerError::new(
             ErrorCode::BadPath,
-            "session directory must be an absolute Unix path",
-        ));
+            "session directory must be an absolute path on this computer",
+        )
+    };
+    let path = ServerPath::from_path(directory).map_err(|_| invalid())?;
+    if !directory.is_absolute() || path.0.len() > 4096 || path.0.contains(&0) {
+        return Err(invalid());
     }
-    Ok(ServerPath(bytes.into()))
+    Ok(path)
 }
