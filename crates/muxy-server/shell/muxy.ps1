@@ -48,7 +48,8 @@ function Global:prompt {
 }
 
 # PSReadLine returns the line just before it runs, which marks the command's start.
-if (Get-Command PSConsoleHostReadLine -CommandType Function -ErrorAction SilentlyContinue) {
+# Only the session is searched: looking through every installed module can take minutes.
+if (Test-Path Function:\PSConsoleHostReadLine) {
     $Global:__MuxyReadLine = $function:PSConsoleHostReadLine
     function Global:PSConsoleHostReadLine {
         $line = $Global:__MuxyReadLine.Invoke()
