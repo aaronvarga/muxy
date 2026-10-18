@@ -17,6 +17,21 @@ pub fn path_starts_with(path: &Path, base: &Path) -> bool {
     starts_with(path, base, IGNORE_CASE)
 }
 
+/// `path` with a leading `home` written as `~`, ignoring case on Windows.
+/// A path outside `home` is returned unchanged.
+pub fn shorten_home(path: &Path, home: &Path) -> PathBuf {
+    shorten_home_with(path, home, IGNORE_CASE)
+}
+
+fn shorten_home_with(path: &Path, home: &Path, ignore_case: bool) -> PathBuf {
+    if home.as_os_str().is_empty() || !starts_with(path, home, ignore_case) {
+        return path.to_owned();
+    }
+    let mut short = PathBuf::from("~");
+    short.extend(path.components().skip(home.components().count()));
+    short
+}
+
 fn components_eq(first: &Path, second: &Path, ignore_case: bool) -> bool {
     first.components().count() == second.components().count()
         && starts_with(first, second, ignore_case)
@@ -114,6 +129,48 @@ mod tests {
         assert_eq!(
             path_starts_with(Path::new("/USERS/ME/src"), base),
             cfg!(windows)
+        );
+    }
+
+    #[test]
+    fn only_paths_inside_the_home_folder_are_shortened() {
+        let home = Path::new("/Users/me");
+        let short = |path: &str, ignore_case| shorten_home_with(Path::new(path), home, ignore_case);
+        assert_eq!(short("/Users/me", false), Path::new("~"));
+        assert_eq!(short("/Users/me/", false), Path::new("~"));
+        assert_eq!(short("/Users/me/src/muxy", false), Path::new("~/src/muxy"));
+        assert_eq!(
+            short("/Users/meow/src", false),
+            Path::new("/Users/meow/src")
+        );
+        assert_eq!(short("/Users", false), Path::new("/Users"));
+        assert_eq!(short("/USERS/ME/src", false), Path::new("/USERS/ME/src"));
+        assert_eq!(short("/USERS/ME/src", true), Path::new("~/src"));
+        assert_eq!(
+            shorten_home(Path::new("/USERS/ME/src"), home),
+            if cfg!(windows) {
+                Path::new("~/src")
+            } else {
+                Path::new("/USERS/ME/src")
+            }
+        );
+        assert_eq!(
+            shorten_home(Path::new("/src"), Path::new("")),
+            Path::new("/src")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn the_windows_profile_folder_is_shortened_whatever_its_case() {
+        let home = Path::new(r"C:\Users\Me");
+        assert_eq!(
+            shorten_home(Path::new(r"c:\users\me\src"), home).as_os_str(),
+            r"~\src"
+        );
+        assert_eq!(
+            shorten_home(Path::new(r"D:\Users\Me\src"), home),
+            Path::new(r"D:\Users\Me\src")
         );
     }
 
