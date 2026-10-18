@@ -3201,6 +3201,7 @@ mod tests {
             model.new_tab(cx);
             let pane = model.active_pane().expect("pane");
             let mut attachment = attachment();
+            attachment.title = "◐".into();
             attachment.process = Some(muxy_protocol::ForegroundProcess {
                 name: "sleep".into(),
                 is_shell: false,
@@ -3231,7 +3232,7 @@ mod tests {
                 ServerId::local(),
                 ClientEvent::Metadata {
                     channel: muxy_protocol::ChannelId(1),
-                    event: muxy_protocol::MetadataEvent::Title("hello".into()),
+                    event: muxy_protocol::MetadataEvent::Title("◐ hello 🚀".into()),
                 },
                 cx,
             );

@@ -293,7 +293,6 @@ impl AppModel {
                 }
             }
         }
-        self.agents_panel.selected = self.selected_agents_entry(&self.agents_panel_entries());
         self.focus_agents_panel(window);
         cx.notify();
     }
@@ -320,10 +319,38 @@ impl AppModel {
         cx.notify();
     }
 
+    pub(crate) fn active_agents_entry(&self, entries: &[Entry]) -> Option<EntryKey> {
+        let project = self.state.current_project();
+        let tab = self.active_tab();
+        let session = self.active_pane().and_then(|pane| self.pane_session(pane));
+        entries
+            .iter()
+            .find(|entry| match entry {
+                Entry::Agent(agent) => {
+                    agent.server == project.server_id && Some(agent.session) == session
+                }
+                Entry::Worktree { project: id, .. } => *id == project.id,
+            })
+            .or_else(|| {
+                let tab = project.tabs.iter().find(|entry| Some(entry.id) == tab)?;
+                entries.iter().find(|entry| match entry {
+                    Entry::Agent(agent) => {
+                        agent.server == project.server_id
+                            && tab.panes.iter().any(|pane| {
+                                matches!(pane.content, PaneContent::Terminal { session: Some(session) } if session == agent.session)
+                            })
+                    }
+                    Entry::Worktree { .. } => false,
+                })
+            })
+            .map(Entry::key)
+    }
+
     pub(crate) fn selected_agents_entry(&self, entries: &[Entry]) -> Option<EntryKey> {
         self.agents_panel
             .selected
             .filter(|key| entries.iter().any(|entry| entry.key() == *key))
+            .or_else(|| self.active_agents_entry(entries))
             .or_else(|| entries.first().map(Entry::key))
     }
 
@@ -367,7 +394,7 @@ impl AppModel {
         else {
             return;
         };
-        self.agents_panel.selected = Some(key);
+        self.agents_panel.selected = None;
         if matches!(self.overlay, Some(Overlay::Agents)) {
             self.dismiss_overlay(cx);
         }
@@ -459,6 +486,7 @@ impl AppModel {
     }
 
     pub(crate) fn focus_agents_panel(&mut self, window: &mut Window) {
+        self.agents_panel.selected = None;
         self.agents_panel.focus.focus(window);
         self.focus_requested = false;
     }
