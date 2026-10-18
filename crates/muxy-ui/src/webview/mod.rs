@@ -3,6 +3,8 @@
 
 pub mod assets;
 #[cfg(target_os = "macos")]
+mod file_drop;
+#[cfg(target_os = "macos")]
 pub(crate) mod host;
 mod rules;
 #[cfg(target_os = "macos")]
