@@ -29,7 +29,9 @@ pub(super) enum Kind {
 pub(super) struct Entry {
     pub(super) kind: Kind,
     pub(super) size: u64,
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     pub(super) device: u64,
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     pub(super) index: u64,
     #[cfg(unix)]
     pub(super) mode: u32,

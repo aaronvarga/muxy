@@ -41,6 +41,10 @@ pub(in crate::files) fn stat(parent: &File, name: &OsStr) -> io::Result<Entry> {
             reason = "st_ino is narrower on some systems"
         )]
         index: u64::from(stat.st_ino),
+        #[allow(
+            clippy::useless_conversion,
+            reason = "st_mode is narrower on some systems"
+        )]
         mode: u32::from(stat.st_mode),
     })
 }

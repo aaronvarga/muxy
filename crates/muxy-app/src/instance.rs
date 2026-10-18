@@ -181,7 +181,7 @@ fn urls(paths: &[PathBuf]) -> Vec<String> {
 #[allow(clippy::expect_used, reason = "Regression fixture setup")]
 mod tests {
     #[cfg(unix)]
-    use std::os::unix::ffi::OsStringExt;
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
     use super::*;
 
@@ -200,7 +200,7 @@ mod tests {
 
     #[cfg(unix)]
     fn odd(root: &Path) -> PathBuf {
-        root.join(std::ffi::OsString::from_vec(
+        root.join(OsString::from_vec(
             b"My Project caf\xc3\xa9 \xff $(x)".to_vec(),
         ))
     }
