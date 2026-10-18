@@ -123,7 +123,7 @@ pub(super) fn aside_path(directory: &Path, id: impl std::fmt::Display) -> Result
 
 /// Renames `directory` to `aside`. Windows can't read another process's
 /// working directory, but it refuses this rename while a file in the folder
-/// is open.
+/// is open or a program works inside it.
 #[cfg(windows)]
 pub(super) fn set_aside(directory: &Path, aside: &Path) -> Result<()> {
     rename_retrying(directory, aside).map_err(|cause| {
@@ -216,6 +216,7 @@ mod tests {
         reason = "Tests fail immediately on fixture errors"
     )]
     use super::*;
+    use std::io::{BufRead, BufReader};
     use std::process::{Command, Stdio};
 
     fn folder() -> PathBuf {
@@ -289,22 +290,33 @@ mod tests {
         std::fs::remove_dir_all(folder.parent().unwrap()).unwrap();
     }
 
-    /// A working directory doesn't hold the folder, so removal ends the
-    /// sessions that report one inside it first.
+    /// A running program holds its working directory, so removal ends the
+    /// sessions that report one inside the folder first.
     #[test]
-    fn a_working_directory_alone_does_not_keep_the_folder() {
+    fn a_working_directory_keeps_the_folder_until_its_program_exits() {
         let folder = folder();
         let mut working = Command::new("ping")
             .args(["-n", "30", "127.0.0.1"])
             .current_dir(folder.join("nested"))
-            .stdout(Stdio::null())
+            .stdout(Stdio::piped())
             .spawn()
             .unwrap();
+        // Its first words mean it has started, working directory and all.
+        let mut output = BufReader::new(working.stdout.take().unwrap());
+        let mut line = String::new();
+        while line.trim().is_empty() {
+            line.clear();
+            assert_ne!(output.read_line(&mut line).unwrap(), 0);
+        }
         let aside = aside_path(&folder, 6).unwrap();
-        let unused = check_unused(&folder, &aside);
+        let busy = check_unused(&folder, &aside);
         working.kill().unwrap();
         working.wait().unwrap();
-        unused.unwrap();
+        assert_eq!(
+            busy.unwrap_err().message(),
+            "Processes are still using this worktree; files were preserved"
+        );
+        check_unused(&folder, &aside).unwrap();
         std::fs::remove_dir_all(folder.parent().unwrap()).unwrap();
     }
 }
