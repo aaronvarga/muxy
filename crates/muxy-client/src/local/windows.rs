@@ -24,7 +24,7 @@ use windows_sys::Win32::System::Threading::{
 
 use crate::{ClientError, ServerElsewhere};
 
-/// A program started by [`spawn_detached`].
+/// A program started by [`spawn_detached`](super::spawn_detached).
 #[derive(Debug)]
 pub struct Detached(OwnedHandle);
 
