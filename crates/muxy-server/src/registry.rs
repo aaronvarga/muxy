@@ -452,7 +452,8 @@ impl Registry {
         requester: Option<&crate::connection::Outbox>,
     ) -> Result<SessionInfo, ServerError> {
         let _operation = self.session_operation();
-        let directory_bytes = session_directory(directory)?;
+        let (directory, directory_bytes) = session_directory(directory)?;
+        let directory = directory.as_path();
         self.git.operations.check_session(directory)?;
         if let Some(info) = self
             .catalog
@@ -902,7 +903,66 @@ mod update_tests {
 #[path = "registry/recovery.rs"]
 mod recovery;
 
-fn session_directory(directory: &Path) -> Result<ServerPath, ServerError> {
+/// The folder a session starts in, and how it is reported. Windows reports no
+/// program's working directory, so the folder is resolved up front, as Unix
+/// reports one: with long names and links followed.
+fn session_directory(directory: &Path) -> Result<(PathBuf, ServerPath), ServerError> {
+    let path = valid_directory(directory)?;
+    #[cfg(windows)]
+    if let Ok(resolved) = muxy_core::files::canonicalize(directory)
+        && same_root(directory, &resolved)
+        && let Ok(path) = valid_directory(&resolved)
+    {
+        return Ok((resolved, path));
+    }
+    Ok((directory.to_owned(), path))
+}
+
+/// Whether `resolved` is still on the drive or share `requested` names.
+/// Resolving a mapped drive gives a share, which `cmd.exe` refuses to start
+/// in, and resolving a `subst` drive gives the long path it shortens.
+#[cfg(windows)]
+fn same_root(requested: &Path, resolved: &Path) -> bool {
+    use std::path::{Component, Prefix};
+    fn prefix(path: &Path) -> Option<Prefix<'_>> {
+        match path.components().next() {
+            Some(Component::Prefix(prefix)) => Some(prefix.kind()),
+            _ => None,
+        }
+    }
+    match (prefix(requested), prefix(resolved)) {
+        (Some(Prefix::Disk(requested)), Some(Prefix::Disk(resolved))) => {
+            requested.eq_ignore_ascii_case(&resolved)
+        }
+        (
+            Some(Prefix::UNC(requested_server, requested_share)),
+            Some(Prefix::UNC(resolved_server, resolved_share)),
+        ) => {
+            requested_server.eq_ignore_ascii_case(resolved_server)
+                && requested_share.eq_ignore_ascii_case(resolved_share)
+        }
+        _ => false,
+    }
+}
+
+#[cfg(all(test, windows))]
+mod directory_tests {
+    use super::*;
+
+    #[test]
+    fn sessions_stay_on_the_drive_or_share_they_were_asked_for() {
+        let same =
+            |requested: &str, resolved: &str| same_root(Path::new(requested), Path::new(resolved));
+        assert!(same(r"c:/Users/me", r"C:\Users\me"));
+        assert!(same(r"\\Server\Share\a", r"\\server\share\a"));
+        assert!(!same(r"Z:\proj", r"\\server\share\proj"));
+        assert!(!same(r"S:\proj", r"C:\Users\me\proj"));
+        assert!(!same(r"C:\a", r"\\?\C:\a"));
+        assert!(!same(r"\\server\share\a", r"\\server\other\a"));
+    }
+}
+
+fn valid_directory(directory: &Path) -> Result<ServerPath, ServerError> {
     let invalid = || {
         ServerError::new(
             ErrorCode::BadPath,

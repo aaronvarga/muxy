@@ -264,6 +264,56 @@ fn windows_end_kills_a_running_program_and_everything_the_session_started() -> T
     fixture.finish()
 }
 
+/// Windows reports no program's working directory, so the server resolves a
+/// session's folder before starting it, as Unix reports the shell's.
+#[cfg(windows)]
+#[test]
+fn windows_sessions_start_in_and_report_their_resolved_folder() -> TestResult {
+    const WIDE: Size = Size {
+        cols: 400,
+        rows: 24,
+    };
+    let fixture = fixture("resolved")?;
+    let real = fixture.directory.join("real");
+    let junction = fixture.directory.join("junction");
+    // Process IDs repeat, so an earlier run's fixture folder may remain.
+    let _ = fs::remove_dir(&junction);
+    fs::create_dir_all(&real)?;
+    let linked = process::Command::new("cmd")
+        .args(["/d", "/c", "mklink", "/J"])
+        .arg(&junction)
+        .arg(&real)
+        .stdout(process::Stdio::null())
+        .status()?;
+    assert!(linked.success());
+    let requested = PathBuf::from(junction.to_string_lossy().replace('\\', "/"));
+    let resolved = muxy_core::files::canonicalize(&real)?;
+
+    let info = fixture.registry.create(&requested, WIDE)?;
+    assert_eq!(info.directory, support::server_path(&resolved)?);
+    let handle = fixture
+        .registry
+        .handle(info.id)
+        .ok_or("created session has no handle")?;
+    let (events, snapshot) = attach(&handle, 1, WIDE)?;
+    assert_eq!(snapshot.directory, info.directory);
+    handle.send(SessionCommand::Input(b"cd\r".to_vec()))?;
+    wait_for_text(&events, &format!("{}>", resolved.display()))?;
+
+    fixture.registry.end(info.id)?;
+    assert_eq!(wait_for_ended(&events)?, ExitReason::Ended);
+    let deadline = Instant::now() + TIMEOUT;
+    while !fixture.registry.list().is_empty() {
+        if Instant::now() > deadline {
+            return Err("the session did not end".into());
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    fs::remove_dir(&junction)?;
+    fs::remove_dir(&real)?;
+    fixture.finish()
+}
+
 /// Changes the user's `PATH` in the registry for a moment, so it runs only
 /// in the test VM: `cargo test -- --ignored`.
 #[cfg(windows)]
