@@ -24,6 +24,7 @@ use crate::transport::{ByteStream, Listener, LocalStream, StreamCancellation};
 
 const ALPN: &[u8] = b"muxy/1";
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long a pump that has closed its side waits on a peer that went quiet.
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
 const BUFFER: usize = 64 * 1024;
 const KEEPALIVE_IDLE: Duration = Duration::from_secs(30);
@@ -468,6 +469,9 @@ impl Pump {
             match self.tls.read_tls(&mut self.tcp) {
                 Ok(0) => self.inbound = Flow::Draining,
                 Ok(_) => {
+                    if self.deadline.is_some() {
+                        self.deadline = Some(Instant::now() + CLOSE_TIMEOUT);
+                    }
                     self.tls
                         .process_new_packets()
                         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
