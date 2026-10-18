@@ -160,6 +160,17 @@ pub(super) fn current_user_sid() -> io::Result<String> {
     Ok(unsafe { take_wide(text) })
 }
 
+/// `sid` as SDDL writes it, which is an alias such as `LA` for some accounts.
+#[cfg(test)]
+pub(super) fn sddl_trustee(sid: &str) -> io::Result<String> {
+    let entry = sddl(security_descriptor(&format!("D:(A;;FA;;;{sid})"))?.0)?;
+    entry
+        .strip_prefix("D:(A;;FA;;;")
+        .and_then(|trustee| trustee.strip_suffix(')'))
+        .map(str::to_owned)
+        .ok_or_else(|| io::Error::other(format!("Unexpected SDDL {entry}")))
+}
+
 pub(super) fn file_id(file: &File) -> io::Result<(u64, u64)> {
     let mut information = BY_HANDLE_FILE_INFORMATION::default();
     // SAFETY: the handle is open for the borrow and `information` is writable.
@@ -269,6 +280,14 @@ mod tests {
             wanted
         ));
         assert!(!same_protected_entries("D:P", wanted));
+    }
+
+    #[test]
+    fn trustees_are_written_as_sddl_writes_them() -> io::Result<()> {
+        assert_eq!(sddl_trustee("S-1-5-32-544")?, "BA");
+        assert_eq!(sddl_trustee("S-1-5-18")?, "SY");
+        assert_eq!(sddl_trustee("S-1-5-21-1-2-3-1001")?, "S-1-5-21-1-2-3-1001");
+        Ok(())
     }
 
     #[test]

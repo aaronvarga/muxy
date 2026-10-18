@@ -338,7 +338,7 @@ mod tests {
         }
         #[cfg(windows)]
         {
-            let user = windows::current_user_sid()?;
+            let user = windows::sddl_trustee(&windows::current_user_sid()?)?;
             let directory = windows::dacl(&directory)?;
             assert!(directory.starts_with("D:P"), "{directory}");
             assert!(
