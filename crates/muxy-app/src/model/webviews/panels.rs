@@ -315,6 +315,7 @@ impl AppModel {
         [
             crate::views::composer::PANEL,
             crate::model::agents_panel::PANEL,
+            crate::model::agent_sessions::PANEL,
         ]
         .into_iter()
         .any(|id| self.panels.placement(&PanelId::new(id)).is_some())
@@ -402,6 +403,10 @@ impl AppModel {
                 self.agents_panel.drag = None;
                 self.agents_panel.resize.end();
                 self.appearance.agents_panel_visible = false;
+                self.save_appearance(cx);
+            } else if id.as_str() == crate::model::agent_sessions::PANEL {
+                self.appearance.agent_sessions_visible = false;
+                self.sync_agent_sessions(cx);
                 self.save_appearance(cx);
             } else if let Some(panel) = self.webviews.panels.get(&id) {
                 panel.resize.end();

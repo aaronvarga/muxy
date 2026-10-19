@@ -35,6 +35,7 @@ pub(crate) enum Overlay {
     /// The popover above the sidebar's Remote section.
     RemoteServers,
     Agents,
+    SessionProviders,
     ServerForm(Box<super::remote_servers::ServerForm>),
     Password(Box<super::remote_servers::PasswordPrompt>),
 }
@@ -50,6 +51,7 @@ impl Overlay {
                 | Self::Tip
                 | Self::RemoteServers
                 | Self::Agents
+                | Self::SessionProviders
                 | Self::Git(_)
                 | Self::GitForm(_)
                 | Self::AiProvider(_)
@@ -83,6 +85,11 @@ impl AppModel {
         }
         self.focus_return = match self.overlay.take() {
             Some(Overlay::Menu(menu)) => menu.returns_focus_to,
+            Some(Overlay::SessionProviders) if self.appearance.agent_sessions_visible => self
+                .agent_sessions
+                .input
+                .as_ref()
+                .map(|input| gpui::Focusable::focus_handle(input, cx).downgrade()),
             _ => None,
         };
         self.overlay_subscription = None;
@@ -182,6 +189,14 @@ pub(crate) fn layer(model: &AppModel, window: &Window, cx: &mut Context<AppModel
             })
         }
         Some(Overlay::Agents) => super::agents_panel::popup(model, window, cx),
+        Some(Overlay::SessionProviders) => {
+            let content = marked(super::agent_sessions::providers(model, window, cx), model);
+            let anchor = model.agent_sessions.anchor.clone();
+            let owner = cx.weak_entity();
+            muxy_ui::popover::anchored_popover(anchor, content, move |_, cx| {
+                let _ = owner.update(cx, AppModel::dismiss_overlay);
+            })
+        }
         Some(Overlay::ServerForm(form)) => centered(marked(
             super::remote_servers::render_form(form, model, window, cx),
             model,

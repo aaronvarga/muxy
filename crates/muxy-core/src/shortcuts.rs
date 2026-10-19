@@ -117,6 +117,7 @@ pub enum ShortcutId {
     SwitchWorktree,
     ToggleSidebar,
     ToggleAgentsPanel,
+    ToggleAgentSessions,
     ToggleFullScreen,
     ToggleThemePicker,
     NavigateBack,
@@ -578,6 +579,12 @@ pub const ALL: &[Shortcut] = &[
         keys: platform_keys!(&["cmd-alt-a"], &["ctrl-shift-alt-a"]),
         contexts: &[Some("WorkspaceTabs")],
         key_contexts: &[&[Some("WorkspaceTabs")]],
+    },
+    Shortcut {
+        id: "toggle_agent_sessions",
+        keys: &[],
+        contexts: &[Some("WorkspaceTabs")],
+        key_contexts: &[],
     },
     Shortcut {
         id: "toggle_full_screen",

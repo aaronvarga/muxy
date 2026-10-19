@@ -73,6 +73,59 @@ focus. Use the arrow keys and Return to open a row.
   each project and worktree running agents, with counts, where Return opens
   the worktree.
 
+## Saved agent sessions
+
+Click the **Agent Sessions** history icon on the right of the titlebar, or use
+**Toggle Agent Sessions** in the command palette or View menu, to show or hide
+the right panel. It has no default shortcut; assign one in Settings → Keyboard.
+This is separate from the running-agents panel.
+
+- Sessions belong to the selected local project directory. Worktrees have their
+  own history; remote projects never display this computer's sessions.
+- Search matches session titles, IDs, and provider names. The filter button on
+  the right of search opens a multi-select menu with matching counts,
+  **Select all**, and **Clear**. Provider choices, panel visibility, and width
+  are remembered.
+- Sessions are grouped by recency, with the provider and age under each title.
+  Use Up/Down while searching to select a session, then Return to resume it.
+  Tab opens provider filtering. Escape clears the search; Escape again returns
+  focus to the terminal.
+- Click a session to resume it in a new project terminal using the harness's
+  native resume command. The harness must be installed and available on the
+  terminal's PATH. Muxy does not install, configure, or authenticate it.
+- Drag the left edge to resize. The panel shares the right-panel area with
+  Agents, extension panels, and the panel-mode composer; opening one replaces
+  the other.
+- History refreshes on opening the panel or switching projects. Large histories
+  load automatically in bounded batches across providers; keep browsing while
+  loading completes. Use **Refresh sessions** to pick up later changes.
+
+Discovery only reads local JSONL files; it runs in the background, caches
+metadata rather than conversations, and never installs hooks or launches a
+harness. Files are not modified by discovery. Resuming hands control to the
+harness, which may update its session normally.
+
+| Provider | Session files | Resume command |
+| --- | --- | --- |
+| Claude Code | `~/.claude/projects/*/*.jsonl` | `claude --resume ID` |
+| Codex | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` | `codex resume ID` |
+| Copilot | `~/.copilot/session-state/*/events.jsonl` | `copilot --resume ID` |
+| Droid | `~/.factory/sessions/*/*.jsonl` | `droid --resume ID` |
+| Pi | `~/.pi/agent/sessions/*/*.jsonl` | `pi --session ID` |
+| Oh My Pi | `~/.omp/agent/sessions/*/*.jsonl` | `omp --resume ID` |
+| Xal | `~/.xal/sessions/*/*.jsonl` | `xal resume ID` |
+
+`CLAUDE_CONFIG_DIR` and `CODEX_HOME` are respected when set to absolute paths.
+OpenCode, Cursor, Grok, Kiro, and Antigravity appear as **Not supported** in the
+filter menu: their database-only or unverified storage formats are not read.
+Running-agent detection for these providers is unaffected.
+
+Session discovery is best effort: malformed or unfinished records, records
+without a project directory, and nested subagent artifacts are skipped. Reads
+are bounded to the start and end of transcripts; unusually large metadata,
+older formats, custom storage locations, and titles in separate databases may
+not be found. Sessions are sorted by transcript modification time.
+
 ## Agents Focused sidebar
 
 Choose **Agents Focused** from the sidebar layout menu to list only the tabs
