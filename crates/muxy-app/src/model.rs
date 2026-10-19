@@ -1686,6 +1686,7 @@ impl AppModel {
             }
             PaneEvent::Bell => cx.notify(),
             PaneEvent::Focused => {
+                model.blur_webviews(cx);
                 if !model.is_quick_terminal(id) {
                     model.focus_pane(id, cx);
                 }
