@@ -538,6 +538,8 @@ impl AppModel {
         self.appearance = settings.appearance.clone();
         self.settings = settings;
         self.sync_agents_panel(cx);
+        self.sync_agent_sessions(cx);
+        self.filter_agent_sessions(cx);
         self.invalidate_webview_shortcuts();
         if bindings_changed {
             self.bind_extension_keys(cx);

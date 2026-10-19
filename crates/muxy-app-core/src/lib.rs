@@ -3,6 +3,7 @@
 //! Workspaces, cached project views, tabs, panes, and window state live here;
 //! server execution and UI toolkit code do not.
 
+pub mod agent_sessions;
 pub mod backup;
 pub mod browser;
 pub mod composer;

@@ -1,3 +1,4 @@
+pub(crate) mod agent_sessions;
 pub(crate) mod agents_panel;
 pub(crate) mod ai;
 pub(crate) mod banners;
@@ -162,6 +163,7 @@ pub(crate) struct AppModel {
     pub(crate) sidebar_resize: Option<crate::views::sidebar::SidebarResize>,
     #[cfg(target_os = "linux")]
     pub(crate) sidebar_available_width: gpui::Pixels,
+    pub(crate) agent_sessions: agent_sessions::AgentSessions,
     pub(crate) agents_panel: agents_panel::AgentsPanel,
     pub(crate) tab_drag: crate::views::tab_strip::TabDragState,
     pub(crate) layout_drag: crate::views::splits::drag::LayoutDragState,
@@ -238,6 +240,14 @@ impl AppModel {
             });
         }
         self.refresh_quick_terminal(cx);
+        if let Some(input) = &self.agent_sessions.input {
+            input.update(cx, |input, cx| {
+                input.set_style(
+                    muxy_ui::text_input::InputStyle::compact(&self.theme, &self.metrics),
+                    cx,
+                );
+            });
+        }
         if let Some(view) = &self.composer.view {
             view.update(cx, |view, cx| {
                 view.appearance(self.theme.clone(), self.metrics, cx);
@@ -337,6 +347,8 @@ impl AppModel {
                 self.appearance = saved;
                 self.settings.appearance = self.appearance.clone();
                 self.sync_agents_panel(cx);
+                self.sync_agent_sessions(cx);
+                self.filter_agent_sessions(cx);
                 if theme_changed {
                     self.refresh_theme(cx);
                 }
@@ -546,6 +558,7 @@ impl AppModel {
             sidebar_resize: None,
             #[cfg(target_os = "linux")]
             sidebar_available_width: gpui::px(f32::MAX),
+            agent_sessions: agent_sessions::AgentSessions::new(cx),
             agents_panel: agents_panel::AgentsPanel::new(cx),
             tab_drag: crate::views::tab_strip::TabDragState::default(),
             layout_drag: crate::views::splits::drag::LayoutDragState::default(),
@@ -1558,6 +1571,7 @@ impl AppModel {
             let _ = self.state.select_project(home);
             self.state.reveal_current_project();
         }
+        self.sync_agent_sessions(cx);
         self.sync_composer(cx);
         self.sync_project_layouts(cx);
         self.sync_voice(cx);
@@ -2704,6 +2718,7 @@ mod tests {
     mod webviews;
     use muxy_protocol::ExitReason;
     mod activity;
+    mod agent_sessions;
     mod agents_panel;
     mod ai;
     mod browsers;

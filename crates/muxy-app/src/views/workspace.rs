@@ -2,8 +2,8 @@ use muxy_core::shortcuts::ShortcutId;
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    App, Context, FontWeight, InteractiveElement, IntoElement, KeyBinding, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window, actions, div, px, relative,
+    App, Context, Focusable, FontWeight, InteractiveElement, IntoElement, KeyBinding,
+    ParentElement, Render, StatefulInteractiveElement, Styled, Window, actions, div, px, relative,
 };
 use muxy_app_core::Direction;
 use muxy_app_core::settings::Keymap;
@@ -46,6 +46,7 @@ actions!(
         AddProject,
         ToggleSidebar,
         ToggleAgentsPanel,
+        ToggleAgentSessions,
         ToggleFullScreen,
         ToggleThemePicker,
         ToggleCommandPalette,
@@ -109,6 +110,7 @@ fn workspace_bindings(keymap: &impl muxy_core::shortcuts::ShortcutSettings) -> V
     registry.register(ShortcutId::SwitchWorktree, &SwitchWorktree);
     registry.register(ShortcutId::ToggleSidebar, &ToggleSidebar);
     registry.register(ShortcutId::ToggleAgentsPanel, &ToggleAgentsPanel);
+    registry.register(ShortcutId::ToggleAgentSessions, &ToggleAgentSessions);
     registry.register(ShortcutId::ToggleFullScreen, &ToggleFullScreen);
     registry.register(ShortcutId::ToggleThemePicker, &ToggleThemePicker);
     registry.register(ShortcutId::ToggleCommandPalette, &ToggleCommandPalette);
@@ -455,6 +457,9 @@ fn action_handlers(cx: &mut Context<AppModel>) -> gpui::Div {
         .on_action(cx.listener(|model, _: &ToggleAgentsPanel, window, cx| {
             model.toggle_agents_panel(window, cx);
         }))
+        .on_action(cx.listener(|model, _: &ToggleAgentSessions, window, cx| {
+            model.toggle_agent_sessions(window, cx);
+        }))
         .on_action(cx.listener(|_, _: &ToggleFullScreen, window, _| window.toggle_fullscreen()))
         .on_action(cx.listener(|model, _: &ToggleThemePicker, window, cx| {
             model.open_theme_picker(window, cx);
@@ -678,6 +683,37 @@ fn register_app_commands(
     }
 }
 
+fn register_panel_commands(
+    registry: &mut muxy_ui::command_palette::Registry<super::command_palette::Handler>,
+    model: &AppModel,
+) {
+    use super::command_palette::action;
+
+    for command in [
+        action(
+            model,
+            ShortcutId::ToggleSidebar,
+            tr_key!("Toggle Sidebar"),
+            ToggleSidebar,
+        ),
+        action(
+            model,
+            ShortcutId::ToggleAgentsPanel,
+            tr_key!("Toggle Agents Panel"),
+            ToggleAgentsPanel,
+        ),
+        action(
+            model,
+            ShortcutId::ToggleAgentSessions,
+            tr_key!("Toggle Agent Sessions"),
+            ToggleAgentSessions,
+        )
+        .keywords("harness history resume providers"),
+    ] {
+        registry.register(command);
+    }
+}
+
 fn register_worktree_commands(
     registry: &mut muxy_ui::command_palette::Registry<super::command_palette::Handler>,
     model: &AppModel,
@@ -786,21 +822,10 @@ pub(crate) fn register_commands(
             PreviousTab,
         )
         .disabled(model.navigation_tabs().len() < 2),
-        action(
-            model,
-            ShortcutId::ToggleSidebar,
-            tr_key!("Toggle Sidebar"),
-            ToggleSidebar,
-        ),
-        action(
-            model,
-            ShortcutId::ToggleAgentsPanel,
-            tr_key!("Toggle Agents Panel"),
-            ToggleAgentsPanel,
-        ),
     ] {
         registry.register(command);
     }
+    register_panel_commands(registry, model);
     register_worktree_commands(registry, model);
     register_terminal_commands(registry, model);
     register_pane_focus_commands(registry, model, unsplit);
@@ -886,7 +911,11 @@ impl AppModel {
                 || (self.active_pane().is_none()
                     && self.composer.view.is_none()
                     && self.webviews.panels.is_empty()
-                    && !self.agents_panel.focus.contains_focused(window, cx)))
+                    && !self.agents_panel.focus.contains_focused(window, cx)
+                    && !(self.appearance.agent_sessions_visible
+                        && self.agent_sessions.input.as_ref().is_some_and(|input| {
+                            input.focus_handle(cx).contains_focused(window, cx)
+                        }))))
         {
             match self.focus_return.take().and_then(|focus| focus.upgrade()) {
                 Some(focus) => focus.focus(window),
@@ -944,6 +973,7 @@ impl Render for AppModel {
         let content = super::splits::render(self, window, cx).unwrap_or_else(|| empty(self, cx));
         let content = self.webview_panel_content(content, window, cx);
         let content = super::agents_panel::right_panel_content(content, self, window, cx);
+        let content = super::agent_sessions::panel_content(content, self, window, cx);
         let content = self.composer_content(content, window, cx);
         let workspace = action_handlers(cx)
             .on_action(cx.listener(|model, _: &ToggleVoiceRecording, window, cx| {

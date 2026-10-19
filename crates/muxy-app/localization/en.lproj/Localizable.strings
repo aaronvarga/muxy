@@ -72,6 +72,9 @@
 "%lld%%" = "%lld%%";
 "%lld/%lld passing" = "%lld/%lld passing";
 "%lld/%lld terminals sent. %@ Draft preserved; check the terminal before retrying." = "%lld/%lld terminals sent. %@ Draft preserved; check the terminal before retrying.";
+"%lldd ago" = "%lldd ago";
+"%lldh ago" = "%lldh ago";
+"%lldm ago" = "%lldm ago";
 "1 Change" = "1 Change";
 "1 Existing Terminal" = "1 Existing Terminal";
 "1 unread notification" = "1 unread notification";
@@ -122,6 +125,7 @@
 "Adjust smooth scrolling speed." = "Adjust smooth scrolling speed.";
 "Adjust the space above and below terminal text." = "Adjust the space above and below terminal text.";
 "Adjust the space to the left and right of terminal text." = "Adjust the space to the left and right of terminal text.";
+"Agent Sessions" = "Agent Sessions";
 "Agents" = "Agents";
 "Agents Focused" = "Agents Focused";
 "Agents Panel" = "Agents Panel";
@@ -284,6 +288,7 @@
 "Choose the initial blink behavior. Terminal programs can change it." = "Choose the initial blink behavior. Terminal programs can change it.";
 "Choose the initial cursor shape. Terminal programs can change it." = "Choose the initial cursor shape. Terminal programs can change it.";
 "Clean" = "Clean";
+"Clear" = "Clear";
 "Clear After Sending" = "Clear After Sending";
 "Clear Data" = "Clear Data";
 "Clear after sending" = "Clear after sending";
@@ -292,6 +297,7 @@
 "Clear on Close" = "Clear on Close";
 "Clear on close" = "Clear on close";
 "Clear screen" = "Clear screen";
+"Clear search" = "Clear search";
 "Clear selection after copying" = "Clear selection after copying";
 "Clear selection when typing" = "Clear selection when typing";
 "Clear the draft only after every terminal confirms delivery." = "Clear the draft only after every terminal confirms delivery.";
@@ -429,6 +435,7 @@
 "Could not preserve the clipboard" = "Could not preserve the clipboard";
 "Could not read %@: %@" = "Could not read %@: %@";
 "Could not read activity: %@" = "Could not read activity: %@";
+"Could not read some %@ sessions." = "Could not read some %@ sessions.";
 "Could not read theme %@: %@" = "Could not read theme %@: %@";
 "Could not read this folder" = "Could not read this folder";
 "Could not reconnect to the updated server." = "Could not reconnect to the updated server.";
@@ -610,6 +617,7 @@
 "Files" = "Files";
 "Fill padding with the background color, or extend the color of the nearest cells." = "Fill padding with the background color, or extend the color of the nearest cells.";
 "Filter layouts…" = "Filter layouts…";
+"Filter providers" = "Filter providers";
 "Filter terminals or owners…" = "Filter terminals or owners…";
 "Find Next" = "Find Next";
 "Find Previous" = "Find Previous";
@@ -697,6 +705,7 @@
 "In a Git project, click Commit in the status bar. Choose the AI CLI, whether to include unstaged changes, and whether to push. The CLI writes the message and Muxy commits." = "In a Git project, click Commit in the status bar. Choose the AI CLI, whether to include unstaged changes, and whether to push. The CLI writes the message and Muxy commits.";
 "In a Git project, right-click the project and choose Worktrees → Show Worktrees, then New Worktree…, to work on a branch in its own folder with its own tabs." = "In a Git project, right-click the project and choose Worktrees → Show Worktrees, then New Worktree…, to work on a branch in its own folder with its own tabs.";
 "Inactive" = "Inactive";
+"Include providers" = "Include providers";
 "Include unstaged changes" = "Include unstaged changes";
 "Increase Font Size" = "Increase Font Size";
 "Increase font size" = "Increase font size";
@@ -747,6 +756,7 @@
 "Italic font" = "Italic font";
 "Items" = "Items";
 "Its projects and layouts leave this app; nothing on the server changes." = "Its projects and layouts leave this app; nothing on the server changes.";
+"Just now" = "Just now";
 "Keep Waiting" = "Keep Waiting";
 "Key" = "Key";
 "Key bindings" = "Key bindings";
@@ -754,6 +764,7 @@
 "Keys the terminal handles while it is focused. They take precedence over app shortcuts." = "Keys the terminal handles while it is focused. They take precedence over app shortcuts.";
 "Language" = "Language";
 "Language packs and other resource-only extensions keep working." = "Language packs and other resource-only extensions keep working.";
+"Last 24 hours" = "Last 24 hours";
 "Last seen %lld d ago" = "Last seen %lld d ago";
 "Last seen %lld h ago" = "Last seen %lld h ago";
 "Last seen %lld min ago" = "Last seen %lld min ago";
@@ -783,6 +794,7 @@
 "Loading mobile access" = "Loading mobile access";
 "Loading mobile access…" = "Loading mobile access…";
 "Loading on-device languages…" = "Loading on-device languages…";
+"Loading session history…" = "Loading session history…";
 "Loading settings" = "Loading settings";
 "Loading setup commands…" = "Loading setup commands…";
 "Loading terminals…" = "Loading terminals…";
@@ -892,6 +904,7 @@
 "Next match" = "Next match";
 "No Muxy 1.x configuration was found on this computer. Choose a 1.x backup file instead." = "No Muxy 1.x configuration was found on this computer. Choose a 1.x backup file instead.";
 "No Shortcut" = "No Shortcut";
+"No agent sessions in this project" = "No agent sessions in this project";
 "No agents running" = "No agents running";
 "No commit was created" = "No commit was created";
 "No custom commands yet." = "No custom commands yet.";
@@ -906,6 +919,7 @@
 "No matching extensions" = "No matching extensions";
 "No matching folders" = "No matching folders";
 "No matching languages" = "No matching languages";
+"No matching sessions" = "No matching sessions";
 "No matching terminals" = "No matching terminals";
 "No matching worktrees" = "No matching worktrees";
 "No microphone is available" = "No microphone is available";
@@ -919,6 +933,7 @@
 "No paired devices yet." = "No paired devices yet.";
 "No pending updates." = "No pending updates.";
 "No permissions requested." = "No permissions requested.";
+"No providers selected" = "No providers selected";
 "No remote servers yet." = "No remote servers yet.";
 "No saved rules. When you choose to remember an answer to a permission request, it appears here." = "No saved rules. When you choose to remember an answer to a permission request, it appears here.";
 "No settings found. Try another search." = "No settings found. Try another search.";
@@ -934,6 +949,7 @@
 "Not connected" = "Not connected";
 "Not found" = "Not found";
 "Not listening: %@" = "Not listening: %@";
+"Not supported" = "Not supported";
 "Notes about imported terminal settings. Your original configuration is preserved." = "Notes about imported terminal settings. Your original configuration is preserved.";
 "Nothing is staged. Stage changes first or include unstaged changes." = "Nothing is staged. Stage changes first or include unstaged changes.";
 "Notifications are turned off for Muxy in System Settings." = "Notifications are turned off for Muxy in System Settings.";
@@ -943,6 +959,7 @@
 "Offline transcription returned invalid text." = "Offline transcription returned invalid text.";
 "Offline transcription timed out. Try a smaller model or a shorter recording." = "Offline transcription timed out. Try a smaller model or a shorter recording.";
 "Offline voice model" = "Offline voice model";
+"Older sessions" = "Older sessions";
 "On" = "On";
 "On-device speech recognition is unavailable for this language. Choose another dictation language." = "On-device speech recognition is unavailable for this language. Choose another dictation language.";
 "Open" = "Open";
@@ -1016,6 +1033,7 @@
 "Press Return after inserting standalone voice dictation into the terminal." = "Press Return after inserting standalone voice dictation into the terminal.";
 "Press a key…" = "Press a key…";
 "Press a shortcut…" = "Press a shortcut…";
+"Previous 7 days" = "Previous 7 days";
 "Previous Project" = "Previous Project";
 "Previous Prompt" = "Previous Prompt";
 "Previous Tab" = "Previous Tab";
@@ -1070,6 +1088,7 @@
 "Record shortcut" = "Record shortcut";
 "Red" = "Red";
 "Refresh" = "Refresh";
+"Refresh sessions" = "Refresh sessions";
 "Refresh the pull request status before trying again." = "Refresh the pull request status before trying again.";
 "Regex" = "Regex";
 "Reload" = "Reload";
@@ -1115,6 +1134,7 @@
 "Reset Composer Size" = "Reset Composer Size";
 "Reset Terminal Settings?" = "Reset Terminal Settings?";
 "Reset Title" = "Reset Title";
+"Reset filters" = "Reset filters";
 "Reset font size" = "Reset font size";
 "Reset terminal settings" = "Reset terminal settings";
 "Resolve merge conflicts first" = "Resolve merge conflicts first";
@@ -1137,6 +1157,7 @@
 "Restore settings and %lld saved projects with their layouts on the next launch. Existing projects are kept; matching projects receive the saved layouts. A recovery copy is saved in the profile’s Backups folder. Restart the server from Settings to apply restored server settings." = "Restore settings and %lld saved projects with their layouts on the next launch. Existing projects are kept; matching projects receive the saved layouts. A recovery copy is saved in the profile’s Backups folder. Restart the server from Settings to apply restored server settings.";
 "Resume" = "Resume";
 "Resume Dictation" = "Resume Dictation";
+"Resume in a new terminal" = "Resume in a new terminal";
 "Retained terminal history, from 0 to 65536 MiB. Saved-history changes take effect at the next server start." = "Retained terminal history, from 0 to 65536 MiB. Saved-history changes take effect at the next server start.";
 "Retry app update" = "Retry app update";
 "Retry connection" = "Retry connection";
@@ -1191,6 +1212,7 @@
 "Search options…" = "Search options…";
 "Search or enter address" = "Search or enter address";
 "Search providers…" = "Search providers…";
+"Search sessions…" = "Search sessions…";
 "Search settings…" = "Search settings…";
 "Search sidebars…" = "Search sidebars…";
 "Search symbols…" = "Search symbols…";
@@ -1200,6 +1222,7 @@
 "Search…" = "Search…";
 "Select All" = "Select All";
 "Select Command Output" = "Select Command Output";
+"Select a local project to browse its saved agent sessions." = "Select a local project to browse its saved agent sessions.";
 "Select a project folder" = "Select a project folder";
 "Select all" = "Select all";
 "Select where Muxy searches for project folders" = "Select where Muxy searches for project folders";
@@ -1271,6 +1294,7 @@
 "Sidebar vibrancy" = "Sidebar vibrancy";
 "Sidebar vibrancy level" = "Sidebar vibrancy level";
 "Size" = "Size";
+"Some history exceeds the scan limit." = "Some history exceeds the scan limit.";
 "Space" = "Space";
 "Speech permission request did not complete. Try again." = "Speech permission request did not complete. Try again.";
 "Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition." = "Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition.";
@@ -1361,6 +1385,7 @@
 "The page new browser tabs open to. Leave it empty for the start page." = "The page new browser tabs open to. Leave it empty for the start page.";
 "The pairing code is too long to show." = "The pairing code is too long to show.";
 "The project directory isn't available on this Mac" = "The project directory isn't available on this Mac";
+"The project or home directory could not be found." = "The project or home directory could not be found.";
 "The project's tabs changed. Choose the layout again to confirm replacement." = "The project's tabs changed. Choose the layout again to confirm replacement.";
 "The selected 1.x configuration contains no supported settings or projects." = "The selected 1.x configuration contains no supported settings or projects.";
 "The selected AI provider \"%@\" is no longer supported. Choose another one in Settings → AI." = "The selected AI provider \"%@\" is no longer supported. Choose another one in Settings → AI.";
@@ -1409,9 +1434,11 @@
 "This prompt overrides Settings → AI only for this project." = "This prompt overrides Settings → AI only for this project.";
 "This release needs a new server. Wait for all terminal sessions to end, or confirm ending them to update now." = "This release needs a new server. Wait for all terminal sessions to end, or confirm ending them to update now.";
 "This remote server is no longer listed" = "This remote server is no longer listed";
+"This session is no longer available. Refresh the session list." = "This session is no longer available. Refresh the session list.";
 "This signs out and removes all cookies, cache, history, and logins for this profile, including imported ones." = "This signs out and removes all cookies, cache, history, and logins for this profile, including imported ones.";
 "This update requires a server restart" = "This update requires a server restart";
 "To pair a phone, turn on Settings → Mobile → Allow mobile devices and click Show Pairing Code, or run muxy mobile enable and then muxy mobile pair." = "To pair a phone, turn on Settings → Mobile → Allow mobile devices and click Show Pairing Code, or run muxy mobile enable and then muxy mobile pair.";
+"Toggle Agent Sessions" = "Toggle Agent Sessions";
 "Toggle Agents Panel" = "Toggle Agents Panel";
 "Toggle Composer" = "Toggle Composer";
 "Toggle Full Screen" = "Toggle Full Screen";
@@ -1432,6 +1459,7 @@
 "Unassigned" = "Unassigned";
 "Unavailable" = "Unavailable";
 "Unavailable language" = "Unavailable language";
+"Unavailable providers" = "Unavailable providers";
 "Unborn HEAD" = "Unborn HEAD";
 "Uncommitted changes" = "Uncommitted changes";
 "Underline" = "Underline";
@@ -1460,6 +1488,7 @@
 "Unstaged" = "Unstaged";
 "Unsupported physical key" = "Unsupported physical key";
 "Unsupported update feed" = "Unsupported update feed";
+"Untitled session" = "Untitled session";
 "Untracked" = "Untracked";
 "Update" = "Update";
 "Update Muxy on %@: %@" = "Update Muxy on %@: %@";
@@ -1718,6 +1747,7 @@
 "text input up" = "text input up";
 "text input word left" = "text input word left";
 "text input word right" = "text input word right";
+"toggle agent sessions" = "toggle agent sessions";
 "toggle agents panel" = "toggle agents panel";
 "toggle command palette" = "toggle command palette";
 "toggle composer" = "toggle composer";
