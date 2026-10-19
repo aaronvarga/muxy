@@ -133,6 +133,40 @@ fn refresh_handles_appends_partial_records_renames_and_deletions() -> Result {
 }
 
 #[test]
+fn titles_survive_transcript_growth_on_refresh_and_fresh_scans() -> Result {
+    let home = tempfile::tempdir()?;
+    let path = fixture(
+        home.path(),
+        ".claude/projects/project/one.jsonl",
+        &[
+            json!({"type":"user","sessionId":"session-1","cwd":home.path(),"message":{"content":"Initial prompt"}}),
+            json!({"type":"custom-title","customTitle":"Renamed"}),
+        ],
+    )?;
+    let roots = Roots::from_home(home.path());
+    let mut catalog = Catalog::default();
+    assert_eq!(
+        catalog.scan(&roots, home.path()).sessions[0].title,
+        "Renamed"
+    );
+    let mut file = fs::OpenOptions::new().append(true).open(path)?;
+    let message = json!({"type":"assistant","message":{"content":"x".repeat(1024)}});
+    for count in [128, 1024] {
+        for _ in 0..count {
+            writeln!(file, "{message}")?;
+        }
+        for listing in [
+            catalog.scan(&roots, home.path()),
+            Catalog::default().scan(&roots, home.path()),
+        ] {
+            assert_eq!(listing.sessions.len(), 1);
+            assert_eq!(listing.sessions[0].title, "Renamed");
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn long_malformed_transcripts_are_bounded_and_appended_titles_are_read() -> Result {
     let home = tempfile::tempdir()?;
     let path = fixture(

@@ -27,7 +27,6 @@ pub(crate) struct Scope {
 
 pub(crate) struct AgentSessions {
     pub(crate) input: Option<Entity<TextInput>>,
-    /// Focus for the header and its refresh, move, pin, and close actions.
     pub(crate) controls: [FocusHandle; 5],
     pub(crate) listing: Listing,
     pub(crate) filtered: Vec<usize>,
@@ -36,7 +35,6 @@ pub(crate) struct AgentSessions {
     pub(crate) list: list::SessionList,
     pub(crate) show_unsupported: bool,
     pub(crate) anchor: muxy_ui::popover::PopoverAnchor,
-    /// The titlebar toggle, whose clicks a floating panel leaves to the toggle.
     pub(crate) toggle: muxy_ui::popover::PopoverAnchor,
     pub(crate) highlighted_provider: usize,
     pub(crate) task: Option<Task<()>>,
@@ -157,7 +155,6 @@ impl AppModel {
         )
     }
 
-    /// Pins or floats the panel, or moves it between the right and bottom.
     pub(crate) fn move_agent_sessions(&mut self, toggle_mode: bool, cx: &mut Context<Self>) {
         let appearance = &mut self.appearance;
         if toggle_mode {

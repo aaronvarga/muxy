@@ -48,9 +48,6 @@ pub(super) fn read(
             metadata.visit(provider, &value, false);
         }
         line.clear();
-        if metadata.id.is_some() && metadata.directory.is_some() && metadata.prompt.is_some() {
-            break;
-        }
     }
     if length > consumed {
         let mut file = reader.into_inner().into_inner();

@@ -135,7 +135,6 @@ pub(crate) fn panel_content(
     .into_any_element()
 }
 
-/// The saved width on the right or height at the bottom, within the window.
 fn sizing(placement: &PanelPlacement, model: &AppModel, window: &Window) -> PanelSizing {
     let m = model.metrics;
     let viewport = window.viewport_size();
