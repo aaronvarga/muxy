@@ -2732,6 +2732,7 @@ mod tests {
     mod links;
     mod preferences;
     mod project_layouts;
+    mod project_order;
     mod projects;
     mod quick_terminal;
     mod remote_devices;

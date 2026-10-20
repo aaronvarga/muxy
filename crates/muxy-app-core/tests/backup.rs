@@ -190,6 +190,7 @@ fn matching_project_directories_keep_local_identity_and_remap_project_preference
     );
     let mut settings = Settings::default();
     settings.appearance.hidden_worktrees.insert(backup_id);
+    settings.appearance.project_recent = vec![backup_id, backup.home().id];
     settings
         .ai
         .project_pr_prompts
@@ -202,6 +203,10 @@ fn matching_project_directories_keep_local_identity_and_remap_project_preference
     .unwrap();
     let settings: Settings = toml::from_str(&source).unwrap();
     assert!(settings.appearance.hidden_worktrees.contains(&current_id));
+    assert_eq!(
+        settings.appearance.project_recent,
+        [current_id, current.home().id]
+    );
     assert_eq!(
         settings.ai.project_pr_prompts[&current_id.to_string()],
         "Instructions"

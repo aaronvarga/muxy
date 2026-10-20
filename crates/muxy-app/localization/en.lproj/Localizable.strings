@@ -512,6 +512,7 @@
 "Cut" = "Cut";
 "Cyan" = "Cyan";
 "Dark theme" = "Dark theme";
+"Date Added" = "Date Added";
 "Decrease Font Size" = "Decrease Font Size";
 "Decrease font size" = "Decrease font size";
 "Default" = "Default";
@@ -876,6 +877,8 @@
 "Muxy will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Muxy open to finish the update." = "Muxy will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Muxy open to finish the update.";
 "Muxy will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Muxy open to finish the update." = "Muxy will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Muxy open to finish the update.";
 "Name" = "Name";
+"Name (A–Z)" = "Name (A–Z)";
+"Name (Z–A)" = "Name (Z–A)";
 "Needs input" = "Needs input";
 "Needs your attention" = "Needs your attention";
 "Neither" = "Neither";
@@ -1076,6 +1079,7 @@
 "Reattach to Sidebar" = "Reattach to Sidebar";
 "Rebase" = "Rebase";
 "Rebase and Merge" = "Rebase and Merge";
+"Recently Active" = "Recently Active";
 "Reconnect" = "Reconnect";
 "Reconnect to load project layouts" = "Reconnect to load project layouts";
 "Reconnect to see existing terminals" = "Reconnect to see existing terminals";

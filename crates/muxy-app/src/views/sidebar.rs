@@ -348,14 +348,50 @@ impl AppModel {
                 .position(|entry| entry.id == project.server_id)
                 .map_or(0, |index| index + 1)
         };
-        if self.state.remote_servers_selected() {
-            parents.sort_by_key(|project| server(project));
-        } else if self.appearance.sidebar_project_order == ProjectOrder::Name {
-            parents.sort_by_cached_key(|project| {
-                (server(project), !project.home, project.name.to_lowercase())
-            });
+        self.sort_projects(&mut parents);
+        if self.state.remote_servers_selected()
+            || self.appearance.sidebar_project_order != ProjectOrder::Manual
+        {
+            parents.sort_by_cached_key(|project| server(project));
         }
         parents
+    }
+
+    pub(crate) fn sort_projects(&self, projects: &mut [&Project]) {
+        match self.appearance.sidebar_project_order {
+            ProjectOrder::Manual => {}
+            ProjectOrder::Name | ProjectOrder::NameDescending => {
+                projects.sort_by(|left, right| {
+                    right.home.cmp(&left.home).then_with(|| {
+                        let order =
+                            crate::picker::path_service::natural_compare(&left.name, &right.name);
+                        if self.appearance.sidebar_project_order == ProjectOrder::NameDescending {
+                            order.reverse()
+                        } else {
+                            order
+                        }
+                    })
+                });
+            }
+            ProjectOrder::RecentlyActive => {
+                let recent: std::collections::HashMap<_, _> = self
+                    .appearance
+                    .project_recent
+                    .iter()
+                    .enumerate()
+                    .map(|(index, id)| (*id, index))
+                    .collect();
+                projects.sort_by_key(|project| {
+                    (
+                        !project.home,
+                        recent.get(&project.id).copied().unwrap_or(usize::MAX),
+                    )
+                });
+            }
+            ProjectOrder::DateAdded => {
+                projects.sort_by_key(|project| (!project.home, project.created_at));
+            }
+        }
     }
 
     pub(crate) fn sidebar_projects(&self) -> Vec<&Project> {
@@ -438,19 +474,19 @@ fn header(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
                 .hover(|style| style.bg(theme.hover))
                 .on_click(cx.listener(|model, event: &gpui::ClickEvent, window, cx| {
                     model.open_menu(
-                        vec![
-                            Item::action(
-                                tr!("Manual Order"),
-                                Command::SortProjects(ProjectOrder::Manual),
-                            )
-                            .checked_if(
-                                model.appearance.sidebar_project_order == ProjectOrder::Manual,
-                            ),
-                            Item::action(tr!("Name"), Command::SortProjects(ProjectOrder::Name))
-                                .checked_if(
-                                    model.appearance.sidebar_project_order == ProjectOrder::Name,
-                                ),
-                        ],
+                        [
+                            (tr!("Manual Order"), ProjectOrder::Manual),
+                            (tr!("Name (A–Z)"), ProjectOrder::Name),
+                            (tr!("Name (Z–A)"), ProjectOrder::NameDescending),
+                            (tr!("Recently Active"), ProjectOrder::RecentlyActive),
+                            (tr!("Date Added"), ProjectOrder::DateAdded),
+                        ]
+                        .into_iter()
+                        .map(|(title, order)| {
+                            Item::action(title, Command::SortProjects(order))
+                                .checked_if(model.appearance.sidebar_project_order == order)
+                        })
+                        .collect(),
                         event.position(),
                         window,
                         cx,

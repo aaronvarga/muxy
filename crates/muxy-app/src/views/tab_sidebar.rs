@@ -55,6 +55,26 @@ impl AppModel {
         let switched = previous.is_none_or(|previous| previous.0 != id);
         let mut changed = false;
         if switched {
+            if self.appearance.project_recent.is_empty() {
+                let parents: std::collections::HashMap<_, _> = self
+                    .state
+                    .projects()
+                    .iter()
+                    .map(|project| (project.id, project.parent_id.unwrap_or(project.id)))
+                    .collect();
+                let mut seen = std::collections::HashSet::new();
+                self.appearance.project_recent = self
+                    .appearance
+                    .worktree_recent
+                    .iter()
+                    .filter_map(|id| parents.get(id).copied())
+                    .filter(|id| seen.insert(*id))
+                    .collect();
+            }
+            self.appearance.project_recent.retain(|candidate| {
+                *candidate != parent && self.state.project(*candidate).is_some()
+            });
+            self.appearance.project_recent.insert(0, parent);
             self.appearance
                 .worktree_recent
                 .retain(|candidate| *candidate != id && self.state.project(*candidate).is_some());
