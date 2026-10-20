@@ -1651,6 +1651,7 @@ dependencies = [
  "crossterm_winapi",
  "derive_more 2.1.1",
  "document-features",
+ "filedescriptor",
  "mio",
  "parking_lot",
  "rustix 1.1.4",
@@ -4615,12 +4616,14 @@ dependencies = [
 name = "muxy-cli"
 version = "2.0.0-beta-0"
 dependencies = [
+ "crossterm",
  "muxy-app-core",
  "muxy-client",
  "muxy-core",
  "muxy-protocol",
  "muxy-terminal",
  "ratatui",
+ "rustix 1.1.4",
  "serde",
  "serde_json",
  "signal-hook 0.4.4",
