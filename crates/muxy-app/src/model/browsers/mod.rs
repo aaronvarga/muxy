@@ -226,7 +226,7 @@ impl AppModel {
         Ok(view)
     }
 
-    fn browser_event(
+    pub(super) fn browser_event(
         &mut self,
         pane: PaneId,
         event: &BrowserViewEvent,
@@ -299,6 +299,7 @@ impl AppModel {
                 }
             }
             BrowserViewEvent::External(url) => self.open_externally(url.clone(), None, cx),
+            BrowserViewEvent::Copied => self.show_notice(tr!("Copied!").to_string(), cx),
             BrowserViewEvent::Favicon(url) => self.load_favicon(pane, url.clone(), cx),
             BrowserViewEvent::Menu(menu, position) => {
                 self.open_browser_menu(pane, *menu, *position, window, cx);

@@ -276,6 +276,22 @@ fn tabs_keep_the_profile_they_opened_with_when_the_default_changes(cx: &mut Test
     });
 }
 
+#[gpui::test]
+fn browser_cancellation_does_not_show_a_copy_notice(cx: &mut TestAppContext) {
+    use crate::views::browser::BrowserViewEvent;
+
+    let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update_in(cx, |model, window, cx| {
+        model.new_browser_tab(cx);
+        let pane = browser_pane(model).expect("browser pane");
+        model.browser_event(pane, &BrowserViewEvent::Escape, window, cx);
+        assert!(model.notice.is_none());
+        model.browser_event(pane, &BrowserViewEvent::Copied, window, cx);
+        assert_eq!(model.notice.as_deref(), Some("Copied!"));
+    });
+}
+
 #[test]
 fn page_scripts_are_parsed_to_tell_expressions_from_statements() -> std::result::Result<(), String>
 {

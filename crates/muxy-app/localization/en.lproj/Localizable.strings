@@ -306,6 +306,7 @@
 "Clearing…" = "Clearing…";
 "Click Server in the status bar to connect, restart, or stop the background server. Restarting or stopping ends every terminal on this Mac." = "Click Server in the status bar to connect, restart, or stop the background server. Restarting or stopping ends every terminal on this Mac.";
 "Click a shortcut to record it. Escape cancels. Conflicts in the same context must be resolved first." = "Click a shortcut to record it. Escape cancels. Conflicts in the same context must be resolved first.";
+"Click an element to copy its HTML and text. Press Escape to cancel" = "Click an element to copy its HTML and text. Press Escape to cancel";
 "Clipboard changed during capture. Try again." = "Clipboard changed during capture. Try again.";
 "Clipboard changed during submission; sending stopped." = "Clipboard changed during submission; sending stopped.";
 "Clipboard image submission is not available on this platform yet." = "Clipboard image submission is not available on this platform yet.";
@@ -398,6 +399,7 @@
 "Copied the path" = "Copied the path";
 "Copied the update command" = "Copied the update command";
 "Copied to clipboard" = "Copied to clipboard";
+"Copied!" = "Copied!";
 "Copy" = "Copy";
 "Copy Link" = "Copy Link";
 "Copy Path" = "Copy Path";
@@ -1225,6 +1227,7 @@
 "Select a local project to browse its saved agent sessions." = "Select a local project to browse its saved agent sessions.";
 "Select a project folder" = "Select a project folder";
 "Select all" = "Select all";
+"Select an element to copy its HTML and text" = "Select an element to copy its HTML and text";
 "Select where Muxy searches for project folders" = "Select where Muxy searches for project folders";
 "Selection" = "Selection";
 "Selection color" = "Selection color";

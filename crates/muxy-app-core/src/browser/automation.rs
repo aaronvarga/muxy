@@ -15,6 +15,17 @@ pub const DEFAULT_WAIT: Duration = Duration::from_millis(5000);
 pub const DEFAULT_NAVIGATION_WAIT: Duration = Duration::from_millis(10_000);
 pub const MAX_WAIT: Duration = Duration::from_millis(60_000);
 pub const POLL_INTERVAL: Duration = Duration::from_millis(100);
+pub const CANCEL_ELEMENT_PICKER: &str = "window.__muxyDomPicker?.cancel(); return null;";
+pub const ELEMENT_HTML_LIMIT: usize = 500;
+pub const ELEMENT_TEXT_LIMIT: usize = 1_000_000;
+
+pub fn element_picker_script(accent: &str) -> String {
+    format!(
+        "{HELPERS}\nconst pickerAccent = {};\nconst pickerLimits = {{ html: {ELEMENT_HTML_LIMIT}, text: {ELEMENT_TEXT_LIMIT} }};\n{}",
+        literal(accent),
+        include_str!("element_picker.js"),
+    )
+}
 
 pub fn string<'a>(args: &'a Args, key: &str) -> Result<&'a str, String> {
     args.get(key)

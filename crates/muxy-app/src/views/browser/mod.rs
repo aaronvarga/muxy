@@ -1,6 +1,8 @@
 //! A browser pane: the toolbar, the find bar, and the page in a native view.
 
 mod pages;
+#[cfg(test)]
+mod tests;
 mod toolbar;
 
 use std::cell::Cell;
@@ -41,6 +43,7 @@ pub(crate) enum BrowserViewEvent {
     Focus,
     /// The user clicked into the page itself.
     PageClicked,
+    Copied,
     Favicon(String),
     Menu(Menu, Point<Pixels>),
 }
@@ -124,6 +127,8 @@ pub(crate) struct BrowserView {
     focus_address: bool,
     /// The address field has focus, so page addresses don't replace its text.
     editing: bool,
+    selecting_element: bool,
+    selection_generation: u64,
     _subscriptions: Vec<Subscription>,
     _events: Task<()>,
 }
@@ -208,6 +213,8 @@ impl BrowserView {
                 metrics,
                 focus_address: setup.focus_address,
                 editing: false,
+                selecting_element: false,
+                selection_generation: 0,
                 _subscriptions: subscriptions,
                 _events: events,
             }
@@ -263,10 +270,16 @@ impl BrowserView {
                         message,
                     });
                 }
-                muxy_ui::webview::Event::Escape => cx.emit(BrowserViewEvent::Escape),
+                muxy_ui::webview::Event::Escape => {
+                    self.cancel_element_picker(cx);
+                    cx.emit(BrowserViewEvent::Escape);
+                }
                 _ => (),
             },
-            Event::Escape => cx.emit(BrowserViewEvent::Escape),
+            Event::Escape => {
+                self.cancel_element_picker(cx);
+                cx.emit(BrowserViewEvent::Escape);
+            }
             Event::Shortcut(keystroke) => cx.emit(BrowserViewEvent::Shortcut(keystroke)),
             Event::Clicked => cx.emit(BrowserViewEvent::PageClicked),
             Event::Snapshot { id, image } => {
@@ -284,6 +297,7 @@ impl BrowserView {
     fn page_event(&mut self, event: BrowserEvent, cx: &mut Context<Self>) {
         match event {
             BrowserEvent::LoadStarted { .. } => {
+                self.cancel_element_picker(cx);
                 self.page.loads += 1;
                 self.page.loading = true;
                 self.page.error = None;
@@ -409,6 +423,92 @@ impl BrowserView {
             browser.open_devtools()
         }
         .map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn toggle_element_picker(&mut self, cx: &mut Context<Self>) {
+        if self.selecting_element {
+            self.cancel_element_picker(cx);
+            return;
+        }
+        if self.is_blank() || self.page.error.is_some() {
+            return;
+        }
+        self.selection_generation = self.selection_generation.wrapping_add(1);
+        let generation = self.selection_generation;
+        self.selecting_element = true;
+        cx.notify();
+
+        let (sender, result) = async_channel::bounded(1);
+        if let Err(error) = self.native.browser().run_script(
+            &browser::automation::element_picker_script(&accent_hex(self.theme.accent)),
+            move |result| {
+                let _ = sender.try_send(result.map_err(|error| error.to_string()));
+            },
+        ) {
+            crate::diagnostics::event("browser.picker", format_args!("start error={error}"));
+            self.selecting_element = false;
+            cx.notify();
+            return;
+        }
+        cx.spawn(async move |view, cx| {
+            let result = result.recv().await;
+            let _ = view.update(cx, |view, cx| {
+                if view.selection_generation != generation {
+                    return;
+                }
+                view.selecting_element = false;
+                let copied = result
+                    .map_err(|error| error.to_string())
+                    .and_then(|result| result)
+                    .and_then(|json| {
+                        let selection = serde_json::from_str::<serde_json::Value>(&json)
+                            .map_err(|error| error.to_string())?;
+                        if selection.is_null() {
+                            Ok(None)
+                        } else {
+                            element_clipboard_text(&selection)
+                                .map(Some)
+                                .ok_or_else(|| "invalid element selection".to_owned())
+                        }
+                    });
+                match copied {
+                    Ok(Some(text)) => {
+                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                        cx.emit(BrowserViewEvent::Copied);
+                    }
+                    Ok(None) => (),
+                    Err(error) => crate::diagnostics::event(
+                        "browser.picker",
+                        format_args!("selection error={error}"),
+                    ),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn cancel_element_picker(&mut self, cx: &mut Context<Self>) {
+        if !self.selecting_element {
+            return;
+        }
+        self.selecting_element = false;
+        self.selection_generation = self.selection_generation.wrapping_add(1);
+        if let Err(error) =
+            self.native
+                .browser()
+                .run_script(browser::automation::CANCEL_ELEMENT_PICKER, |result| {
+                    if let Err(error) = result {
+                        crate::diagnostics::event(
+                            "browser.picker",
+                            format_args!("cancel error={error}"),
+                        );
+                    }
+                })
+        {
+            crate::diagnostics::event("browser.picker", format_args!("cancel error={error}"));
+        }
+        cx.notify();
     }
 
     pub(crate) fn focus_address(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -636,6 +736,9 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !visible || blocked {
+            self.cancel_element_picker(cx);
+        }
         let focused = focused && visible && !blocked;
         let focus_changed = self.presentation.focused != focused;
         self.presentation.focused = focused;
@@ -746,6 +849,56 @@ impl Focusable for BrowserView {
     fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
         self.focus.clone()
     }
+}
+
+fn accent_hex(color: gpui::Hsla) -> String {
+    let rgba: gpui::Rgba = color.into();
+    format!(
+        "#{:02x}{:02x}{:02x}",
+        accent_channel(rgba.r),
+        accent_channel(rgba.g),
+        accent_channel(rgba.b)
+    )
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn accent_channel(value: f32) -> u8 {
+    (value.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+fn element_clipboard_text(selection: &serde_json::Value) -> Option<String> {
+    use browser::automation::{ELEMENT_HTML_LIMIT, ELEMENT_TEXT_LIMIT};
+    let url = selection.get("url")?.as_str()?;
+    let html_source = selection.get("html")?.as_str()?;
+    let text = selection.get("text")?.as_str()?;
+    let html_truncated = selection
+        .get("htmlTruncated")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let text_truncated = selection
+        .get("textTruncated")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let (html, html_excerpted) = match html_source.char_indices().nth(ELEMENT_HTML_LIMIT) {
+        Some((end, _)) => (&html_source[..end], true),
+        None => (html_source, false),
+    };
+    let mut copied = format!("Page: {url}\n\nHTML:\n{html}");
+    if html_excerpted || html_truncated {
+        copied.push_str("\n… [remaining HTML omitted to save tokens]");
+    }
+    let (text, text_excerpted) = match text.char_indices().nth(ELEMENT_TEXT_LIMIT) {
+        Some((end, _)) => (&text[..end], true),
+        None => (text, false),
+    };
+    if !text.trim().is_empty() {
+        copied.push_str("\n\nText:\n");
+        copied.push_str(text);
+        if text_truncated || text_excerpted {
+            copied.push_str("\n\n[Text truncated by Muxy at its 1,000,000-character safety limit]");
+        }
+    }
+    Some(copied)
 }
 
 /// What the address bar shows for `url`: nothing for the start page.
