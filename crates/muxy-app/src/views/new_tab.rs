@@ -4,7 +4,6 @@
 use std::rc::Rc;
 
 use gpui::{Context, SharedString, Window};
-use muxy_app_core::settings::ProjectOrder;
 use muxy_app_core::{Project, ProjectStatus, ServerId};
 use muxy_ui::command_palette::{Command, Registry};
 use muxy_ui::tr;
@@ -63,9 +62,7 @@ fn projects(model: &AppModel, server: ServerId) -> Vec<&Project> {
                 && model.project_shown(project)
         })
         .collect();
-    if model.appearance.sidebar_project_order == ProjectOrder::Name {
-        projects.sort_by_cached_key(|project| (!project.home, project.name.to_lowercase()));
-    }
+    model.sort_projects(&mut projects);
     projects
 }
 

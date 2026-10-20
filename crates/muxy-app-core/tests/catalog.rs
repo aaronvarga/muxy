@@ -25,6 +25,43 @@ fn acknowledge(state: &mut AppState) -> Result {
 }
 
 #[test]
+fn project_creation_dates_survive_reordering_catalog_refresh_and_legacy_state() -> Result {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("state.json");
+    let mut state = AppState::bootstrap()?;
+    let first = state.add_project(ServerId::local(), directory.path().into())?;
+    let second = state.add_project(ServerId::local(), directory.path().into())?;
+    let created = state.project(first).ok_or("first")?.created_at;
+    assert!(created.is_some());
+    state.move_project(second, 1)?;
+    acknowledge(&mut state)?;
+    let mut page = snapshot(&state);
+    page.projects[2].name = "Renamed elsewhere".into();
+    state.apply_catalog(ServerId::local(), &page)?;
+    store::save(&path, &state)?;
+    let saved = store::load(&path)?;
+    assert_eq!(saved.project(first).ok_or("first")?.created_at, created);
+    assert_eq!(saved.projects()[1].id, second);
+
+    let mut legacy = serde_json::to_value(&saved)?;
+    for project in legacy["projects"].as_array_mut().ok_or("projects")? {
+        project
+            .as_object_mut()
+            .ok_or("project")?
+            .remove("created_at");
+    }
+    let legacy: AppState = serde_json::from_value(legacy)?;
+    assert!(
+        legacy
+            .projects()
+            .iter()
+            .all(|project| project.created_at.is_none())
+    );
+    assert_eq!(legacy.projects()[1].id, second);
+    Ok(())
+}
+
+#[test]
 fn shared_metadata_refresh_keeps_layout_and_overlays_only_pending_fields() -> Result {
     let mut state = AppState::bootstrap()?;
     let project = state.add_project(ServerId::local(), std::env::temp_dir())?;

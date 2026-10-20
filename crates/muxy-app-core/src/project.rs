@@ -73,6 +73,8 @@ pub struct Project {
     #[serde(default)]
     pub home: bool,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<std::time::SystemTime>,
     pub icon: Option<String>,
     #[serde(default)]
     pub logo: Option<std::sync::Arc<[u8]>>,

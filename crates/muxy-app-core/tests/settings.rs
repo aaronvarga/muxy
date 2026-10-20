@@ -44,6 +44,35 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn project_sort_modes_preserve_legacy_name_settings_and_unrelated_preferences() -> Result {
+    use muxy_app_core::settings::{Appearance, ProjectOrder};
+
+    let fixture = Fixture::new()?;
+    let path = fixture.write(
+        "settings.toml",
+        "[appearance]\ntab_focused_project_order = \"name\"\ntips_visible = false\n[window]\nconfirm_running_process = false\n",
+    )?;
+    let mut appearance = Appearance::load(&path)?;
+    assert_eq!(appearance.sidebar_project_order, ProjectOrder::Name);
+    for order in [
+        ProjectOrder::NameDescending,
+        ProjectOrder::RecentlyActive,
+        ProjectOrder::DateAdded,
+        ProjectOrder::Manual,
+        ProjectOrder::Name,
+    ] {
+        let previous = appearance.clone();
+        appearance.sidebar_project_order = order;
+        appearance = appearance.save_changes(&previous, &path)?;
+        let saved = Settings::load(&path)?;
+        assert_eq!(saved.appearance, appearance);
+        assert!(!saved.appearance.tips_visible);
+        assert!(!saved.window.confirm_running_process);
+    }
+    Ok(())
+}
+
+#[test]
 fn agents_panel_visibility_preserves_saved_choices_and_older_settings() -> Result {
     let fixture = Fixture::new()?;
     for (source, visible) in [

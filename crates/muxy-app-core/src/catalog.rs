@@ -30,6 +30,7 @@ impl Project {
             id: descriptor.id,
             home: descriptor.home,
             name: String::new(),
+            created_at: Some(std::time::SystemTime::now()),
             icon: None,
             logo: None,
             color: crate::Color::default(),

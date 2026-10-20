@@ -343,6 +343,12 @@ pub fn remap_project_settings(
         .into_iter()
         .map(remap)
         .collect();
+    settings.appearance.project_recent = settings
+        .appearance
+        .project_recent
+        .into_iter()
+        .map(remap)
+        .collect();
     settings.appearance.hidden_worktrees = settings
         .appearance
         .hidden_worktrees
@@ -492,6 +498,7 @@ fn legacy_project(
         home: false,
         name: name.into(),
         directory,
+        created_at: None,
         icon: None,
         logo: None,
         color: value["iconColor"]
@@ -650,6 +657,7 @@ fn legacy_worktree(id: ProjectId, value: &Value, parent: &Project) -> Result<Pro
         home: false,
         name: value["name"].as_str().ok_or("missing name")?.into(),
         directory,
+        created_at: None,
         icon: None,
         logo: None,
         color: parent.color.clone(),
