@@ -1024,6 +1024,7 @@ impl Render for AppModel {
                             .child(header)
                             .child(div().h(px(1.0)).flex_none().bg(theme.border)),
                     )
+                    .children(super::commands_bar::commands_bar(self, cx))
                     .child(
                         div()
                             .debug_selector(|| "workspace-content".into())

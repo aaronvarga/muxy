@@ -11,6 +11,9 @@ pub struct CustomCommand {
     pub id: String,
     pub name: String,
     pub command: String,
+    /// Kept out of the commands bar; the palette and shortcut still run it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
 }
 
 impl CustomCommand {
@@ -19,6 +22,7 @@ impl CustomCommand {
             id: uuid::Uuid::new_v4().to_string(),
             name,
             command,
+            hidden: false,
         }
     }
 
@@ -42,13 +46,11 @@ impl CustomCommand {
                 "enter a name of 1–256 bytes without control characters",
             ));
         }
-        if self.command.trim().is_empty()
-            || self.command.len() >= 64 * 1024
-            || self.command.chars().any(char::is_control)
-        {
+        // A blank command opens a plain terminal.
+        if self.command.len() >= 64 * 1024 || self.command.chars().any(char::is_control) {
             return Err(Error::new(
                 "commands",
-                "enter a single-line command without control characters, shorter than 64 KiB",
+                "enter a single-line command without control characters, shorter than 64 KiB, or leave it blank",
             ));
         }
         Ok(())

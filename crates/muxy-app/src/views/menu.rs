@@ -95,6 +95,10 @@ pub(crate) enum Command {
     BrowserProfile(muxy_app_core::PaneId, usize),
     BrowserInspect(muxy_app_core::PaneId),
     ManageBrowserProfiles,
+    /// Shows or hides the custom command at this index in the commands bar.
+    ToggleCommandInBar(usize),
+    CommandsBar(bool),
+    ManageCommands,
 }
 
 #[derive(Clone, Debug)]
@@ -700,7 +704,21 @@ impl AppModel {
                     self.switch_browser_profile(pane, profile.id, cx);
                 }
             }
-            Command::ManageBrowserProfiles => self.show_browser_settings(cx),
+            Command::ManageBrowserProfiles => {
+                self.show_settings_at(super::settings::Category::Browser, cx);
+            }
+            Command::ToggleCommandInBar(index) => {
+                if let Some(mut command) = self.settings.commands.get(index).cloned() {
+                    command.hidden = !command.hidden;
+                    self.change_preference(super::settings::Change::Command(command), cx);
+                }
+            }
+            Command::CommandsBar(visible) => {
+                self.change_preference(super::settings::Change::CommandsBar(visible), cx);
+            }
+            Command::ManageCommands => {
+                self.show_settings_at(super::settings::Category::Commands, cx);
+            }
             Command::BrowserInspect(pane) => {
                 if let Some(view) = self.browser_view(pane)
                     && let Err(error) = view.read(cx).native.browser().open_devtools()

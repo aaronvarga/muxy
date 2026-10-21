@@ -12,14 +12,7 @@ fn custom_commands_reject_invalid_definitions_without_writing() {
     let path = directory.path().join("settings.toml");
     std::fs::write(&path, "[clipboard]\ncopy_on_select = true\n").unwrap();
     let before = std::fs::read(&path).unwrap();
-    for text in [
-        "",
-        "   ",
-        "echo a\necho b",
-        "echo a\recho b",
-        "echo\0",
-        "echo\x1b[A",
-    ] {
+    for text in ["echo a\necho b", "echo a\recho b", "echo\0", "echo\x1b[A"] {
         let mut settings = Settings::default();
         let mut command = command();
         command.command = text.into();
@@ -28,6 +21,11 @@ fn custom_commands_reject_invalid_definitions_without_writing() {
         assert_eq!(std::fs::read(&path).unwrap(), before);
     }
     let mut command = command();
+    command.command = String::new();
+    assert!(
+        command.validate().is_ok(),
+        "a blank command opens a plain terminal"
+    );
     command.name = " ".into();
     assert!(command.validate().is_err());
     command.name = "Tests".into();

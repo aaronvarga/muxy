@@ -59,7 +59,9 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             && Some(tab.id) == model.active_tab()
             && (tab.zoomed.is_some() || tab.panes.len() > 1)
     });
+    let split = available && model.active_pane().is_some();
     let controls = 2
+        + 2 * u8::from(split)
         + u8::from(existing_count > 0)
         + u8::from(browser)
         + u8::from(zoom_tab.is_some())
@@ -82,6 +84,20 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         })
         .when(browser, |bar| {
             bar.child(super::tab_strip::browser_button(model, cx))
+        })
+        .when(split, |bar| {
+            bar.child(super::tab_strip::split_button(
+                None,
+                muxy_app_core::Direction::Right,
+                model,
+                cx,
+            ))
+            .child(super::tab_strip::split_button(
+                None,
+                muxy_app_core::Direction::Down,
+                model,
+                cx,
+            ))
         })
         .when_some(zoom_tab, |bar, tab| {
             bar.child(super::tab_strip::zoom_control(
@@ -202,11 +218,21 @@ pub(super) fn icon_button(
     tooltip: impl Into<SharedString>,
     model: &AppModel,
 ) -> Stateful<Div> {
-    action_button(id, tooltip, model).child(IconGlyph::new(
-        icon,
-        model.metrics.icon_md(),
-        model.theme.fg_muted,
-    ))
+    scaled_icon_button(id, icon, 1.0, tooltip, model)
+}
+
+/// An `icon_button` with the button and its icon scaled by `factor`.
+pub(super) fn scaled_icon_button(
+    id: impl Into<ElementId>,
+    icon: Icon,
+    factor: f32,
+    tooltip: impl Into<SharedString>,
+    model: &AppModel,
+) -> Stateful<Div> {
+    let m = model.metrics;
+    action_button(id, tooltip, model)
+        .size(px((f32::from(m.control_medium()) * factor).round()))
+        .child(IconGlyph::new(icon, m.icon_md(), model.theme.fg_muted).scaled(factor))
 }
 
 pub(crate) fn navigation(

@@ -9,7 +9,7 @@ use muxy_ui::tr;
 use super::{AppModel, Overlay, Quitting};
 use crate::boot::Work;
 use crate::views::settings::window::SettingsWindow;
-use crate::views::settings::{BrowserChange, Change, SettingsView, Snapshot};
+use crate::views::settings::{BrowserChange, Category, Change, SettingsView, Snapshot};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -44,11 +44,12 @@ impl AppModel {
         self.show_settings(cx);
     }
 
-    /// Opens Settings at Browser, where profiles are managed.
-    pub(crate) fn show_browser_settings(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn show_settings_at(&mut self, category: Category, cx: &mut Context<Self>) {
         self.show_settings(cx);
         if let Some(settings) = &self.settings_window {
-            settings.view.update(cx, SettingsView::show_browser);
+            settings
+                .view
+                .update(cx, |view, cx| view.show_category(category, cx));
         }
     }
 
@@ -419,6 +420,10 @@ impl AppModel {
             }
             Change::StatusBar(value) => {
                 settings.appearance.status_bar_visible = value;
+                settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
+            }
+            Change::CommandsBar(value) => {
+                settings.appearance.commands_bar_visible = value;
                 settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
             }
             Change::Tips(value) => {
@@ -967,6 +972,7 @@ fn change_id(change: &Change) -> &str {
         Change::AgentsPanel(_) => "agents-panel",
         Change::AgentsPanelGrouping(_) => "agents-panel-grouping",
         Change::StatusBar(_) => "status-bar",
+        Change::CommandsBar(_) => "commands-bar",
         Change::Tips(_) => "tips",
         Change::ConfirmProcess(_) => "confirm-process",
         Change::CloseBehavior(_) => "close-behavior",

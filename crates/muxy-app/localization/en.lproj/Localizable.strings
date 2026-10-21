@@ -88,7 +88,7 @@
 "A process is still running in this tab.\nAre you sure you want to close it?" = "A process is still running in this tab.\nAre you sure you want to close it?";
 "A process is still running in this terminal." = "A process is still running in this terminal.";
 "A profile needs a name" = "A profile needs a name";
-"A single-line shell command, such as cargo test or npm run dev." = "A single-line shell command, such as cargo test or npm run dev.";
+"A single-line shell command, such as cargo test or npm run dev. Leave blank for a plain terminal." = "A single-line shell command, such as cargo test or npm run dev. Leave blank for a plain terminal.";
 "AI" = "AI";
 "AI CLI that drafts commit messages. Auto uses the first installed provider." = "AI CLI that drafts commit messages. Auto uses the first installed provider.";
 "AI CLI that drafts pull requests. Auto uses the first installed provider." = "AI CLI that drafts pull requests. Auto uses the first installed provider.";
@@ -828,6 +828,7 @@
 "Looking for the newest release on your update channel." = "Looking for the newest release on your update channel.";
 "MUXY TIP" = "MUXY TIP";
 "Make Default" = "Make Default";
+"Manage Commands…" = "Manage Commands…";
 "Manage Extensions" = "Manage Extensions";
 "Manage Profiles…" = "Manage Profiles…";
 "Manage Remote Servers…" = "Manage Remote Servers…";
@@ -1321,15 +1322,18 @@
 "Show" = "Show";
 "Show All" = "Show All";
 "Show All Projects" = "Show All Projects";
+"Show Commands Bar" = "Show Commands Bar";
 "Show Muxy Tip" = "Show Muxy Tip";
 "Show Muxy tips at the bottom of the built-in sidebar." = "Show Muxy tips at the bottom of the built-in sidebar.";
 "Show Pairing Code" = "Show Pairing Code";
 "Show Worktrees" = "Show Worktrees";
+"Show a button for each custom command below the tabs. Hide single commands from its menu." = "Show a button for each custom command below the tabs. Hide single commands from its menu.";
 "Show a one-time code to scan with the Muxy app." = "Show a one-time code to scan with the Muxy app.";
 "Show a persistent home-directory shell with a shortcut." = "Show a persistent home-directory shell with a shortcut.";
 "Show agents panel" = "Show agents panel";
 "Show all" = "Show all";
 "Show an enabled extension's sidebar in place of the built-in one." = "Show an enabled extension's sidebar in place of the built-in one.";
+"Show commands bar" = "Show commands bar";
 "Show connection and terminal information at the bottom of the workspace." = "Show connection and terminal information at the bottom of the workspace.";
 "Show in File Manager" = "Show in File Manager";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";

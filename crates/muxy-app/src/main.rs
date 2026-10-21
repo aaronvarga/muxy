@@ -27,6 +27,7 @@ mod views {
     pub(crate) mod browser;
     pub(crate) mod cached;
     pub(crate) mod command_palette;
+    pub(crate) mod commands_bar;
     pub(crate) mod composer;
     pub(crate) mod confirm;
     pub(crate) mod disconnected;

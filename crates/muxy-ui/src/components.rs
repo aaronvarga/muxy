@@ -48,6 +48,7 @@ pub struct IconGlyph {
     size: Pixels,
     color: Hsla,
     hover: Option<(SharedString, Hsla)>,
+    shrink: f32,
 }
 
 impl IconGlyph {
@@ -57,7 +58,15 @@ impl IconGlyph {
             size,
             color,
             hover: None,
+            shrink: 1.0,
         }
+    }
+
+    /// Draws the icon at `size` and then scales it by `factor`, keeping its
+    /// stroke weight in proportion; a smaller point size redraws it heavier.
+    pub fn scaled(mut self, factor: f32) -> Self {
+        self.shrink = factor;
+        self
     }
 
     pub fn hover_in_group(mut self, group: impl Into<SharedString>, color: Hsla) -> Self {
@@ -69,9 +78,10 @@ impl IconGlyph {
 impl RenderOnce for IconGlyph {
     fn render(self, window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let scale = window.scale_factor();
-        let (width, height) = natural_size(self.icon, self.size, scale);
+        let shrink = self.shrink;
+        let (width, height) = natural_size(self.icon, self.size, scale, shrink);
         match self.hover {
-            None => layer(self.icon, self.size, self.color, scale).into_any_element(),
+            None => layer(self.icon, self.size, self.color, scale, shrink).into_any_element(),
             Some((group, hover_color)) => div()
                 .relative()
                 .flex()
@@ -79,12 +89,12 @@ impl RenderOnce for IconGlyph {
                 .w(width)
                 .h(height)
                 .child(
-                    layer(self.icon, self.size, self.color, scale)
+                    layer(self.icon, self.size, self.color, scale, shrink)
                         .absolute()
                         .group_hover(group.clone(), |style| style.opacity(0.0)),
                 )
                 .child(
-                    layer(self.icon, self.size, hover_color, scale)
+                    layer(self.icon, self.size, hover_color, scale, shrink)
                         .absolute()
                         .opacity(0.0)
                         .group_hover(group, |style| style.opacity(1.0)),
@@ -95,32 +105,59 @@ impl RenderOnce for IconGlyph {
 }
 
 #[cfg(target_os = "macos")]
-fn natural_size(icon: Icon, size: Pixels, scale: f32) -> (Pixels, Pixels) {
-    crate::icon::tinted(icon, size, gpui::black(), scale)
-        .map_or((size, size), |glyph| (glyph.width, glyph.height))
+fn natural_size(icon: Icon, size: Pixels, scale: f32, shrink: f32) -> (Pixels, Pixels) {
+    crate::icon::tinted(icon, size, gpui::black(), scale * shrink)
+        .map_or((size * shrink, size * shrink), |glyph| {
+            display_size(&glyph.image, (glyph.width, glyph.height), scale, shrink)
+        })
 }
 
 #[cfg(not(target_os = "macos"))]
-fn natural_size(_icon: Icon, size: Pixels, _scale: f32) -> (Pixels, Pixels) {
-    (size, size)
+fn natural_size(_icon: Icon, size: Pixels, _scale: f32, shrink: f32) -> (Pixels, Pixels) {
+    (size * shrink, size * shrink)
 }
 
+/// A shrunk glyph is shown at its whole pixels, one per screen pixel; its
+/// logical size times `shrink` would stretch each axis by a different rounding.
 #[cfg(target_os = "macos")]
-fn layer(icon: Icon, size: Pixels, color: Hsla, scale: f32) -> gpui::Div {
-    let Some(glyph) = crate::icon::tinted(icon, size, color, scale) else {
-        return svg_layer(icon, size, color);
-    };
-    div().flex_none().w(glyph.width).h(glyph.height).child(
-        gpui::img(glyph.image)
-            .w(glyph.width)
-            .h(glyph.height)
-            .flex_none(),
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "Glyph bitmaps are at most 4096 pixels wide"
+)]
+fn display_size(
+    image: &gpui::RenderImage,
+    logical: (Pixels, Pixels),
+    scale: f32,
+    shrink: f32,
+) -> (Pixels, Pixels) {
+    if (shrink - 1.0).abs() < f32::EPSILON {
+        return logical;
+    }
+    let pixels = image.size(0);
+    (
+        px(pixels.width.0 as f32 / scale),
+        px(pixels.height.0 as f32 / scale),
     )
 }
 
+#[cfg(target_os = "macos")]
+fn layer(icon: Icon, size: Pixels, color: Hsla, scale: f32, shrink: f32) -> gpui::Div {
+    // Rasterizing at a proportionally lower scale keeps one image pixel per
+    // screen pixel once the glyph is shown `shrink` times its size.
+    let Some(glyph) = crate::icon::tinted(icon, size, color, scale * shrink) else {
+        return svg_layer(icon, size * shrink, color);
+    };
+    let (width, height) = display_size(&glyph.image, (glyph.width, glyph.height), scale, shrink);
+    div()
+        .flex_none()
+        .w(width)
+        .h(height)
+        .child(gpui::img(glyph.image).w(width).h(height).flex_none())
+}
+
 #[cfg(not(target_os = "macos"))]
-fn layer(icon: Icon, size: Pixels, color: Hsla, _scale: f32) -> gpui::Div {
-    svg_layer(icon, size, color)
+fn layer(icon: Icon, size: Pixels, color: Hsla, _scale: f32, shrink: f32) -> gpui::Div {
+    svg_layer(icon, size * shrink, color)
 }
 
 fn svg_layer(icon: Icon, size: Pixels, color: Hsla) -> gpui::Div {

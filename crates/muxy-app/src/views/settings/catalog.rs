@@ -346,6 +346,15 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Interface"),
     },
     Setting {
+        id: "commands-bar",
+        label: tr_key!("Show commands bar"),
+        description: tr_key!(
+            "Show a button for each custom command below the tabs. Hide single commands from its menu."
+        ),
+        category: Category::Appearance,
+        section: tr_key!("Interface"),
+    },
+    Setting {
         id: "sidebar-collapsed-style",
         label: tr_key!("Collapsed sidebar style"),
         description: tr_key!(

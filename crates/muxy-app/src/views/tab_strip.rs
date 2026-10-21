@@ -8,7 +8,7 @@ use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement, IntoElement, MouseButton, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, Window, div, px, relative,
 };
-use muxy_app_core::{Tab, TabGroup, TabId, TabSide};
+use muxy_app_core::{Direction, PaneId, Tab, TabGroup, TabId, TabSide};
 
 use super::titlebar;
 use crate::model::AppModel;
@@ -235,6 +235,119 @@ pub(super) fn settings_button(model: &AppModel, cx: &mut Context<AppModel>) -> A
             cx.stop_propagation();
             model.open_settings(window, cx);
         }))
+        .into_any_element()
+}
+
+/// How much smaller the buttons on a single pane are than the titlebar's.
+const PANE_BUTTON_SCALE: f32 = 12.0 / 14.0;
+
+/// Splits `pane`, or the active pane when `None`, toward `direction`.
+pub(super) fn split_button(
+    pane: Option<PaneId>,
+    direction: Direction,
+    model: &AppModel,
+    cx: &Context<AppModel>,
+) -> AnyElement {
+    let (label, shortcut, icon, name) = match direction {
+        Direction::Down => (
+            tr!("Split Down"),
+            ShortcutId::SplitDown,
+            Icon::Rows,
+            "split-down",
+        ),
+        _ => (
+            tr!("Split Right"),
+            ShortcutId::SplitRight,
+            Icon::Columns,
+            "split-right",
+        ),
+    };
+    let tooltip = model
+        .settings
+        .keymap
+        .chord(shortcut)
+        .map_or_else(|| label.to_string(), |chord| format!("{label} ({chord})"));
+    let id = pane.map_or_else(
+        || SharedString::from(name),
+        |pane| SharedString::from(format!("{name}-{pane}")),
+    );
+    let factor = if pane.is_some() {
+        PANE_BUTTON_SCALE
+    } else {
+        1.0
+    };
+    titlebar::scaled_icon_button(id, icon, factor, tooltip, model)
+        .debug_selector(move || format!("{name}-button"))
+        .on_click(cx.listener(move |model, _, window, cx| {
+            cx.stop_propagation();
+            if let Some(pane) = pane {
+                model.focus_pane(pane, cx);
+            }
+            if pane.is_none() || model.active_pane() == pane {
+                model.split_pane(direction, cx);
+            }
+            model.focus_active(window, cx);
+        }))
+        .into_any_element()
+}
+
+/// Split, split, equalize and close buttons for one pane of a split tab.
+pub(super) fn pane_controls(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyElement {
+    let label = tr!("Close Pane");
+    let tooltip = model
+        .settings
+        .keymap
+        .chord(ShortcutId::ClosePane)
+        .map_or_else(|| label.to_string(), |chord| format!("{label} ({chord})"));
+    let close = titlebar::scaled_icon_button(
+        SharedString::from(format!("close-pane-{pane}")),
+        Icon::X,
+        PANE_BUTTON_SCALE,
+        tooltip,
+        model,
+    )
+    .debug_selector(|| "close-pane-button".into())
+    .on_click(cx.listener(move |model, _, window, cx| {
+        cx.stop_propagation();
+        model.close_pane(pane, cx);
+        model.focus_active(window, cx);
+    }));
+    let label = tr!("Equalize Splits");
+    let tooltip = model
+        .settings
+        .keymap
+        .chord(ShortcutId::EqualizeSplits)
+        .map_or_else(|| label.to_string(), |chord| format!("{label} ({chord})"));
+    let equalize = titlebar::scaled_icon_button(
+        SharedString::from(format!("equalize-splits-{pane}")),
+        Icon::LayoutSplit,
+        PANE_BUTTON_SCALE,
+        tooltip,
+        model,
+    )
+    .debug_selector(|| "equalize-splits-button".into())
+    .on_click(cx.listener(move |model, _, window, cx| {
+        cx.stop_propagation();
+        model.equalize_splits(pane, cx);
+        model.focus_active(window, cx);
+    }));
+    div()
+        .debug_selector(|| "pane-controls".into())
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_end()
+        .h(
+            px((f32::from(model.metrics.control_medium()) * PANE_BUTTON_SCALE).round())
+                + model.metrics.spacing2(),
+        )
+        .bg(model.theme.bg)
+        .border_b_1()
+        .border_color(model.theme.border)
+        .child(split_button(Some(pane), Direction::Right, model, cx))
+        .child(split_button(Some(pane), Direction::Down, model, cx))
+        .child(equalize)
+        .child(close)
         .into_any_element()
 }
 

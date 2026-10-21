@@ -678,6 +678,16 @@ impl AppModel {
     }
 
     pub(crate) fn split_pane(&mut self, edge: Direction, cx: &mut Context<Self>) {
+        self.split_pane_running(edge, None, cx);
+    }
+
+    /// Splits the active pane, running `command` in the new pane when given.
+    pub(crate) fn split_pane_running(
+        &mut self,
+        edge: Direction,
+        command: Option<&str>,
+        cx: &mut Context<Self>,
+    ) {
         if self.quitting != Quitting::Idle || self.close_request.is_some() {
             return;
         }
@@ -702,9 +712,15 @@ impl AppModel {
             muxy_app_core::Axis::Vertical => size.rows = (size.rows / 2).max(1),
         }
         let previous = self.state.clone();
-        let pane = match self.state.split_pane(source, edge) {
+        let pane = match self.state.split_pane(source, edge).and_then(|pane| {
+            if let Some(command) = command {
+                self.state.set_startup_command(pane, command)?;
+            }
+            Ok(pane)
+        }) {
             Ok(pane) => pane,
             Err(error) => {
+                self.state = previous;
                 self.fail(error.to_string(), cx);
                 return;
             }
