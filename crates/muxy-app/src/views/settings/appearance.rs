@@ -107,6 +107,12 @@ pub(super) fn rows(
             Change::PaneHeaders(!appearance.pane_headers),
         ),
         (
+            "commands-bar",
+            tr_key!("Show commands bar"),
+            appearance.commands_bar_visible,
+            Change::CommandsBar(!appearance.commands_bar_visible),
+        ),
+        (
             "confirm-process",
             tr_key!("Confirm before closing a running process"),
             pane.snapshot.settings.window.confirm_running_process,

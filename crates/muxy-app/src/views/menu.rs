@@ -108,6 +108,10 @@ pub(crate) enum Command {
     OpenProjectIn(usize),
     CreateExtension,
     ManageExtensions,
+    /// Shows or hides the custom command at this index in the commands bar.
+    ToggleCommandInBar(usize),
+    CommandsBar(bool),
+    ManageCommands,
 }
 
 #[derive(Clone, Debug)]
@@ -763,6 +767,18 @@ impl AppModel {
             }
             Command::ManageExtensions => self.show_extensions_settings(window, cx),
             Command::OpenProjectIn(index) => self.open_project_in(index, cx),
+            Command::ToggleCommandInBar(index) => {
+                if let Some(mut command) = self.settings.commands.get(index).cloned() {
+                    command.hidden = !command.hidden;
+                    self.change_preference(crate::model::preferences::Change::Command(command), cx);
+                }
+            }
+            Command::CommandsBar(visible) => {
+                self.change_preference(crate::model::preferences::Change::CommandsBar(visible), cx);
+            }
+            Command::ManageCommands => {
+                self.show_settings_at(super::settings::Category::Commands, window, cx);
+            }
             Command::BrowserInspect(pane) => {
                 if let Some(view) = self.browser_view(pane)
                     && let Err(error) = view.read(cx).native.browser().open_devtools()

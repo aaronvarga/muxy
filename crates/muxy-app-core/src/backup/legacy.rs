@@ -286,6 +286,7 @@ fn import_commands(
                     .unwrap_or("Command")
                     .into(),
                 command: value["command"].as_str().ok_or("Missing command")?.into(),
+                hidden: false,
             };
             command.validate()?;
             if !prefix {

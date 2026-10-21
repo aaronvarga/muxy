@@ -129,6 +129,7 @@ pub struct Appearance {
     pub status_bar_visible: bool,
     /// Each pane shows a header with its icon, title and actions.
     pub pane_headers: bool,
+    pub commands_bar_visible: bool,
     pub tips_visible: bool,
     /// The welcome tour was finished or skipped.
     pub onboarding_completed: bool,
@@ -195,6 +196,7 @@ impl Default for Appearance {
             sidebar_collapsed_style: SidebarCollapsedStyle::default(),
             status_bar_visible: true,
             pane_headers: true,
+            commands_bar_visible: true,
             tips_visible: true,
             onboarding_completed: false,
             auto_expand_worktrees: false,

@@ -6,7 +6,7 @@ use muxy_ui::tr;
 use super::{AppModel, Overlay, Quitting};
 use crate::boot::Work;
 use crate::views::settings::tab::SettingsTab;
-use crate::views::settings::{SettingsView, Snapshot};
+use crate::views::settings::{Category, SettingsView, Snapshot};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -33,6 +33,7 @@ pub(crate) enum Change {
     AgentsPanelOption(AgentsPanelToggle, bool),
     StatusBar(bool),
     PaneHeaders(bool),
+    CommandsBar(bool),
     Tips(bool),
     RememberProjectsWithoutTabs(bool),
     SidebarServers(bool),
@@ -188,9 +189,22 @@ impl AppModel {
 
     /// Opens Settings at Browser, where profiles are managed.
     pub(crate) fn show_browser_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.show_settings(window, cx);
+        self.show_settings_at(Category::Browser, window, cx);
+    }
+
+    pub(crate) fn show_settings_at(
+        &mut self,
+        category: Category,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.show_settings(window, cx) {
+            return;
+        }
         if let Some(settings) = &self.settings_tab {
-            settings.view.update(cx, SettingsView::show_browser);
+            settings
+                .view
+                .update(cx, |view, cx| view.show_category(category, cx));
         }
     }
 
@@ -658,6 +672,10 @@ impl AppModel {
             }
             Change::PaneHeaders(value) => {
                 settings.appearance.pane_headers = value;
+                settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
+            }
+            Change::CommandsBar(value) => {
+                settings.appearance.commands_bar_visible = value;
                 settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
             }
             Change::Tips(value) => {
@@ -1378,6 +1396,7 @@ fn change_id(change: &Change) -> &str {
         Change::AgentsPanelDensity(_) => "agents-panel-density",
         Change::StatusBar(_) => "status-bar",
         Change::PaneHeaders(_) => "pane-headers",
+        Change::CommandsBar(_) => "commands-bar",
         Change::Tips(_) => "tips",
         Change::RememberProjectsWithoutTabs(_) => "remember-projects-without-tabs",
         Change::SidebarServers(_) => "sidebar-servers",
