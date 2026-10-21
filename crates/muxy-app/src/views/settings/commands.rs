@@ -59,7 +59,7 @@ fn editor(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
         .child(form::row(
             pane.layout_style(),
             &tr!("Command"),
-            Some(tr!("A single-line shell command, such as cargo test or npm run dev.").as_str()),
+            Some(tr!("A single-line shell command, such as cargo test or npm run dev. Leave blank for a plain terminal.").as_str()),
             pane.field("command-text"),
             pane.compact,
         ))

@@ -329,8 +329,25 @@ fn node(
             first,
             second,
         } => (axis, ratio, first, second),
-        Layout::Leaf(id) => {
+        Layout::Leaf(id) if path.is_empty() => {
             return pane_element(*id, model, cx);
+        }
+        Layout::Leaf(id) => {
+            return div()
+                .flex()
+                .flex_col()
+                .size_full()
+                .min_w(px(0.0))
+                .min_h(px(0.0))
+                .child(super::tab_strip::pane_controls(*id, model, cx))
+                .child(
+                    div()
+                        .flex()
+                        .flex_1()
+                        .min_h(px(0.0))
+                        .child(pane_element(*id, model, cx)),
+                )
+                .into_any_element();
         }
     };
     let mut first_path = path.clone();

@@ -104,6 +104,32 @@ impl AppModel {
         }
     }
 
+    /// Runs a custom command in a split beside the active pane, or in a new
+    /// tab when there is no pane to split.
+    pub(crate) fn run_custom_command_in_split(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.active_pane().is_none() {
+            self.run_custom_command(id, cx);
+            return;
+        }
+        if !self.can_run_custom_command() || self.overlay.is_some() {
+            return;
+        }
+        let Some(command) = self
+            .settings
+            .commands
+            .iter()
+            .find(|command| command.id == id)
+            .cloned()
+        else {
+            return;
+        };
+        if let Err(error) = command.validate() {
+            self.fail(error.to_string(), cx);
+            return;
+        }
+        self.split_pane_running(muxy_app_core::Direction::Right, Some(&command.command), cx);
+    }
+
     pub(crate) fn register_custom_commands(&self, registry: &mut Registry<Handler>) {
         for command in &self.settings.commands {
             let id = command.id.clone();

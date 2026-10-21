@@ -120,6 +120,7 @@ pub(crate) enum Change {
     AgentsPanelIcon(muxy_app_core::settings::AgentsPanelIcon),
     AgentsPanelOption(&'static str, bool),
     StatusBar(bool),
+    CommandsBar(bool),
     Tips(bool),
     RememberProjectsWithoutTabs(bool),
     ConfirmProcess(bool),
@@ -567,8 +568,8 @@ impl SettingsView {
         }
     }
 
-    pub(crate) fn show_browser(&mut self, cx: &mut Context<Self>) {
-        self.category = Category::Browser;
+    pub(crate) fn show_category(&mut self, category: Category, cx: &mut Context<Self>) {
+        self.category = category;
         self.section = None;
         self.query.clear();
         self.results.reset();

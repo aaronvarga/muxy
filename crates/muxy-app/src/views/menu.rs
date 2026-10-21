@@ -100,6 +100,10 @@ pub(crate) enum Command {
     /// Opens the current project in the app at an index of
     /// `AppModel::project_apps`.
     OpenProjectIn(usize),
+    /// Shows or hides the custom command at this index in the commands bar.
+    ToggleCommandInBar(usize),
+    CommandsBar(bool),
+    ManageCommands,
 }
 
 #[derive(Clone, Debug)]
@@ -753,6 +757,18 @@ impl AppModel {
             }
             Command::ManageBrowserProfiles => self.show_browser_settings(cx),
             Command::OpenProjectIn(index) => self.open_project_in(index, cx),
+            Command::ToggleCommandInBar(index) => {
+                if let Some(mut command) = self.settings.commands.get(index).cloned() {
+                    command.hidden = !command.hidden;
+                    self.change_preference(super::settings::Change::Command(command), cx);
+                }
+            }
+            Command::CommandsBar(visible) => {
+                self.change_preference(super::settings::Change::CommandsBar(visible), cx);
+            }
+            Command::ManageCommands => {
+                self.show_settings_at(super::settings::Category::Commands, cx);
+            }
             Command::BrowserInspect(pane) => {
                 if let Some(view) = self.browser_view(pane)
                     && let Err(error) = view.read(cx).native.browser().open_devtools()
