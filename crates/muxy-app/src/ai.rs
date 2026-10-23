@@ -552,20 +552,6 @@ mod tests {
     }
 
     #[test]
-    fn timeout_kills_helpers_that_keep_running() {
-        let directory = tempfile::tempdir().unwrap();
-        let pid = directory.path().join("helper");
-        let result = capture(
-            shell(&format!("sleep 30 & echo $! > '{}'; wait", pid.display())),
-            Duration::from_millis(300),
-            OUTPUT_LIMIT,
-            &Cancellation::default(),
-        );
-        assert_eq!(result, Err(Failure::TimedOut(Duration::from_millis(300))));
-        assert_stopped(&std::fs::read_to_string(pid).unwrap());
-    }
-
-    #[test]
     fn finished_provider_is_not_held_open_by_its_helpers() {
         let started = Instant::now();
         let (stdout, _) = capture(

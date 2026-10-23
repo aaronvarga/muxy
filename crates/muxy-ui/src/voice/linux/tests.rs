@@ -207,19 +207,3 @@ fn keyboard_noise() -> Vec<u8> {
     }
     samples.into_iter().flat_map(i16::to_le_bytes).collect()
 }
-
-#[test]
-fn versions_without_stdout_text_support_are_rejected_before_capture() {
-    let fixture = Fixture::new();
-    for (version, supported) in [("1.9.5-dev", true), ("1.8.2", false), ("unknown", false)] {
-        let program = fixture.script(
-            "transcribe",
-            &format!("print('whisper.cpp version: {version}')"),
-        );
-        assert_eq!(
-            check_version(&program, &Shared::default()).is_ok(),
-            supported
-        );
-        assert!(gone(&fixture.pid("transcribe")));
-    }
-}

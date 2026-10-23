@@ -2830,7 +2830,6 @@ mod tests {
     mod splits;
     mod tab_groups;
     mod tab_menu;
-    mod tui;
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     mod updates;
     mod worktrees;

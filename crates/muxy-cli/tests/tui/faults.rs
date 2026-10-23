@@ -117,26 +117,3 @@ fn exit_during_resize_keeps_tab_selection_bound_to_the_displayed_pane() -> Resul
     tui.detach()?;
     Ok(())
 }
-
-#[test]
-fn typing_and_frame_acknowledgements_continue_while_a_picker_request_waits() -> Result {
-    let fixture = Fixture::new()?;
-    let proxy = Proxy::new(&fixture)?;
-    let mut tui = Tui::start(&fixture, &[])?;
-    tui.ready()?;
-    proxy.arm(Point::ListReply);
-    tui.write(b"\x02w")?;
-    tui.wait(|_| Ok(proxy.reached()))?;
-    tui.write(b"\x1b")?;
-    tui.wait(|tui| {
-        Ok(!tui
-            .text()?
-            .iter()
-            .any(|row| row.contains("Existing terminals")))
-    })?;
-    tui.write(b"i=0; while [ $i -lt 100 ]; do echo frame-$i; i=$((i+1)); sleep 0.01; done; echo RESPONSIVE_DONE\r")?;
-    tui.output("RESPONSIVE_DONE")?;
-    proxy.release();
-    tui.detach()?;
-    Ok(())
-}

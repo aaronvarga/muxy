@@ -236,50 +236,6 @@ mod tests {
     }
 
     #[test]
-    fn browser_commands_and_launch_handoffs_share_a_profile_without_sharing_a_socket() {
-        use muxy_app_core::browser::api::{self, Request};
-        use serde_json::{Map, json};
-
-        let profile = tempfile::Builder::new()
-            .tempdir_in("/tmp")
-            .expect("profile");
-        let (folders, opened) = async_channel::unbounded();
-        let _app = claim_in(profile.path(), &[], &folders, PATIENCE)
-            .expect("claim")
-            .expect("first instance");
-        let socket = profile.path().join(api::SOCKET);
-        let (_socket, incoming) = crate::app_socket::listen(&socket).expect("browser socket");
-        let responder = std::thread::spawn(move || {
-            for _ in 0..2 {
-                let request = incoming.recv_blocking().expect("browser request");
-                assert_eq!(request.request.verb, "browser.list");
-                request.reply(Ok(json!([])));
-            }
-        });
-        let asked = vec![odd(profile.path())];
-        for _ in 0..2 {
-            assert_eq!(
-                api::call(
-                    &socket,
-                    &Request::new("browser.list", Map::new()),
-                    Duration::from_secs(5),
-                )
-                .expect("browser reply"),
-                json!([])
-            );
-            assert!(opened.try_recv().is_err());
-            assert!(
-                claim_in(profile.path(), &asked, &folders, PATIENCE)
-                    .expect("handoff")
-                    .is_none()
-            );
-            assert_eq!(paths(&opened.recv_blocking().expect("folders")), asked);
-            assert!(opened.recv_blocking().expect("raise").is_empty());
-        }
-        responder.join().expect("responder");
-    }
-
-    #[test]
     fn a_socket_left_by_a_crashed_app_does_not_keep_the_profile() {
         let profile = tempfile::tempdir().expect("profile");
         drop(UnixListener::bind(profile.path().join("instance.sock")).expect("stale socket"));

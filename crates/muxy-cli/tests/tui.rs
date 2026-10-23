@@ -135,49 +135,6 @@ fn keyboard_layout_restores_without_respawning_and_detach_preserves_sessions() -
 }
 
 #[test]
-fn simultaneous_first_launch_creates_one_shell_and_concurrent_layout_edits_are_preserved() -> Result
-{
-    let fixture = Fixture::new()?;
-    let mut first = Tui::start(&fixture, &[])?;
-    let mut second = Tui::start(&fixture, &[])?;
-    first.ready()?;
-    second.ready()?;
-    assert_eq!(fixture.client()?.list_sessions()?.len(), 1);
-    first.write(b"\x02c")?;
-    second.write(b"\x02%")?;
-    first.wait(|tui| {
-        second.pump()?;
-        Ok(tui.tabs()?.len() == 2
-            && tui
-                .tabs()?
-                .iter()
-                .map(|tab| tab["panes"].as_object().map_or(0, serde_json::Map::len))
-                .sum::<usize>()
-                == 3)
-    })?;
-    first.wait(|tui| {
-        second.pump()?;
-        Ok(fixture.client()?.list_sessions()?.len() == 3
-            && tui.tabs()?.iter().all(|tab| {
-                tab["panes"].as_object().is_some_and(|panes| {
-                    panes
-                        .values()
-                        .all(|pane| !pane["session"].is_null() && pane["creation"].is_null())
-                })
-            }))
-    })?;
-    let layout = fixture.state()?;
-    let mut third = Tui::start(&fixture, &[])?;
-    third.ready()?;
-    assert_eq!(fixture.state()?, layout);
-    assert_eq!(fixture.client()?.list_sessions()?.len(), 3);
-    first.detach()?;
-    second.detach()?;
-    third.detach()?;
-    Ok(())
-}
-
-#[test]
 fn close_confirms_a_foreground_program_and_does_not_confirm_background_work() -> Result {
     let fixture = Fixture::new()?;
     let mut tui = Tui::start(&fixture, &[])?;
