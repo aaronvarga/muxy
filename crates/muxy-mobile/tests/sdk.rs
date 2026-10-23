@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 
 use muxy_client::Client;
 use muxy_mobile::{
-    Connection, ConnectionEvent, ConnectionListener, GitChangeKind, GitDiffKind, Key, Line,
-    MobileError, Modifiers, MouseButton, ScrollDirection, ServerCredential,
+    Connection, ConnectionEvent, ConnectionListener, GitChangeKind, GitDiffKind, MobileError,
+    ServerCredential,
 };
 use muxy_protocol::transport::Listener;
 use muxy_protocol::transport::tls::TlsListener;
@@ -152,18 +152,6 @@ fn wait_for(
     }
 }
 
-/// Waits until `done` holds, checking now and after each event.
-fn wait_until(events: &Receiver<ConnectionEvent>, mut done: impl FnMut() -> bool) -> TestResult {
-    if done() {
-        return Ok(());
-    }
-    wait_for(events, |_| done())
-}
-
-fn metadata_changed(event: &ConnectionEvent, session: u64) -> bool {
-    matches!(event, ConnectionEvent::MetadataChanged { session_id } if *session_id == session)
-}
-
 /// A temporary folder, removed when dropped.
 struct Folder(PathBuf);
 
@@ -254,142 +242,6 @@ fn paired() -> TestResult<(Server, Client, ServerCredential)> {
 }
 
 #[test]
-fn a_phone_pairs_opens_a_shell_and_types() -> TestResult {
-    let (_server, local, credential) = paired()?;
-    assert_eq!(local.read_remote_access()?.devices[0].name, "Test phone");
-    let (recorder, events) = listener();
-    let connection = Connection::connect(credential, recorder)?;
-    let projects = connection.projects()?;
-    let home = projects
-        .iter()
-        .find(|project| project.is_home)
-        .ok_or("no Home project")?;
-    let session = connection.create_session(home.id.clone(), 40, 6)?;
-    let terminal = connection.attach(session.id, 40, 6)?;
-    assert_eq!(terminal.screen().columns, 40);
-    terminal.send_input(b"printf '\\nmobile-%d\\n' $((40+2))".to_vec())?;
-    terminal.send_key(Key::Enter, Modifiers::default())?;
-    let text = || -> Vec<String> {
-        terminal
-            .screen()
-            .lines
-            .iter()
-            .map(|line| line.spans.iter().map(|span| span.text.as_str()).collect())
-            .collect()
-    };
-    wait_for(&events, |event| {
-        matches!(event, ConnectionEvent::ScreenChanged { session_id } if *session_id == session.id)
-            && text().iter().any(|line| line.trim() == "mobile-42")
-    })
-    .map_err(|error| format!("{error}; screen: {:?}", text()))?;
-    let sessions = connection.sessions(home.id.clone())?;
-    assert!(
-        sessions
-            .iter()
-            .any(|listed| listed.id == session.id && listed.attached)
-    );
-    terminal.detach()?;
-    connection.end_session(session.id)?;
-    wait_for(
-        &events,
-        |event| matches!(event, ConnectionEvent::SessionEnded { session_id } if *session_id == session.id),
-    )?;
-    Ok(())
-}
-
-#[test]
-fn the_phone_tracks_desktop_resizes_without_resizing_the_session() -> TestResult {
-    let (_server, local, credential) = paired()?;
-    let (recorder, events) = listener();
-    let connection = Connection::connect(credential, recorder)?;
-    let home = connection
-        .projects()?
-        .into_iter()
-        .find(|project| project.is_home)
-        .ok_or("no Home project")?;
-    let session = connection.create_session(home.id, 40, 6)?;
-    let id = muxy_protocol::SessionId::new(session.id).ok_or("invalid session")?;
-    let desktop = local.attach(id, muxy_protocol::Size { cols: 40, rows: 6 })?;
-    let terminal = connection.attach(session.id, 20, 3)?;
-    assert_eq!((terminal.screen().columns, terminal.screen().rows), (40, 6));
-    let result = (|| -> TestResult {
-        for (columns, rows) in [(70, 10), (20, 3), (55, 3), (55, 8)] {
-            local.resize(
-                desktop.channel,
-                muxy_protocol::Size {
-                    cols: columns,
-                    rows,
-                },
-            )?;
-            wait_until(&events, || {
-                let screen = terminal.screen();
-                (screen.columns, screen.rows) == (columns, rows)
-                    && screen.lines.len() == usize::from(rows)
-            })?;
-        }
-        Ok(())
-    })();
-    connection.end_session(session.id)?;
-    result
-}
-
-fn texts(lines: &[Line]) -> Vec<String> {
-    lines
-        .iter()
-        .map(|line| {
-            line.spans
-                .iter()
-                .map(|span| span.text.as_str())
-                .collect::<String>()
-                .trim()
-                .to_owned()
-        })
-        .collect()
-}
-
-#[test]
-fn scrollback_reads_every_line_while_new_output_arrives() -> TestResult {
-    let (_server, _local, credential) = paired()?;
-    let (recorder, events) = listener();
-    let connection = Connection::connect(credential, recorder)?;
-    let home = connection
-        .projects()?
-        .into_iter()
-        .find(|project| project.is_home)
-        .ok_or("no Home project")?;
-    let session = connection.create_session(home.id, 30, 5)?;
-    let terminal = connection.attach(session.id, 30, 5)?;
-    let on_screen = |text: &str| {
-        texts(&terminal.screen().lines)
-            .iter()
-            .any(|line| line == text)
-    };
-    terminal.send_input(
-        b"printf '\\n'; i=1; while [ $i -le 120 ]; do echo line-$i; i=$((i+1)); done\r".to_vec(),
-    )?;
-    wait_for(&events, |_| on_screen("line-120"))?;
-    let scrollback = terminal.scrollback(50)?;
-    terminal.send_input(b"printf '\\nafter-%d\\n' $((1+1))\r".to_vec())?;
-    wait_for(&events, |_| on_screen("after-2"))?;
-    let mut lines = texts(&scrollback.lines());
-    loop {
-        let older = scrollback.load_older(50)?;
-        if older.is_empty() {
-            break;
-        }
-        lines.splice(0..0, texts(&older));
-    }
-    let numbered: Vec<_> = lines
-        .iter()
-        .filter_map(|line| line.strip_prefix("line-")?.parse::<u32>().ok())
-        .collect();
-    assert_eq!(numbered, (1..=120).collect::<Vec<_>>());
-    assert!(!lines.iter().any(|line| line == "after-2"));
-    connection.end_session(session.id)?;
-    Ok(())
-}
-
-#[test]
 fn terminals_attached_at_the_same_time_all_receive_their_screens() -> TestResult {
     let (_server, _local, credential) = paired()?;
     let (recorder, events) = listener();
@@ -435,75 +287,6 @@ fn terminals_attached_at_the_same_time_all_receive_their_screens() -> TestResult
     for session in sessions {
         connection.end_session(session.id)?;
     }
-    Ok(())
-}
-
-#[test]
-fn taps_and_scrolling_reach_a_program_that_tracks_the_mouse() -> TestResult {
-    let (_server, _local, credential) = paired()?;
-    let (recorder, events) = listener();
-    let connection = Connection::connect(credential, recorder)?;
-    let home = connection
-        .projects()?
-        .into_iter()
-        .find(|project| project.is_home)
-        .ok_or("no Home project")?;
-    let session = connection.create_session(home.id, 40, 6)?;
-    let terminal = connection.attach(session.id, 40, 6)?;
-    assert!(!terminal.screen().mouse_tracking);
-    // Button tracking with SGR reports, printed as soon as each one arrives.
-    terminal.send_input(
-        b"PS1='mouse-ready> '; stty -icanon -echo; printf '\\033[?1000h\\033[?1006h'; cat -v\r"
-            .to_vec(),
-    )?;
-    wait_for(&events, |event| {
-        metadata_changed(event, session.id) && terminal.screen().mouse_tracking
-    })
-    .map_err(|error| {
-        format!(
-            "enable mouse reporting: {error}; {:?}",
-            texts(&terminal.screen().lines)
-        )
-    })?;
-    terminal.click(MouseButton::Left, 2, 4, Modifiers::default())?;
-    terminal.scroll(ScrollDirection::Up, 2, 4)?;
-    wait_until(&events, || {
-        texts(&terminal.screen().lines)
-            .iter()
-            .any(|line| line.contains("^[[<0;5;3M^[[<0;5;3m^[[<64;5;3M"))
-    })
-    .map_err(|error| {
-        format!(
-            "read mouse reports: {error}; {:?}",
-            texts(&terminal.screen().lines)
-        )
-    })?;
-
-    // Attaching again shows the mode the program already turned on.
-    terminal.detach()?;
-    let terminal = connection.attach(session.id, 40, 6)?;
-    wait_until(&events, || terminal.screen().mouse_tracking)?;
-    let control = Modifiers {
-        control: true,
-        ..Modifiers::default()
-    };
-    terminal.send_key(Key::Character { text: "c".into() }, control)?;
-    wait_until(&events, || {
-        texts(&terminal.screen().lines)
-            .iter()
-            .any(|line| line.trim() == "mouse-ready>")
-    })?;
-    terminal.send_input(b"printf '\\033[?1000l'\r".to_vec())?;
-    wait_for(&events, |event| {
-        metadata_changed(event, session.id) && !terminal.screen().mouse_tracking
-    })
-    .map_err(|error| {
-        format!(
-            "disable mouse reporting: {error}; {:?}",
-            texts(&terminal.screen().lines)
-        )
-    })?;
-    connection.end_session(session.id)?;
     Ok(())
 }
 

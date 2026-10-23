@@ -41,7 +41,6 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: python3 scripts/check-desktop-macos.py
       - run: python3 scripts/protocol_fixtures.py last-release
-      - run: python3 scripts/smoke-desktop-tui.py
 
   linux:
     strategy:

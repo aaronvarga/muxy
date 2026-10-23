@@ -10,7 +10,7 @@ use std::rc::Rc;
 use block2::RcBlock;
 use gpui::{Bounds, CursorStyle, Pixels};
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, Bool};
+use objc2::runtime::{AnyObject, Bool, Sel};
 use objc2::{ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSAutoresizingMaskOptions, NSCursor, NSEvent, NSEventMask, NSEventModifierFlags,
@@ -99,6 +99,22 @@ define_class!(
             if self.ivars().excludes(local) { None }
             else { unsafe { msg_send![super(self), hitTest: point] } }
         }
+
+        // WebKit runs a key's command up the page's responders to learn
+        // whether anything wanted it. GPUI's view takes every command, so
+        // keys the page left alone would never reach the Edit menu. They
+        // go on to the window instead.
+        #[unsafe(method(doCommandBySelector:))]
+        fn do_command_by_selector(&self, selector: Sel) {
+            if let Some(window) = self.window() {
+                let _: () = unsafe { msg_send![&*window, doCommandBySelector: selector] };
+            }
+        }
+
+        // Typing the page left alone comes back here, and must not reach
+        // whatever Muxy last focused.
+        #[unsafe(method(keyDown:))]
+        fn key_down(&self, _: &NSEvent) {}
     }
 );
 
@@ -810,8 +826,11 @@ fn route_key_event(
     {
         return on_signal(Signal::Shortcut(keystroke));
     }
+    // The page sees a command key first, as in Safari, so editors keep
+    // their own select all and undo. WebKit sends back keys the page
+    // leaves alone, and those then reach the Edit menu.
     if keystroke.modifiers.platform {
-        menu_key_equivalent() || page_key_equivalent()
+        page_key_equivalent() || menu_key_equivalent()
     } else {
         page_key_down();
         true
@@ -823,7 +842,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn command_shortcuts_try_native_menu_before_webkit() {
+    fn command_shortcuts_try_webkit_before_native_menu() {
         let emitted = RefCell::new(0);
         let on_key = |_: Signal| {
             *emitted.borrow_mut() += 1;
@@ -865,10 +884,10 @@ mod tests {
                     assert_eq!(handled, page_handled || menu_handled);
                     assert_eq!(
                         *deliveries.borrow(),
-                        if menu_handled {
-                            vec!["menu"]
+                        if page_handled {
+                            vec!["page"]
                         } else {
-                            vec!["menu", "page"]
+                            vec!["page", "menu"]
                         },
                     );
                     assert_eq!(*emitted.borrow(), 0);
