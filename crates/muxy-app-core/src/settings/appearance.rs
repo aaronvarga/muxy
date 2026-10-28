@@ -144,6 +144,9 @@ pub struct Appearance {
     pub worktree_recent: Vec<crate::ProjectId>,
     pub project_recent: Vec<crate::ProjectId>,
     pub hidden_worktrees: std::collections::BTreeSet<crate::ProjectId>,
+    /// Titlebar buttons the user hid, by key; extension buttons use
+    /// `top:<extension>:<item>`.
+    pub hidden_titlebar_buttons: std::collections::BTreeSet<String>,
     pub tab_focused_expanded: std::collections::BTreeMap<crate::ProjectId, bool>,
     /// Servers whose sidebar group was expanded or collapsed by hand; the
     /// others follow `server_expanded`'s default.
@@ -211,6 +214,7 @@ impl Default for Appearance {
             worktree_recent: Vec::new(),
             project_recent: Vec::new(),
             hidden_worktrees: std::collections::BTreeSet::new(),
+            hidden_titlebar_buttons: std::collections::BTreeSet::new(),
             tab_focused_expanded: std::collections::BTreeMap::new(),
             sidebar_servers_expanded: std::collections::BTreeMap::new(),
             sidebar_remote_servers: true,

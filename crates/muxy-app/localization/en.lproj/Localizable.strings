@@ -830,6 +830,7 @@
 "Every target must have a live terminal before sending." = "Every target must have a live terminal before sending.";
 "Everything else is in the command palette. Change any shortcut in Settings → Keyboard." = "Everything else is in the command palette. Change any shortcut in Settings → Keyboard.";
 "Everything starts with a project" = "Everything starts with a project";
+"Existing Terminals" = "Existing Terminals";
 "Existing Terminals…" = "Existing Terminals…";
 "Expand Composer" = "Expand Composer";
 "Expand Project" = "Expand Project";
@@ -1099,6 +1100,7 @@
 "Last seen just now" = "Last seen just now";
 "Layout" = "Layout";
 "Layouts you can share" = "Layouts you can share";
+"Layouts" = "Layouts";
 "Left" = "Left";
 "Left padding" = "Left padding";
 "Let paired phones and computers reach this computer's server over the local network or a VPN. A paired phone gets full terminal access; a paired computer can also run commands and change or stop this server." = "Let paired phones and computers reach this computer's server over the local network or a VPN. A paired phone gets full terminal access; a paired computer can also run commands and change or stop this server.";
@@ -1866,6 +1868,10 @@
 "Source Control" = "Source Control";
 "Sparkle" = "Sparkle";
 "Speedometer" = "Speedometer";
+"Space" = "Space";
+"Speech permission request did not complete. Try again." = "Speech permission request did not complete. Try again.";
+"Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition." = "Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition.";
+"Split Buttons" = "Split Buttons";
 "Split Down" = "Split Down";
 "Split Right" = "Split Right";
 "Split down" = "Split down";
