@@ -78,6 +78,10 @@ pub(crate) enum Command {
     ProjectLogo(muxy_app_core::ProjectId),
     RemoveProjectLogo(muxy_app_core::ProjectId),
     RemoveProject(muxy_app_core::ProjectId),
+    AddProjectFolder(muxy_app_core::ProjectId),
+    /// Removes a project's extra folder, named by `project_menu::folder_key`
+    /// so a list another device changed meanwhile loses the right one.
+    RemoveProjectFolder(muxy_app_core::ProjectId, u64),
     AddProject,
     AddRemoteProject(muxy_app_core::ServerId),
     ManageRemoteDevices,
@@ -676,6 +680,8 @@ impl AppModel {
                 self.edit_project(|state| state.set_project_logo(id, None), cx);
             }
             Command::RemoveProject(id) => self.confirm_remove_project(id, cx),
+            Command::AddProjectFolder(id) => self.add_project_folder(id, cx),
+            Command::RemoveProjectFolder(id, key) => self.remove_project_folder(id, key, cx),
             Command::AddProject => {
                 self.open_project_picker(window, cx);
                 return;

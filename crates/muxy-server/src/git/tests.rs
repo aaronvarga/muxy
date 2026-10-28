@@ -46,6 +46,7 @@ impl Repo {
                     color: "#ffffff".into(),
                     kind: None,
                     parent_id: None,
+                    folders: Vec::new(),
                 }),
             })
             .unwrap();

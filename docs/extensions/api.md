@@ -30,7 +30,7 @@ their `clear` functions.
 
 | Call | Returns |
 | --- | --- |
-| `projects.list()` | `[{ id, name, path, isActive, sortOrder, iconColor, icon, logo, worktreesEnabled }]` |
+| `projects.list()` | `[{ id, name, path, folders, isActive, sortOrder, iconColor, icon, logo, worktreesEnabled }]` |
 | `projects.switchTo(id)`, `add(path)`, `create(path, { name, workspace, createIfMissing })` | |
 | `projects.rename(id, name)`, `setColor(id, color)`, `setIcon(id, icon)`, `reorder(ids)` | |
 | `projects.attach(id, workspace)`, `detach(id)`, `delete(id)` | |

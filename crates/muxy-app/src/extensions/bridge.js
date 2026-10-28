@@ -155,15 +155,16 @@
       refresh: project => dispatch('worktrees.refresh', { project: optional(project) }),
     };
     const filesProject = o => (o && o.project != null ? String(o.project) : null);
+    const filesRoot = o => (o && o.root != null ? String(o.root) : null);
     muxy.files = {
-      list: (path, o) => dispatch('files.list', { project: filesProject(o), path: text(path) }),
-      read: (path, o) => dispatch('files.read', { project: filesProject(o), path: text(path) }),
-      stat: (path, o) => dispatch('files.stat', { project: filesProject(o), path: text(path) }),
-      write: (path, contents, o) => dispatch('files.write', { project: filesProject(o), path: text(path), contents: text(contents) }),
-      mkdir: (path, o) => dispatch('files.mkdir', { project: filesProject(o), path: text(path) }),
-      rename: (path, newName, o) => dispatch('files.rename', { project: filesProject(o), path: text(path), newName: text(newName) }),
-      move: (paths, into, o) => dispatch('files.move', { project: filesProject(o), paths: (paths || []).map(String), into: text(into) }),
-      delete: (paths, o) => dispatch('files.delete', { project: filesProject(o), paths: (paths || []).map(String) }),
+      list: (path, o) => dispatch('files.list', { project: filesProject(o), root: filesRoot(o), path: text(path) }),
+      read: (path, o) => dispatch('files.read', { project: filesProject(o), root: filesRoot(o), path: text(path) }),
+      stat: (path, o) => dispatch('files.stat', { project: filesProject(o), root: filesRoot(o), path: text(path) }),
+      write: (path, contents, o) => dispatch('files.write', { project: filesProject(o), root: filesRoot(o), path: text(path), contents: text(contents) }),
+      mkdir: (path, o) => dispatch('files.mkdir', { project: filesProject(o), root: filesRoot(o), path: text(path) }),
+      rename: (path, newName, o) => dispatch('files.rename', { project: filesProject(o), root: filesRoot(o), path: text(path), newName: text(newName) }),
+      move: (paths, into, o) => dispatch('files.move', { project: filesProject(o), root: filesRoot(o), paths: (paths || []).map(String), into: text(into) }),
+      delete: (paths, o) => dispatch('files.delete', { project: filesProject(o), root: filesRoot(o), paths: (paths || []).map(String) }),
     };
   }
   muxy.agents = { list: () => dispatch('agents.list', {}) };

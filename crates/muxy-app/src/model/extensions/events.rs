@@ -2,6 +2,7 @@
 //! string, as on main; optional keys are omitted rather than sent empty.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::os::unix::ffi::OsStrExt;
 use std::time::Duration;
 
 use gpui::{Context, Task};
@@ -30,15 +31,24 @@ pub(super) struct Tracker {
     pending_titles: HashMap<PaneId, (String, Task<()>)>,
     branches: BTreeMap<ProjectId, String>,
     agents: BTreeMap<String, Value>,
-    pub(super) watched: BTreeSet<ProjectId>,
+    /// Watched project folders; `None` is the project's own.
+    pub(super) watched: BTreeSet<WatchKey>,
+    /// Folders whose watch the server refused, left alone until they change.
+    pub(super) refused: BTreeSet<WatchKey>,
     pub(super) watch_pending: bool,
     watch_epoch: u64,
 }
 
+/// Folders one server connection watches, as `muxy-server` caps them.
+const MAX_FILE_WATCHES: usize = 32;
+
+pub(super) type WatchKey = (ProjectId, Option<std::path::PathBuf>);
+
 impl Tracker {
     /// Watches end with their server's extension connection.
     pub(super) fn forget_watches(&mut self, ended: impl Fn(ProjectId) -> bool) {
-        self.watched.retain(|project| !ended(*project));
+        self.watched.retain(|(project, _)| !ended(*project));
+        self.refused.clear();
         self.watch_pending = false;
         self.watch_epoch = self.watch_epoch.wrapping_add(1);
     }
@@ -267,7 +277,7 @@ impl AppModel {
         Ok(())
     }
 
-    pub(in crate::model) fn sync_extension_events(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn sync_extension_events(&mut self, cx: &mut Context<Self>) {
         self.switch_panel_session(cx);
         self.debounce_titles(cx);
         let silent = !self.extensions.events.initialized;
@@ -407,6 +417,11 @@ impl AppModel {
                         project.logo.as_ref().map(|logo| logo.len()),
                         // A folder's name need not be text, which a path as JSON must be.
                         project.directory.as_os_str().as_encoded_bytes(),
+                        project
+                            .folders
+                            .iter()
+                            .map(|folder| folder.as_os_str().as_encoded_bytes())
+                            .collect::<Vec<_>>(),
                     ])
                 })
                 .collect(),
@@ -501,6 +516,44 @@ impl AppModel {
         self.extensions.events.agents = agents;
     }
 
+    /// Each project's own folder and its extra folders, within the server's cap.
+    /// The current project comes first, so it keeps its watches at the cap.
+    /// A worktree shares its parent's folders, which are watched once.
+    pub(super) fn watch_keys(&self, mut projects: BTreeSet<ProjectId>) -> BTreeSet<WatchKey> {
+        let current = self.state.current_project().id;
+        let first = projects.remove(&current).then_some(current);
+        let mut folders = BTreeSet::new();
+        first
+            .into_iter()
+            .chain(projects)
+            .filter_map(|id| self.state.project(id))
+            .flat_map(|project| {
+                std::iter::once((project.id, None)).chain(
+                    self.state
+                        .project_folders(project)
+                        .iter()
+                        .map(|folder| (project.id, Some(folder.clone()))),
+                )
+            })
+            .filter(|(_, folder)| {
+                folder
+                    .as_ref()
+                    .is_none_or(|folder| folders.insert(folder.clone()))
+            })
+            .take(MAX_FILE_WATCHES)
+            .collect()
+    }
+
+    /// The watches to hold, leaving out ones the server refused so they are
+    /// not retried until their folder leaves and comes back.
+    pub(super) fn wanted_watches(&mut self, projects: BTreeSet<ProjectId>) -> BTreeSet<WatchKey> {
+        let mut desired = self.watch_keys(projects);
+        let refused = &mut self.extensions.events.refused;
+        refused.retain(|key| desired.contains(key));
+        desired.retain(|key| !refused.contains(key));
+        desired
+    }
+
     fn sync_extension_file_watches(&mut self, cx: &mut Context<Self>) {
         if self.extensions.events.watch_pending {
             return;
@@ -530,6 +583,7 @@ impl AppModel {
                 .cloned()
         };
         desired.retain(|project| client(self, *project).is_some());
+        let desired = self.wanted_watches(desired);
         if desired == self.extensions.events.watched {
             return;
         }
@@ -538,11 +592,11 @@ impl AppModel {
             .events
             .watched
             .difference(&desired)
-            .copied()
+            .cloned()
             .collect();
         let added: Vec<_> = desired
             .difference(&self.extensions.events.watched)
-            .copied()
+            .cloned()
             .collect();
         let trace = crate::diagnostics::Span::new(
             "extension.watch",
@@ -550,13 +604,9 @@ impl AppModel {
         );
         let requests: Vec<_> = removed
             .into_iter()
-            .map(|project| (project, FilesAction::Unwatch))
-            .chain(
-                added
-                    .into_iter()
-                    .map(|project| (project, FilesAction::Watch)),
-            )
-            .filter_map(|(project, action)| Some((client(self, project)?, project, action)))
+            .map(|key| (key, FilesAction::Unwatch))
+            .chain(added.into_iter().map(|key| (key, FilesAction::Watch)))
+            .filter_map(|(key, action)| Some((client(self, key.0)?, key, action)))
             .collect();
         self.extensions.events.watched = desired;
         self.extensions.events.watch_pending = true;
@@ -564,9 +614,21 @@ impl AppModel {
         let task = cx.spawn(async move |_, _| {
             trace.stage(format_args!("phase=started"));
             let mut errors = Vec::new();
-            for (client, project, action) in requests {
-                if let Err(error) = client.files_async(FilesRequest { project, action }).await {
-                    errors.push(error.to_string());
+            for (client, key, action) in requests {
+                let watch = action == FilesAction::Watch;
+                let root = key.1.as_ref().map(|folder| {
+                    muxy_protocol::ServerPath(folder.as_os_str().as_encoded_bytes().into())
+                });
+                if root.is_some() && !client.supports(muxy_protocol::Feature::PROJECT_FOLDERS) {
+                    continue;
+                }
+                let request = FilesRequest {
+                    project: key.0,
+                    action,
+                    root,
+                };
+                if let Err(error) = client.files_async(request).await {
+                    errors.push((watch.then_some(key), error.to_string()));
                 }
             }
             trace.stage(format_args!("phase=reply errors={}", errors.len()));
@@ -579,7 +641,11 @@ impl AppModel {
                     return;
                 }
                 model.extensions.events.watch_pending = false;
-                for error in errors {
+                for (refused, error) in errors {
+                    if let Some(key) = refused {
+                        model.extensions.events.watched.remove(&key);
+                        model.extensions.events.refused.insert(key);
+                    }
                     model.extension_log("", format!("[muxy] file watcher: {error}"));
                 }
                 model.sync_extension_file_watches(cx);
@@ -588,8 +654,16 @@ impl AppModel {
         .detach();
     }
 
-    fn file_changed(&self, project: &Project, relative: &str, cx: &gpui::App) {
-        let root = project.directory.display().to_string();
+    /// `root` is the extra folder that changed, or the project's own when `None`.
+    fn file_changed(
+        &self,
+        project: &Project,
+        root: Option<&std::path::Path>,
+        relative: &str,
+        cx: &gpui::App,
+    ) {
+        let directory = project.directory.display().to_string();
+        let root = root.map_or_else(|| directory.clone(), |root| root.display().to_string());
         let path = if relative.is_empty() {
             root.clone()
         } else {
@@ -598,7 +672,7 @@ impl AppModel {
         self.emit_extension_event(
             None,
             "file.changed",
-            &strings([("path", path), ("projectPath", root)]),
+            &strings([("path", path), ("projectPath", directory), ("root", root)]),
             cx,
         );
     }
@@ -612,19 +686,42 @@ impl AppModel {
         let Some(project) = self.state.project(project) else {
             return;
         };
+        let root = changes
+            .root
+            .as_ref()
+            .map(|root| std::path::Path::new(std::ffi::OsStr::from_bytes(&root.0)))
+            .filter(|root| *root != project.directory);
         if changes.rescan {
-            for pane in project.tabs.iter().flat_map(|tab| &tab.panes) {
+            // An extra folder is watched once for every project showing it.
+            let sharing = self.state.projects().iter().filter(|other| {
+                other.id == project.id
+                    || root.is_some_and(|root| {
+                        self.state
+                            .project_folders(other)
+                            .iter()
+                            .any(|folder| folder == root)
+                    })
+            });
+            let mut paths = BTreeSet::new();
+            for (owner, pane) in sharing
+                .flat_map(|other| other.tabs.iter().map(move |tab| (other, tab)))
+                .flat_map(|(other, tab)| tab.panes.iter().map(move |pane| (other, pane)))
+            {
+                // Only tabs showing a file from the folder that changed.
+                let tab_root = pane_root(&pane.content).filter(|tab| *tab != owner.directory);
                 if let PaneContent::Webview(descriptor) = &pane.content
                     && let Some(path) = descriptor.data["filePath"].as_str()
+                    && tab_root == root
+                    && paths.insert(path)
                 {
-                    self.file_changed(project, path, cx);
+                    self.file_changed(project, root, path, cx);
                 }
             }
-            self.file_changed(project, "", cx);
+            self.file_changed(project, root, "", cx);
         }
         for path in changes.paths {
             if let Ok(path) = muxy_app_core::extensions::api::path_text(&path) {
-                self.file_changed(project, path, cx);
+                self.file_changed(project, root, path, cx);
             }
         }
     }
@@ -668,9 +765,20 @@ impl AppModel {
         if let Some(project) = self
             .state
             .project(project)
-            .filter(|project| self.extensions.events.watched.contains(&project.id))
+            .filter(|project| self.extensions.events.watched.contains(&(project.id, None)))
         {
-            self.file_changed(project, ".git/index", cx);
+            self.file_changed(project, None, ".git/index", cx);
         }
+    }
+}
+
+/// The folder an extension tab's file lives in, when it names one.
+fn pane_root(content: &PaneContent) -> Option<&std::path::Path> {
+    match content {
+        PaneContent::Webview(descriptor) => descriptor.data["root"]
+            .as_str()
+            .filter(|root| !root.is_empty())
+            .map(std::path::Path::new),
+        _ => None,
     }
 }

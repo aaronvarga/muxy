@@ -5,16 +5,22 @@ use std::sync::{Arc, Mutex, PoisonError, mpsc};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use muxy_protocol::{FileChanges, FilesAction, FilesReply, FilesRequest, Message, ProjectId};
+use muxy_protocol::{
+    FileChanges, FilesAction, FilesReply, FilesRequest, Message, ProjectId, ServerPath,
+};
 use notify::{EventKind, RecursiveMode, Watcher};
 
 use crate::{Registry, connection::Outbox};
 
-use super::{Result, error, path, root::Root, wire_path};
+use super::{Result, error, root::Root, wire_path};
+
+/// Folders one connection can watch at once, each recursively.
+pub(crate) const MAX_WATCHES: usize = 32;
 
 #[derive(Default)]
 pub(crate) struct Subscriptions {
-    watches: HashMap<ProjectId, FileWatch>,
+    /// One watch per project folder; `None` is the project's own.
+    watches: HashMap<(ProjectId, Option<ServerPath>), FileWatch>,
 }
 
 impl Subscriptions {
@@ -24,23 +30,36 @@ impl Subscriptions {
         output: &Arc<Outbox>,
         request: &FilesRequest,
     ) -> Result<FilesReply> {
+        let key = (request.project, request.root.clone());
         if request.action == FilesAction::Unwatch {
-            self.watches.remove(&request.project);
+            self.watches.remove(&key);
             return Ok(FilesReply::Done);
         }
-        if self.watches.len() >= 32 && !self.watches.contains_key(&request.project) {
+        if self.watches.len() >= MAX_WATCHES && !self.watches.contains_key(&key) {
             return Err(error("Too many file subscriptions"));
         }
-        let project = registry.catalog.project(request.project)?;
-        let root = Root::open(path(&project.directory))?;
+        let root = Root::open(&registry.files_root(request)?)?;
         let events = Arc::downgrade(output);
-        let project = project.id;
-        let watch = FileWatch::new(&root.path, move |changes| {
-            if let Some(events) = events.upgrade() {
+        let catalog = Arc::downgrade(&registry.catalog);
+        let project = request.project;
+        let folder = request.root.clone();
+        let watch = FileWatch::new(&root.path, move |mut changes| {
+            // A folder removed from the project stops reporting at once, even
+            // before this connection's client unwatches it.
+            let listed = folder.as_ref().is_none_or(|folder| {
+                catalog.upgrade().is_some_and(|catalog| {
+                    catalog.project(project).is_ok_and(|descriptor| {
+                        descriptor.directory == *folder
+                            || catalog.folders(&descriptor).contains(folder)
+                    })
+                })
+            });
+            if listed && let Some(events) = events.upgrade() {
+                changes.root.clone_from(&folder);
                 events.push_control(Message::FilesChanged { project, changes });
             }
         })?;
-        self.watches.insert(project, watch);
+        self.watches.insert(key, watch);
         Ok(FilesReply::Done)
     }
 }
@@ -69,6 +88,7 @@ impl FileWatch {
                             pending.merge(&FileChanges {
                                 paths: Vec::new(),
                                 rescan: true,
+                                root: None,
                             });
                         }
                         for path in &event.paths {
@@ -83,11 +103,13 @@ impl FileWatch {
                                 pending.merge(&FileChanges {
                                     paths: Vec::new(),
                                     rescan: true,
+                                    root: None,
                                 });
                             } else {
                                 pending.merge(&FileChanges {
                                     paths: vec![path],
                                     rescan: false,
+                                    root: None,
                                 });
                             }
                         }
@@ -95,6 +117,7 @@ impl FileWatch {
                     Err(_) => pending.merge(&FileChanges {
                         paths: Vec::new(),
                         rescan: true,
+                        root: None,
                     }),
                 }
                 if pending.rescan || !pending.paths.is_empty() {

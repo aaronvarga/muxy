@@ -29,7 +29,7 @@ Every payload value is a string.
 | `projects.changed` | none | `projects:read` |
 | `worktree.headChanged` | `projectID`, `worktreeID`, `branch`, `path` | `worktrees:read` |
 | `agent.status` | `projectID`, `worktreeID`, `paneID`, `providerID`, `status` (`working`, `waiting`, `idle`) | `agents:read` |
-| `file.changed` | `path`, `projectPath` | `files:read` |
+| `file.changed` | `path`, `projectPath`, `root` | `files:read` |
 | `notification.posted` | `paneID`, `projectID`, `worktreeID`, `worktreePath`, `tabID`, `source`, `title`, `body` | |
 | `panel.opened`, `panel.closed` | `extensionID`, `panelID` | |
 | `popover.opened`, `popover.closed` | `extensionID`, `popoverID` | |
@@ -44,7 +44,9 @@ Browser tabs add `paneID` and `url`. The Remote Servers tab adds `paneID`.
 - `projectID` is the top-level project. `worktreeID` is the project or
   worktree the tab belongs to.
 - `file.changed` covers the current project and projects with the extension's
-  tabs open.
+  tabs open, including their extra folders. `root` is the folder the change
+  is in: `projectPath` or one of the project's `folders`.
+- `projects.changed` also fires when a project's folders change.
 - `agent.status` reports the busiest agent per worktree; `providerID` is
   `claude`, `codex`, `opencode`, `cursor`, `copilot`, `droid`, `pi`, `grok`,
   `kiro`, `xal`, `antigravity`, `omp`, or `other`.

@@ -132,6 +132,7 @@ fn file_work_does_not_block_ping_or_catalog_requests() -> TestResult {
         RequestBody::Files(muxy_protocol::FilesRequest {
             project: muxy_protocol::ProjectId::new(),
             action: muxy_protocol::FilesAction::Read(muxy_protocol::ServerPath(b"file".to_vec())),
+            root: None,
         }),
     )?;
     connection.send(2, RequestBody::Ping)?;

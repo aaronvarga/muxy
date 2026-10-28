@@ -19,6 +19,11 @@ impl Project {
             directory: ServerPath(self.directory.as_os_str().as_bytes().into()),
             kind: self.kind,
             parent_id: self.parent_id,
+            folders: self
+                .folders
+                .iter()
+                .map(|folder| ServerPath(folder.as_os_str().as_bytes().into()))
+                .collect(),
         }
     }
     /// `server`'s project as `descriptor` describes it, with no tabs yet.
@@ -38,6 +43,7 @@ impl Project {
             directory: PathBuf::new(),
             kind: None,
             parent_id: None,
+            folders: Vec::new(),
             tabs: Vec::new(),
             groups: None,
             status: ProjectStatus::Available,
@@ -57,6 +63,11 @@ impl Project {
             PathBuf::from(std::ffi::OsString::from_vec(descriptor.directory.0.clone()));
         self.kind = descriptor.kind;
         self.parent_id = descriptor.parent_id;
+        self.folders = descriptor
+            .folders
+            .iter()
+            .map(|folder| PathBuf::from(std::ffi::OsString::from_vec(folder.0.clone())))
+            .collect();
         self.refresh_status();
         Ok(())
     }
@@ -377,5 +388,28 @@ pub(crate) mod directory {
             Directory::Text(text) => PathBuf::from(text),
             Directory::Bytes(bytes) => PathBuf::from(OsString::from_vec(bytes)),
         })
+    }
+}
+
+pub(crate) mod directories {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use std::path::{Path, PathBuf};
+    pub(crate) fn serialize<S: Serializer>(
+        directories: &[PathBuf],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        #[derive(serde::Serialize)]
+        struct Directory<'a>(#[serde(with = "super::directory")] &'a Path);
+        serializer.collect_seq(directories.iter().map(|path| Directory(path)))
+    }
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Vec<PathBuf>, D::Error> {
+        #[derive(Deserialize)]
+        struct Directory(#[serde(with = "super::directory")] PathBuf);
+        Ok(Vec::<Directory>::deserialize(deserializer)?
+            .into_iter()
+            .map(|directory| directory.0)
+            .collect())
     }
 }

@@ -778,3 +778,33 @@ fn graphics_reject_overflow_truncation_missing_images_and_invalid_crops() {
     graphics.placements[0].image = 2;
     assert!(graphics.validate().is_err());
 }
+
+#[test]
+fn project_folders_must_be_separate_normalized_and_only_on_top_level_projects() {
+    use muxy_protocol::{ProjectDescriptor, ProjectId, ProjectKind, ServerPath};
+    let path = |text: &str| ServerPath(text.as_bytes().to_vec());
+    let project = |folders: &[&str]| ProjectDescriptor {
+        folders: folders.iter().map(|folder| path(folder)).collect(),
+        ..ProjectDescriptor::new(path("/work/app"), [])
+    };
+    assert!(project(&["/work/lib", "/shared"]).validate().is_ok());
+    for folders in [
+        &["/work/app"][..],
+        &["/work/app/src"],
+        &["/work"],
+        &["/"],
+        &["/a", "/a/b"],
+        &["/a", "/a"],
+        &["relative"],
+        &["/a/"],
+        &["/a/../work/app"],
+        &["/a/./b"],
+    ] {
+        assert!(project(folders).validate().is_err(), "{folders:?}");
+    }
+    assert!(project(&["/work/application"]).validate().is_ok());
+    let mut worktree = project(&["/shared"]);
+    worktree.kind = Some(ProjectKind::Worktree);
+    worktree.parent_id = Some(ProjectId::new());
+    assert!(worktree.validate().is_err());
+}

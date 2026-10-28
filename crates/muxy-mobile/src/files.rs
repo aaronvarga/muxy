@@ -42,6 +42,7 @@ impl ProjectFiles {
         let request = FilesRequest {
             project: self.project,
             action,
+            root: None,
         };
         Ok(self.client.files(request)?)
     }

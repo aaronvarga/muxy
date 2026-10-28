@@ -311,6 +311,43 @@ impl AppState {
         Ok(())
     }
 
+    /// Replaces a top-level project's extra folders. The server checks them
+    /// against its file system too.
+    pub fn set_project_folders(
+        &mut self,
+        id: ProjectId,
+        folders: Vec<PathBuf>,
+    ) -> Result<(), AppError> {
+        use std::os::unix::ffi::OsStrExt;
+        let project = self.project_mut(id)?;
+        project.require_available()?;
+        let wire: Vec<_> = folders
+            .iter()
+            .map(|folder| muxy_protocol::ServerPath(folder.as_os_str().as_bytes().into()))
+            .collect();
+        let mut descriptor = project.descriptor();
+        descriptor.folders.clone_from(&wire);
+        if descriptor.validate().is_err() {
+            return Err(AppError::InvalidState(
+                "folders must be separate absolute folders outside the project's own".into(),
+            ));
+        }
+        self.patch_project(id, muxy_protocol::ProjectPatch::Folders(wire))?;
+        self.project_mut(id)?.folders = folders;
+        Ok(())
+    }
+
+    /// The extra folders a project shows: its own, or its parent's for a
+    /// worktree.
+    pub fn project_folders<'a>(&'a self, project: &'a Project) -> &'a [PathBuf] {
+        project
+            .parent_id
+            .and_then(|parent| self.project(parent))
+            .unwrap_or(project)
+            .folders
+            .as_slice()
+    }
+
     pub fn set_project_icon(
         &mut self,
         id: ProjectId,

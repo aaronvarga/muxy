@@ -178,6 +178,7 @@ fn project_folder(local: &Client) -> TestResult<(Folder, String)> {
             color: "#ffffff".into(),
             kind: None,
             parent_id: None,
+            folders: Vec::new(),
         }),
     })?;
     Ok((folder, project.to_string()))

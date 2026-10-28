@@ -582,6 +582,19 @@ impl AppModel {
     /// A server that isn't ready yet connects first, asking for its password
     /// if needed, and the picker opens once it is.
     pub(crate) fn open_remote_project_picker(&mut self, server: ServerId, cx: &mut Context<Self>) {
+        self.open_remote_picker(server, None, cx);
+    }
+
+    /// The remote picker, adding the chosen folder to `folder_for` when set
+    /// rather than as a project.
+    pub(crate) fn open_remote_picker(
+        &mut self,
+        server: ServerId,
+        folder_for: Option<muxy_app_core::ProjectId>,
+        cx: &mut Context<Self>,
+    ) {
+        self.folder_for = folder_for;
+        let intent = folder_for.map_or(RemoteIntent::AddProject, RemoteIntent::AddFolder);
         let Some(name) = self.server_name(server).map(str::to_owned) else {
             return;
         };
@@ -594,7 +607,7 @@ impl AppModel {
         let (Some((project, home)), true, true, Some(client)) =
             (home, ready, self.confirmed(server), client)
         else {
-            self.pending_remote = Some(PendingRemote::new(server, RemoteIntent::AddProject));
+            self.pending_remote = Some(PendingRemote::new(server, intent));
             if ready && self.extensions.client(server).is_none() {
                 self.extension_client(server, cx);
             } else {
@@ -750,6 +763,11 @@ impl AppModel {
     /// Adds a folder on another computer; its server checks that it exists.
     fn open_remote_project_path(&mut self, server: ServerId, path: &str, cx: &mut Context<Self>) {
         let path = path_service::standardize(path);
+        if let Some(project) = self.folder_for.take() {
+            self.push_project_folder(project, PathBuf::from(path), cx);
+            self.dismiss_overlay(cx);
+            return;
+        }
         let existing = self
             .state
             .projects()

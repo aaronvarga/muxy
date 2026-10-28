@@ -33,7 +33,13 @@ impl Feature {
     pub const TERMINAL_INPUT: Self = Self(1);
     /// New sessions start with the environment their request names.
     pub const SESSION_ENVIRONMENT: Self = Self(2);
+    /// Projects carry extra folders, and file requests can name one.
+    pub const PROJECT_FOLDERS: Self = Self(3);
 }
 
 /// Features this build's server supports.
-pub const FEATURES: &[Feature] = &[Feature::TERMINAL_INPUT, Feature::SESSION_ENVIRONMENT];
+pub const FEATURES: &[Feature] = &[
+    Feature::TERMINAL_INPUT,
+    Feature::SESSION_ENVIRONMENT,
+    Feature::PROJECT_FOLDERS,
+];

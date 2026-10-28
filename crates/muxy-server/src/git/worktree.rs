@@ -276,6 +276,7 @@ impl Registry {
             color: parent.color.clone(),
             kind: Some(ProjectKind::Worktree),
             parent_id: Some(parent.id),
+            folders: Vec::new(),
         };
         project
             .validate()

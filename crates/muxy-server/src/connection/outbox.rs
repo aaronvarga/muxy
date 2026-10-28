@@ -281,7 +281,7 @@ impl Outbox {
                 return;
             }
             if let Message::FilesChanged { project, changes } = &message
-                && let Some(Message::FilesChanged { changes: pending, .. }) = state.control.iter_mut().find(|pending| matches!(pending, Message::FilesChanged { project: id, .. } if id == project)) {
+                && let Some(Message::FilesChanged { changes: pending, .. }) = state.control.iter_mut().find(|pending| matches!(pending, Message::FilesChanged { project: id, changes: queued } if id == project && queued.root == changes.root)) {
                 pending.merge(changes);
                 return;
             }
@@ -643,6 +643,7 @@ mod tests {
                 changes: muxy_protocol::FileChanges {
                     paths: vec![muxy_protocol::ServerPath(index.to_string().into_bytes())],
                     rescan: false,
+                    root: None,
                 },
             });
         }
@@ -655,11 +656,108 @@ mod tests {
                     project,
                     changes: muxy_protocol::FileChanges {
                         paths: Vec::new(),
-                        rescan: true
+                        rescan: true,
+                        root: None,
                     }
                 }
             ))
         );
+    }
+
+    #[test]
+    fn file_changes_from_different_folders_both_arrive() {
+        let outbox = Outbox::new(Arc::default());
+        let project = muxy_protocol::ProjectId::new();
+        let extra = Some(muxy_protocol::ServerPath(b"/srv/shared".to_vec()));
+        for (rescan, root) in [(true, None), (false, extra.clone())] {
+            outbox.push_control(Message::FilesChanged {
+                project,
+                changes: muxy_protocol::FileChanges {
+                    paths: if rescan {
+                        Vec::new()
+                    } else {
+                        vec![muxy_protocol::ServerPath(b"file".to_vec())]
+                    },
+                    rescan,
+                    root,
+                },
+            });
+        }
+        let roots: Vec<_> = std::iter::from_fn(|| outbox.next())
+            .take(2)
+            .map(|(_, message)| match message {
+                Message::FilesChanged { changes, .. } => (changes.rescan, changes.root),
+                other => panic!("unexpected {other:?}"),
+            })
+            .collect();
+        assert_eq!(roots, vec![(true, None), (false, extra)]);
+    }
+
+    #[test]
+    fn extra_folder_changes_name_their_folder_and_stop_once_it_is_removed() {
+        use muxy_protocol::{
+            FilesAction, FilesRequest, OperationId, ProjectDescriptor, ProjectIntent,
+            ProjectMutation, ProjectPatch, ServerPath,
+        };
+        use std::os::unix::ffi::OsStrExt;
+        let temp = |name: &str| {
+            let path = std::env::temp_dir().join(format!("muxy-{name}-{}", OperationId::new()));
+            std::fs::create_dir(&path).unwrap();
+            path.canonicalize().unwrap()
+        };
+        let (main, extra) = (temp("main"), temp("extra"));
+        let wire = |path: &std::path::Path| ServerPath(path.as_os_str().as_bytes().to_vec());
+        let (events, _) = mpsc::channel();
+        let registry = crate::Registry::new(crate::ServerSettings::default(), events);
+        let project = ProjectDescriptor::new(wire(&main), []);
+        let mutate = |mutation| {
+            registry
+                .mutate_project(&ProjectIntent {
+                    operation: OperationId::new(),
+                    mutation,
+                })
+                .unwrap();
+        };
+        mutate(ProjectMutation::Create(project.clone()));
+        let patch = |folders| ProjectMutation::Patch {
+            project: project.id,
+            patch: ProjectPatch::Folders(folders),
+        };
+        mutate(patch(vec![wire(&extra)]));
+        let outbox = Arc::new(Outbox::new(Arc::default()));
+        let mut watches = crate::files::watch::Subscriptions::default();
+        watches
+            .request(
+                &registry,
+                &outbox,
+                &FilesRequest {
+                    project: project.id,
+                    action: FilesAction::Watch,
+                    root: Some(wire(&extra)),
+                },
+            )
+            .unwrap();
+        let changed = |name: &str, wait: Duration| {
+            std::fs::write(extra.join(name), "x").unwrap();
+            let deadline = std::time::Instant::now() + wait;
+            while std::time::Instant::now() < deadline {
+                if let Some(message) = outbox.lock().control.pop_front() {
+                    return Some(message);
+                }
+                thread::sleep(Duration::from_millis(20));
+            }
+            None
+        };
+        let Some(Message::FilesChanged { changes, .. }) = changed("a", Duration::from_secs(5))
+        else {
+            panic!("no change reported");
+        };
+        assert_eq!(changes.root, Some(wire(&extra)));
+        mutate(patch(Vec::new()));
+        assert_eq!(changed("b", Duration::from_secs(1)), None);
+        drop(watches);
+        let _ = std::fs::remove_dir_all(&main);
+        let _ = std::fs::remove_dir_all(&extra);
     }
 
     fn frame(seq: u64, index: u16) -> ScreenFrame {

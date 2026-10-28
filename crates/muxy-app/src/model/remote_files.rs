@@ -146,6 +146,7 @@ impl RemoteFiles {
             .files(FilesRequest {
                 project,
                 action: action(wire_path(&relative)),
+                root: None,
             })
             .ok()
     }
@@ -162,6 +163,7 @@ impl RemoteFiles {
             self.client.files(FilesRequest {
                 project,
                 action: FilesAction::Stat(ServerPath(path.to_vec())),
+                root: None,
             })
         };
         let missing = |error: &ClientError| matches!(error, ClientError::Server(error) if error.code == ErrorCode::BadPath);
@@ -192,6 +194,7 @@ impl RemoteFiles {
         let request = FilesRequest {
             project,
             action: FilesAction::ReadBytes(wire_path(&relative)),
+            root: None,
         };
         match self.client.files(request) {
             Ok(FilesReply::Bytes(file)) => Ok(file.bytes),

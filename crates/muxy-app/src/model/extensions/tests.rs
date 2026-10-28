@@ -858,3 +858,148 @@ fn project_and_agent_lists_use_main_shapes(cx: &mut TestAppContext) {
     );
     assert_eq!(rename["error"], "permission denied (projects:write)");
 }
+
+#[gpui::test]
+fn folder_calls_never_reach_servers_that_would_ignore_the_folder(cx: &mut TestAppContext) {
+    let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, _| {
+        let (reply, _replies) = std::sync::mpsc::sync_channel(1);
+        let call = |args| Call {
+            owner: "files".into(),
+            epoch: 0,
+            generation: model.servers.local.generation,
+            project: model.state.home().id,
+            verb: "files.write".into(),
+            args,
+            reply: Reply::Script(1, reply.clone()),
+            approved: false,
+        };
+        let extra = call(json!({"path": "a", "contents": "x", "root": "/srv/shared"}));
+        assert!(calls::files_request(&extra, false).is_err());
+        let request = calls::files_request(&extra, true).expect("request");
+        assert_eq!(
+            request.root,
+            Some(muxy_protocol::ServerPath(b"/srv/shared".to_vec()))
+        );
+        let main = call(json!({"path": "a", "contents": "x", "root": null}));
+        assert_eq!(
+            calls::files_request(&main, false).expect("request").root,
+            None
+        );
+    });
+}
+
+#[gpui::test]
+fn the_current_project_keeps_its_watches_when_folders_fill_the_cap(cx: &mut TestAppContext) {
+    let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, _| {
+        let busy = tempfile::tempdir().expect("folder");
+        let current = tempfile::tempdir().expect("folder");
+        let busy = model
+            .state
+            .add_project(ServerId::local(), busy.path().into())
+            .expect("project");
+        let current = model
+            .state
+            .add_project(ServerId::local(), current.path().into())
+            .expect("project");
+        for (project, parent) in [(busy, "/theirs"), (current, "/mine")] {
+            let folders = (0..16)
+                .map(|index| format!("{parent}/{index}").into())
+                .collect();
+            model
+                .state
+                .set_project_folders(project, folders)
+                .expect("folders");
+        }
+        assert_eq!(model.state.current_project().id, current);
+        let keys = model.watch_keys([busy, current].into());
+        assert_eq!(keys.len(), 32);
+        assert!(keys.contains(&(current, None)));
+        assert_eq!(
+            keys.iter()
+                .filter(|(project, _)| *project == current)
+                .count(),
+            17
+        );
+    });
+}
+
+#[gpui::test]
+fn refused_folder_watches_wait_until_the_folder_is_added_again(cx: &mut TestAppContext) {
+    let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, _| {
+        let directory = tempfile::tempdir().expect("folder");
+        let project = model
+            .state
+            .add_project(ServerId::local(), directory.path().into())
+            .expect("project");
+        let folder = std::path::PathBuf::from("/srv/shared");
+        let set = |model: &mut AppModel, folders: Vec<std::path::PathBuf>| {
+            model
+                .state
+                .set_project_folders(project, folders)
+                .expect("folders");
+        };
+        set(model, vec![folder.clone()]);
+        let key = (project, Some(folder.clone()));
+        model.extensions.events.refused.insert(key.clone());
+        assert!(!model.wanted_watches([project].into()).contains(&key));
+        assert!(!model.wanted_watches([project].into()).contains(&key));
+        set(model, Vec::new());
+        model.wanted_watches([project].into());
+        set(model, vec![folder]);
+        assert!(model.wanted_watches([project].into()).contains(&key));
+    });
+}
+
+#[gpui::test]
+fn a_folder_shared_by_a_project_and_its_worktree_is_watched_once(cx: &mut TestAppContext) {
+    use std::os::unix::ffi::OsStrExt;
+    let directory = tempfile::tempdir().expect("folder");
+    let mut state = AppState::bootstrap().expect("state");
+    let project = state
+        .add_project(ServerId::local(), directory.path().into())
+        .expect("project");
+    state
+        .set_project_folders(project, vec!["/srv/shared".into()])
+        .expect("folders");
+    let worktree = tempfile::tempdir().expect("folder");
+    let mut descriptor = state.project(project).expect("parent").descriptor();
+    let child = ProjectId::new();
+    descriptor.id = child;
+    descriptor.directory = muxy_protocol::ServerPath(worktree.path().as_os_str().as_bytes().into());
+    descriptor.parent_id = Some(project);
+    descriptor.kind = Some(muxy_app_core::ProjectKind::Worktree);
+    descriptor.folders.clear();
+    let mut projects: Vec<_> = state
+        .projects()
+        .iter()
+        .map(muxy_app_core::Project::descriptor)
+        .collect();
+    projects.push(descriptor);
+    state
+        .apply_catalog(
+            ServerId::local(),
+            &muxy_protocol::CatalogPage {
+                server: muxy_protocol::ServerIdentity::from_u128(1),
+                home: state.home().id,
+                revision: 1,
+                projects,
+                next: None,
+                legacy_home: None,
+            },
+        )
+        .expect("catalog");
+    let (boot, _) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, _| {
+        let keys = model.watch_keys([project, child].into());
+        let shared = keys.iter().filter(|(_, folder)| folder.is_some()).count();
+        assert_eq!(shared, 1);
+        assert!(keys.contains(&(project, None)) && keys.contains(&(child, None)));
+    });
+}

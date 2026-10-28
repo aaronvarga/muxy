@@ -39,6 +39,7 @@ impl Workspace {
                     color: "#ffffff".into(),
                     kind: None,
                     parent_id: None,
+                    folders: Vec::new(),
                 }),
             })
             .unwrap();
@@ -53,6 +54,7 @@ impl Workspace {
         self.registry.files(&FilesRequest {
             project: self.project,
             action,
+            root: None,
         })
     }
 
@@ -386,6 +388,7 @@ fn project_reads_overlap_and_mutations_wait_for_readers() {
             let _ = read.send(workspace.registry.files(&FilesRequest {
                 project: workspace.project,
                 action: FilesAction::List(ServerPath(Vec::new())),
+                root: None,
             }));
         });
         let result = completed.recv_timeout(std::time::Duration::from_secs(3));
@@ -394,6 +397,7 @@ fn project_reads_overlap_and_mutations_wait_for_readers() {
             let _ = write.send(workspace.registry.files(&FilesRequest {
                 project: workspace.project,
                 action: FilesAction::Mkdir(ServerPath(b"parallel".to_vec())),
+                root: None,
             }));
         });
         let early_write = written.recv_timeout(std::time::Duration::from_millis(100));
@@ -408,4 +412,181 @@ fn project_reads_overlap_and_mutations_wait_for_readers() {
             FilesReply::Path(_)
         ));
     });
+}
+
+/// A folder outside every workspace, removed with the test.
+struct Folder(PathBuf);
+
+impl Folder {
+    fn new() -> Self {
+        let path = std::env::temp_dir().join(format!("muxy-folder-{}", OperationId::new()));
+        std::fs::create_dir(&path).unwrap();
+        Self(path.canonicalize().unwrap())
+    }
+}
+
+impl Drop for Folder {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+impl Workspace {
+    fn mutate(&self, mutation: ProjectMutation) -> Result<u64> {
+        self.registry.mutate_project(&ProjectIntent {
+            operation: OperationId::new(),
+            mutation,
+        })
+    }
+
+    fn set_folders(&self, folders: &[&Path]) -> Result<u64> {
+        self.mutate(ProjectMutation::Patch {
+            project: self.project,
+            patch: muxy_protocol::ProjectPatch::Folders(
+                folders.iter().map(|folder| wire_path(folder)).collect(),
+            ),
+        })
+    }
+
+    fn files_in(&self, project: ProjectId, root: &Path, action: FilesAction) -> Result<FilesReply> {
+        self.registry.files(&FilesRequest {
+            project,
+            action,
+            root: Some(wire_path(root)),
+        })
+    }
+}
+
+#[test]
+fn requests_reach_only_listed_folders_and_never_cross_between_them() {
+    let workspace = Workspace::new();
+    let extra = Folder::new();
+    let unlisted = Folder::new();
+    std::fs::write(workspace.path.join("main.txt"), "main").unwrap();
+    std::fs::write(unlisted.0.join("secret.txt"), "secret").unwrap();
+    std::fs::create_dir(workspace.path.join("sub")).unwrap();
+    workspace.set_folders(&[&extra.0]).unwrap();
+    let write = |name: &str| FilesAction::Write {
+        path: p(name),
+        content: "extra".into(),
+    };
+    workspace
+        .files_in(workspace.project, &extra.0, write("main.txt"))
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(workspace.path.join("main.txt")).unwrap(),
+        "main"
+    );
+    assert_eq!(
+        std::fs::read_to_string(extra.0.join("main.txt")).unwrap(),
+        "extra"
+    );
+    for root in [unlisted.0.as_path(), &workspace.path.join("sub")] {
+        assert!(
+            workspace
+                .files_in(workspace.project, root, write("x"))
+                .is_err()
+        );
+        assert!(
+            workspace
+                .files_in(workspace.project, root, FilesAction::List(p("")))
+                .is_err()
+        );
+    }
+    let main = workspace.path.file_name().unwrap().to_str().unwrap();
+    symlink(workspace.path.join("main.txt"), extra.0.join("link")).unwrap();
+    for escape in [format!("../{main}/main.txt"), "link".into()] {
+        assert!(
+            workspace
+                .files_in(workspace.project, &extra.0, FilesAction::Read(p(&escape)))
+                .is_err()
+        );
+    }
+    assert!(
+        workspace
+            .files_in(
+                workspace.project,
+                &extra.0,
+                FilesAction::Delete(vec![p("")])
+            )
+            .is_err()
+    );
+    assert!(extra.0.is_dir());
+}
+
+#[test]
+fn folders_cannot_overlap_even_through_links_or_worktrees() {
+    let workspace = Workspace::new();
+    let extra = Folder::new();
+    let links = Folder::new();
+    std::fs::create_dir(workspace.path.join("sub")).unwrap();
+    symlink(workspace.path.join("sub"), links.0.join("alias")).unwrap();
+    std::fs::create_dir(extra.0.join("inner")).unwrap();
+    let alias = workspace
+        .set_folders(&[&links.0.join("alias")])
+        .unwrap_err();
+    assert!(alias.to_string().contains("contain"), "{alias}");
+    assert!(workspace.set_folders(&[&links.0.join("missing")]).is_err());
+    assert!(
+        workspace
+            .set_folders(&[&extra.0, &extra.0.join("inner")])
+            .is_err()
+    );
+    let gone = Folder::new();
+    workspace.set_folders(&[&extra.0, &gone.0]).unwrap();
+    std::fs::remove_dir(&gone.0).unwrap();
+    let worktree = |directory: &Path| {
+        ProjectMutation::Create(ProjectDescriptor {
+            id: ProjectId::new(),
+            home: false,
+            directory: wire_path(directory),
+            name: "Worktree".into(),
+            icon: None,
+            logo: None,
+            color: "#ffffff".into(),
+            kind: Some(muxy_protocol::ProjectKind::Worktree),
+            parent_id: Some(workspace.project),
+            folders: Vec::new(),
+        })
+    };
+    let git = |args: &[&str]| {
+        let status = std::process::Command::new("git")
+            .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+            .args(args)
+            .current_dir(&workspace.path)
+            .output()
+            .unwrap();
+        assert!(status.status.success(), "{status:?}");
+    };
+    git(&["init", "-q"]);
+    git(&["commit", "-q", "--allow-empty", "-m", "init"]);
+    let elsewhere = Folder::new();
+    for (branch, directory) in [
+        ("nested", extra.0.join("wt")),
+        ("ok", elsewhere.0.join("wt")),
+    ] {
+        git(&[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            branch,
+            directory.to_str().unwrap(),
+        ]);
+    }
+    let nested = workspace.mutate(worktree(&extra.0.join("wt"))).unwrap_err();
+    assert!(nested.to_string().contains("contain"), "{nested}");
+    let child = worktree(&elsewhere.0.join("wt"));
+    let ProjectMutation::Create(descriptor) = &child else {
+        unreachable!()
+    };
+    let child_id = descriptor.id;
+    // A parent's folder that has gone missing doesn't block new worktrees.
+    workspace.mutate(child).unwrap();
+    // A worktree works in its parent's folders.
+    assert!(
+        workspace
+            .files_in(child_id, &extra.0, FilesAction::List(p("")))
+            .is_ok()
+    );
 }

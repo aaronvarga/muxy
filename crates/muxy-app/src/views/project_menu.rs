@@ -10,7 +10,13 @@ use crate::model::{AppModel, git::Repository};
 
 /// The menu of a top-level project. `worktrees` is `None` when its folder is not
 /// a Git repository, and otherwise whether its worktrees are shown.
-pub(crate) fn items(state: &AppState, project: &Project, worktrees: Option<bool>) -> Vec<Item> {
+/// `folders` is whether its server can hold extra folders.
+pub(crate) fn items(
+    state: &AppState,
+    project: &Project,
+    worktrees: Option<bool>,
+    folders: bool,
+) -> Vec<Item> {
     let id = project.id;
     if project.status() != ProjectStatus::Available {
         return removal(project);
@@ -44,6 +50,9 @@ pub(crate) fn items(state: &AppState, project: &Project, worktrees: Option<bool>
             );
         }
     }
+    if folders && !project.home {
+        items.push(Item::submenu(tr!("Folders"), folder_items(project)));
+    }
     items.extend(path_items(project));
     items.extend(removal(project).into_iter().map(Item::separated));
     items
@@ -64,6 +73,33 @@ fn path_items(project: &Project) -> Vec<Item> {
     } else {
         vec![copy.separated()]
     }
+}
+
+fn folder_items(project: &Project) -> Vec<Item> {
+    let mut items = vec![Item::action(
+        tr!("Add Folder…"),
+        Command::AddProjectFolder(project.id),
+    )];
+    items.extend(project.folders.iter().enumerate().map(|(index, folder)| {
+        let name = folder
+            .file_name()
+            .unwrap_or(folder.as_os_str())
+            .to_string_lossy();
+        let item = Item::action(
+            tr!("Remove “%@”", &name),
+            Command::RemoveProjectFolder(project.id, folder_key(folder)),
+        );
+        if index == 0 { item.separated() } else { item }
+    }));
+    items
+}
+
+/// Names a folder in a menu command, which must be `Copy`.
+pub(crate) fn folder_key(folder: &std::path::Path) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    folder.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn removal(project: &Project) -> Vec<Item> {
@@ -183,11 +219,88 @@ impl AppModel {
                 .projects
                 .get(&project.id)
                 .is_some_and(Repository::not_a_repository);
+        let folders = project.server_id.is_local()
+            || self
+                .extensions
+                .client(project.server_id)
+                .is_some_and(|client| client.supports(muxy_protocol::Feature::PROJECT_FOLDERS));
         items(
             &self.state,
             project,
             repository.then(|| self.worktrees_visible(project.id)),
+            folders,
         )
+    }
+
+    /// Adds an extra folder to a top-level project, chosen in Finder or, for
+    /// another computer, in the remote folder picker.
+    pub(crate) fn add_project_folder(&mut self, project: ProjectId, cx: &mut Context<Self>) {
+        let Some(server) = self.state.project(project).map(|project| project.server_id) else {
+            return;
+        };
+        if !server.is_local() {
+            self.open_remote_picker(server, Some(project), cx);
+            return;
+        }
+        let paths = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some(tr!("Add Folder")),
+        });
+        cx.spawn(async move |model, cx| {
+            if let Ok(Ok(Some(paths))) = paths.await
+                && let Some(folder) = paths.into_iter().next()
+            {
+                let _ = model.update(cx, |model, cx| {
+                    model.push_project_folder(project, folder, cx);
+                });
+            }
+        })
+        .detach();
+    }
+
+    pub(crate) fn push_project_folder(
+        &mut self,
+        project: ProjectId,
+        folder: std::path::PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(mut folders) = self
+            .state
+            .project(project)
+            .map(|project| project.folders.clone())
+        else {
+            return;
+        };
+        if !folders.contains(&folder) {
+            folders.push(folder);
+            if self.edit_project(|state| state.set_project_folders(project, folders), cx) {
+                self.sync_extension_events(cx);
+            }
+        }
+    }
+
+    pub(crate) fn remove_project_folder(
+        &mut self,
+        project: ProjectId,
+        key: u64,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(mut folders) = self
+            .state
+            .project(project)
+            .map(|project| project.folders.clone())
+        else {
+            return;
+        };
+        if let Some(index) = folders.iter().position(|folder| folder_key(folder) == key) {
+            folders.remove(index);
+            if self.edit_project(|state| state.set_project_folders(project, folders), cx) {
+                // Stops watching the removed folder now rather than at the next change.
+                self.sync_extension_events(cx);
+            }
+        }
     }
 
     pub(crate) fn confirm_remove_project(&mut self, project: ProjectId, cx: &mut Context<Self>) {

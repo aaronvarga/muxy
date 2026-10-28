@@ -195,6 +195,7 @@ fn folder_gone(
         client.files_async(muxy_protocol::FilesRequest {
             project,
             action: muxy_protocol::FilesAction::Stat(ServerPath(Vec::new())),
+            root: None,
         })
     });
     async move {

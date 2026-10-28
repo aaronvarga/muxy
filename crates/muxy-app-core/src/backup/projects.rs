@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use muxy_protocol::{ProjectDescriptor, ProjectMutation, ProjectPatch};
 use serde_json::Value;
@@ -188,6 +188,11 @@ impl AppState {
                 restored.workspaces.push(workspace.clone());
             }
         }
+        for project in &mut restored.projects {
+            if imported.contains(&project.id) {
+                keep_usable_folders(project);
+            }
+        }
         let creates: Vec<_> = restored
             .projects
             .iter()
@@ -214,6 +219,12 @@ impl AppState {
                         .then(|| (project.id, ProjectPatch::Color(project.color.to_string()))),
                     (project.logo != previous.logo)
                         .then(|| (project.id, ProjectPatch::Logo(project.logo.clone()))),
+                    (project.folders != previous.folders).then(|| {
+                        (
+                            project.id,
+                            ProjectPatch::Folders(project.descriptor().folders),
+                        )
+                    }),
                 ]
                 .into_iter()
                 .flatten()
@@ -261,6 +272,7 @@ impl AppState {
             };
             let mut project = project.clone();
             project.parent_id = parent;
+            keep_usable_folders(&mut project);
             ids.insert(project.id, project.id);
             creates.push(project.descriptor());
             merged.projects.push(project);
@@ -508,6 +520,7 @@ fn legacy_project(
         server_id: ServerId::local(),
         kind: None,
         parent_id: None,
+        folders: Vec::new(),
         tabs: Vec::new(),
         groups: None,
         status: ProjectStatus::Available,
@@ -664,6 +677,7 @@ fn legacy_worktree(id: ProjectId, value: &Value, parent: &Project) -> Result<Pro
         server_id: ServerId::local(),
         kind: Some(crate::ProjectKind::Worktree),
         parent_id: Some(parent.id),
+        folders: Vec::new(),
         tabs: Vec::new(),
         groups: None,
         status: ProjectStatus::Available,
@@ -812,4 +826,31 @@ fn import_layout(
         }),
         (first, second) => first.or(second),
     })
+}
+
+/// Drops extra folders this Mac no longer has, or that overlap the project's
+/// folder or another one through links, which the server would refuse along
+/// with the whole project.
+fn keep_usable_folders(project: &mut Project) {
+    use std::os::unix::ffi::OsStrExt;
+    let canonical = |path: &Path| {
+        path.canonicalize()
+            .ok()
+            .filter(|path| path.is_dir())
+            .map(|path| path.as_os_str().as_bytes().to_vec())
+    };
+    let mut taken: Vec<_> = canonical(&project.directory).into_iter().collect();
+    project.folders.retain(|folder| {
+        let Some(path) = canonical(folder) else {
+            return false;
+        };
+        if taken
+            .iter()
+            .any(|other| muxy_protocol::overlaps(&path, other))
+        {
+            return false;
+        }
+        taken.push(path);
+        true
+    });
 }

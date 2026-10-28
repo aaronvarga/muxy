@@ -149,6 +149,8 @@ pub(crate) struct AppModel {
     pub(crate) remote_selection_anchor: Option<ServerId>,
     pub(crate) servers_tab: crate::views::servers_tab::ServersTab,
     pub(crate) pending_remote: Option<PendingRemote>,
+    /// The project the open remote picker adds a folder to, if not a project.
+    pub(crate) folder_for: Option<ProjectId>,
     pub(crate) pending_folders: Vec<PathBuf>,
     pub(crate) remote_links: remote_files::RemoteLinks,
     pub(crate) tips: tips::Tips,
@@ -552,6 +554,7 @@ impl AppModel {
             remote_selection_anchor: None,
             servers_tab: crate::views::servers_tab::ServersTab::new(cx),
             pending_remote: None,
+            folder_for: None,
             pending_folders: Vec::new(),
             remote_links: remote_files::RemoteLinks::default(),
             tips: tips::Tips::default(),

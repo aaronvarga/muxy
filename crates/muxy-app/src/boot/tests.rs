@@ -368,6 +368,7 @@ fn pending_extension_replies_do_not_block_app_requests_or_flush() -> TestResult 
     let files = client.files_async(muxy_protocol::FilesRequest {
         project,
         action: muxy_protocol::FilesAction::List(muxy_protocol::ServerPath(Vec::new())),
+        root: None,
     });
     let git = client.git_async(muxy_protocol::GitRequest {
         project,

@@ -1,7 +1,10 @@
 use super::{Catalog, Receipt, ServerError, State, bad, unknown};
-use muxy_protocol::{MAX_PROJECTS, ProjectId, ProjectIntent, ProjectMutation, SessionId};
+use muxy_protocol::{
+    MAX_PROJECTS, ProjectDescriptor, ProjectId, ProjectIntent, ProjectMutation, ProjectPatch,
+    ServerPath, SessionId,
+};
 use std::ffi::OsStr;
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::Path;
 
 impl Catalog {
@@ -37,6 +40,7 @@ impl Catalog {
                         ))
                     } else {
                         state.validate_parent(project).and_then(|()| {
+                            state.validate_folders(project, &project.folders)?;
                             if project
                                 .parent_id
                                 .is_some_and(|id| state.deleting.contains(&id))
@@ -51,8 +55,13 @@ impl Catalog {
                 ProjectMutation::Patch { project, patch } => {
                     if state.deleting.contains(project) {
                         Err(unknown())
-                    } else if let Some(project) = state.projects.get_mut(project) {
-                        patch.apply(project);
+                    } else if let Some(descriptor) = state.projects.get(project).cloned() {
+                        if let ProjectPatch::Folders(folders) = patch {
+                            state.validate_folders(&descriptor, folders)?;
+                        }
+                        if let Some(project) = state.projects.get_mut(project) {
+                            patch.apply(project);
+                        }
                         Ok(())
                     } else {
                         Err(unknown())
@@ -154,4 +163,69 @@ impl State {
                 .values()
                 .any(|session| session.info.project == id)
     }
+}
+
+impl State {
+    /// Checks a project's extra folders against the file system, which the
+    /// protocol cannot: each exists, and none overlaps the project's folder,
+    /// another folder or a worktree, even through a link.
+    fn validate_folders(
+        &self,
+        project: &ProjectDescriptor,
+        folders: &[ServerPath],
+    ) -> Result<(), ServerError> {
+        let canonical = |path: &ServerPath| {
+            Path::new(OsStr::from_bytes(&path.0))
+                .canonicalize()
+                .map(|path| path.into_os_string().into_vec())
+        };
+        let folders = match project.parent_id {
+            // A worktree shows its parent's folders, so it must not overlap them.
+            Some(parent) => self
+                .projects
+                .get(&parent)
+                .map(|parent| parent.folders.clone())
+                .unwrap_or_default(),
+            None => folders.to_vec(),
+        };
+        let mut seen = Vec::new();
+        for folder in &folders {
+            let Ok(path) = canonical(folder) else {
+                // A parent's folder may be gone, such as an unmounted drive;
+                // it can't overlap a new worktree then.
+                if project.parent_id.is_some() {
+                    continue;
+                }
+                return Err(folder_error("A folder does not exist"));
+            };
+            if !Path::new(OsStr::from_bytes(&path)).is_dir() && project.parent_id.is_none() {
+                return Err(folder_error("A folder is not a folder"));
+            }
+            seen.push(path);
+        }
+        let mut others: Vec<Vec<u8>> =
+            vec![canonical(&project.directory).unwrap_or_else(|_| project.directory.0.clone())];
+        others.extend(
+            self.projects
+                .values()
+                .filter(|child| child.parent_id == Some(project.id))
+                .map(|child| {
+                    canonical(&child.directory).unwrap_or_else(|_| child.directory.0.clone())
+                }),
+        );
+        for (index, folder) in seen.iter().enumerate() {
+            if others
+                .iter()
+                .chain(&seen[index + 1..])
+                .any(|other| muxy_protocol::overlaps(folder, other))
+            {
+                return Err(folder_error("Folders cannot contain one another"));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn folder_error(message: &str) -> ServerError {
+    ServerError::new(muxy_protocol::ErrorCode::BadPath, message)
 }

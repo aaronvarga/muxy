@@ -30,6 +30,17 @@ impl Catalog {
         }
         state.projects.get(&id).cloned().ok_or_else(unknown)
     }
+    /// Folders a project's files requests may name besides its directory: its
+    /// own, or its parent's for a worktree.
+    pub(crate) fn folders(&self, project: &ProjectDescriptor) -> Vec<muxy_protocol::ServerPath> {
+        let state = self.lock();
+        project
+            .parent_id
+            .and_then(|parent| state.projects.get(&parent))
+            .unwrap_or(project)
+            .folders
+            .clone()
+    }
     pub(crate) fn child_at(&self, parent: ProjectId, path: &Path) -> Option<ProjectId> {
         use std::os::unix::ffi::OsStrExt;
         let canonical = path.canonicalize().ok()?;

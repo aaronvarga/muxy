@@ -106,6 +106,12 @@ pub struct ProjectDescriptor {
     pub kind: Option<ProjectKind>,
     #[n(8)]
     pub parent_id: Option<ProjectId>,
+    /// Extra folders shown beside `directory`; a worktree uses its parent's.
+    /// Needs `Feature::PROJECT_FOLDERS`.
+    #[n(9)]
+    #[cbor(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folders: Vec<ServerPath>,
 }
 
 /// The colors a new project picks from.
@@ -159,6 +165,7 @@ impl ProjectDescriptor {
             color: color.into(),
             kind: None,
             parent_id: None,
+            folders: Vec::new(),
         }
     }
 
@@ -176,8 +183,57 @@ impl ProjectDescriptor {
         {
             return Err(ErrorCode::BadRequest);
         }
+        if !self.folders.is_empty() && (self.home || self.parent_id.is_some()) {
+            return Err(ErrorCode::BadRequest);
+        }
+        validate_folders(&self.folders)?;
+        if self
+            .folders
+            .iter()
+            .any(|folder| overlaps(&folder.0, &self.directory.0))
+        {
+            return Err(ErrorCode::BadRequest);
+        }
         Ok(())
     }
+}
+
+pub const MAX_PROJECT_FOLDERS: usize = 16;
+
+/// Extra folders: few, absolute, normalized, and none inside another.
+/// Symlinked aliases can only be caught on the server's file system.
+fn validate_folders(folders: &[ServerPath]) -> Result<(), ErrorCode> {
+    let normalized = |path: &[u8]| {
+        path.len() > 1
+            && path.len() <= 4096
+            && path.starts_with(b"/")
+            && !path.ends_with(b"/")
+            && !path.contains(&0)
+            && path
+                .split(|byte| *byte == b'/')
+                .skip(1)
+                .all(|part| !matches!(part, b"" | b"." | b".."))
+    };
+    if folders.len() > MAX_PROJECT_FOLDERS
+        || !folders.iter().all(|folder| normalized(&folder.0))
+        || folders.iter().enumerate().any(|(index, folder)| {
+            folders[index + 1..]
+                .iter()
+                .any(|other| overlaps(&folder.0, &other.0))
+        })
+    {
+        return Err(ErrorCode::BadRequest);
+    }
+    Ok(())
+}
+
+/// Whether either path is the other or inside it.
+pub fn overlaps(a: &[u8], b: &[u8]) -> bool {
+    let inside = |inner: &[u8], outer: &[u8]| {
+        let outer = outer.strip_suffix(b"/").unwrap_or(outer);
+        inner.starts_with(outer) && matches!(inner.get(outer.len()), None | Some(b'/'))
+    };
+    inside(a, b) || inside(b, a)
 }
 
 fn validate_name(name: &str) -> Result<(), ErrorCode> {
@@ -264,6 +320,9 @@ pub enum ProjectPatch {
         #[cbor(with = "crate::wire::cbor::bytes")]
         Option<std::sync::Arc<[u8]>>,
     ),
+    /// Needs `Feature::PROJECT_FOLDERS`.
+    #[n(4)]
+    Folders(#[n(0)] Vec<ServerPath>),
 }
 
 impl ProjectPatch {
@@ -273,6 +332,7 @@ impl ProjectPatch {
             Self::Icon(icon) => validate_icon(icon.as_deref()),
             Self::Color(color) => validate_color(color),
             Self::Logo(logo) => validate_logo(logo.as_deref()),
+            Self::Folders(folders) => validate_folders(folders),
         }
     }
     pub fn apply(&self, project: &mut ProjectDescriptor) {
@@ -281,6 +341,7 @@ impl ProjectPatch {
             Self::Icon(icon) => project.icon.clone_from(icon),
             Self::Color(color) => project.color = color.to_ascii_lowercase(),
             Self::Logo(logo) => project.logo.clone_from(logo),
+            Self::Folders(folders) => project.folders.clone_from(folders),
         }
     }
 }

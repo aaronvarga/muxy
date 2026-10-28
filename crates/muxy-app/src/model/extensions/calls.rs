@@ -793,13 +793,28 @@ pub(super) fn exec_error(error: muxy_client::ClientError) -> String {
     }
 }
 
+/// An extension's files call. Servers without `folders` ignore `root` and
+/// would act on the project's own folder, so it is refused here instead.
+pub(super) fn files_request(call: &Call, folders: bool) -> Result<FilesRequest, String> {
+    let root = call.args["root"].as_str().filter(|root| !root.is_empty());
+    if root.is_some() && !folders {
+        return Err("This server does not support extra project folders".into());
+    }
+    Ok(FilesRequest {
+        project: call.project,
+        action: api::files_action(&call.verb, &call.args)?,
+        root: root.map(|root| ServerPath(root.as_bytes().into())),
+    })
+}
+
 async fn server_call(client: &muxy_client::Client, call: &Call) -> Result<Value, String> {
     if call.verb.starts_with("files.") {
+        let request = files_request(
+            call,
+            client.supports(muxy_protocol::Feature::PROJECT_FOLDERS),
+        )?;
         return client
-            .files_async(FilesRequest {
-                project: call.project,
-                action: api::files_action(&call.verb, &call.args)?,
-            })
+            .files_async(request)
             .await
             .map_err(|e| e.to_string())
             .and_then(api::files_reply);

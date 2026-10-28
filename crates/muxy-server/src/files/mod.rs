@@ -85,12 +85,25 @@ pub(crate) fn is_read(action: &FilesAction) -> bool {
 }
 
 impl Registry {
+    /// The folder a request runs in: the project's, or one of its extra
+    /// folders, named exactly.
+    pub(crate) fn files_root(&self, request: &FilesRequest) -> Result<PathBuf> {
+        let project = self.catalog.project(request.project)?;
+        match &request.root {
+            None => Ok(path(&project.directory).to_owned()),
+            Some(root) if *root == project.directory => Ok(path(root).to_owned()),
+            Some(root) if self.catalog.folders(&project).contains(root) => {
+                Ok(path(root).to_owned())
+            }
+            Some(_) => Err(error("Folder is not part of this project")),
+        }
+    }
+
     pub fn files(&self, request: &FilesRequest) -> Result<FilesReply> {
         request
             .validate()
             .map_err(|code| ServerError::new(code, "Invalid files request"))?;
-        let project = self.catalog.project(request.project)?;
-        let root = root::Root::open(path(&project.directory))?;
+        let root = root::Root::open(&self.files_root(request)?)?;
         let lock = self.files.lock_for(&root.path);
         let read = is_read(&request.action);
         let _read = read.then(|| lock.read().unwrap_or_else(PoisonError::into_inner));

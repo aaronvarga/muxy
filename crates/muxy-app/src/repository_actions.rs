@@ -198,6 +198,7 @@ impl Git for Client {
         match self.files(FilesRequest {
             project,
             action: FilesAction::Read(ServerPath(path.as_bytes().to_vec())),
+            root: None,
         }) {
             Ok(FilesReply::Content(content)) => Some(content.content),
             _ => None,

@@ -132,6 +132,47 @@ fn portable_restore_clears_sessions_and_queues_projects_before_catalog_reconcili
 }
 
 #[test]
+fn restoring_into_an_existing_project_patches_its_folders_and_drops_unusable_ones() {
+    let directory = tempfile::tempdir().unwrap();
+    let extra = tempfile::tempdir().unwrap();
+    let links = tempfile::tempdir().unwrap();
+    std::fs::create_dir(directory.path().join("inner")).unwrap();
+    let alias = links.path().join("alias");
+    std::os::unix::fs::symlink(directory.path().join("inner"), &alias).unwrap();
+    let mut current = AppState::bootstrap().unwrap();
+    let project = current
+        .add_project(ServerId::local(), directory.path().into())
+        .unwrap();
+    let mut backed_up = current.clone();
+    backed_up
+        .set_project_folders(
+            project,
+            vec![extra.path().into(), alias, "/muxy-gone".into()],
+        )
+        .unwrap();
+    let restored = backed_up
+        .configuration_backup()
+        .restore_configuration(&current)
+        .unwrap();
+    // The link into the project's own folder would make the server refuse
+    // the project, and the missing folder can't be shown.
+    let expected = vec![std::path::PathBuf::from(extra.path())];
+    assert_eq!(restored.project(project).unwrap().folders, expected);
+    assert!(
+        restored
+            .project_intents(ServerId::local())
+            .iter()
+            .any(|intent| matches!(
+                &intent.mutation,
+                muxy_protocol::ProjectMutation::Patch {
+                    patch: muxy_protocol::ProjectPatch::Folders(folders),
+                    ..
+                } if folders.len() == 1
+            ))
+    );
+}
+
+#[test]
 fn legacy_projects_restore_groups_and_split_terminal_layouts_and_skip_remote_data() {
     let folder = tempfile::tempdir().unwrap();
     let project = "01000000-0000-0000-0000-000000000001";

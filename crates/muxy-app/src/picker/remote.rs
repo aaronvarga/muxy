@@ -183,6 +183,7 @@ fn home_folders(
     let request = FilesRequest {
         project,
         action: FilesAction::List(ServerPath(relative.as_bytes().to_vec())),
+        root: None,
     };
     match client.files(request) {
         Ok(FilesReply::Entries(entries)) => Ok(entries
