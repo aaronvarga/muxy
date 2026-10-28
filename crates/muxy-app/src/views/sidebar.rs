@@ -215,7 +215,7 @@ pub(super) fn footer_button_size(model: &AppModel) -> Pixels {
 }
 
 pub(super) fn collapsed_item_size(model: &AppModel) -> Pixels {
-    model.metrics.scaled(34.0)
+    model.metrics.scaled(34.0) + model.sidebar_icon_growth()
 }
 
 fn add_project_button(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
@@ -336,6 +336,21 @@ impl AppModel {
         )
     }
 
+    /// The sidebar project icon size chosen in settings.
+    pub(crate) fn sidebar_icon(&self) -> Pixels {
+        self.metrics
+            .scaled(f32::from(self.appearance.sidebar_icon_size))
+    }
+
+    /// How much icons larger than the default widen collapsed sidebar rows.
+    fn sidebar_icon_growth(&self) -> Pixels {
+        px((f32::from(self.sidebar_icon()) - f32::from(self.metrics.icon_xxl())).max(0.0))
+    }
+
+    pub(crate) fn collapsed_sidebar_width(&self) -> Pixels {
+        self.metrics.sidebar_collapsed_width() + self.sidebar_icon_growth()
+    }
+
     pub(crate) fn sidebar_width(&self) -> f32 {
         if self.appearance.sidebar_expanded {
             let width = self
@@ -351,7 +366,7 @@ impl AppModel {
             || self.extension_sidebar_active())
             && self.appearance.sidebar_collapsed_style == SidebarCollapsedStyle::Icons
         {
-            f32::from(self.metrics.sidebar_collapsed_width())
+            f32::from(self.collapsed_sidebar_width())
         } else {
             0.0
         }
@@ -836,7 +851,7 @@ fn project_row(
         })
         .when(wide, |row| {
             row.p(m.spacing2())
-                .h(tab_sidebar::row_height(model))
+                .h(tab_sidebar::row_height(model).max(model.sidebar_icon() + m.spacing2() * 2.0))
                 .gap(m.spacing3())
                 .rounded(m.radius_md())
                 .when(active, |row| row.bg(theme.surface))
@@ -933,11 +948,7 @@ fn project_row(
 }
 
 pub(super) fn tile_size(model: &AppModel) -> Pixels {
-    if model.appearance.sidebar_expanded {
-        model.metrics.control_small()
-    } else {
-        model.metrics.icon_xxl()
-    }
+    model.sidebar_icon()
 }
 
 /// Marks another computer's project, naming it in a tooltip.
