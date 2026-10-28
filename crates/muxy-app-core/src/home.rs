@@ -27,6 +27,7 @@ impl AppState {
             projects: vec![home],
             workspaces: Vec::new(),
             removed_projects: Vec::new(),
+            dividers: Vec::new(),
             window,
         })
     }
