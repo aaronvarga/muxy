@@ -1199,6 +1199,11 @@
 "Move Tab to Main Window" = "Move Tab to Main Window";
 "Move Tab to New Window" = "Move Tab to New Window";
 "Move tab here" = "Move tab here";
+"Move Down" = "Move Down";
+"Move Left" = "Move Left";
+"Move Pane" = "Move Pane";
+"Move Right" = "Move Right";
+"Move Up" = "Move Up";
 "Move to Bottom" = "Move to Bottom";
 "Move to Group" = "Move to Group";
 "Move to Group…" = "Move to Group…";

@@ -228,6 +228,7 @@ impl Icon {
             "xmark" => Self::X,
             "arrow.up.left.and.arrow.down.right" => Self::Maximize,
             "minus" => Self::Minimize,
+            "arrow.up.and.down.and.arrow.left.and.right" => Self::Move,
             "arrow.down.right.and.arrow.up.left" => Self::Restore,
             "cpu" => Self::Cpu,
             "ladybug" => Self::Bug,
