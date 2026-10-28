@@ -107,6 +107,7 @@
 "Active system-wide" = "Active system-wide";
 "Add Binding" = "Add Binding";
 "Add Command" = "Add Command";
+"Add Divider Below" = "Add Divider Below";
 "Add Folder" = "Add Folder";
 "Add Folder…" = "Add Folder…";
 "Add Font…" = "Add Font…";
@@ -568,6 +569,7 @@
 "Dismiss" = "Dismiss";
 "Dismiss Dictation Error" = "Dismiss Dictation Error";
 "Distribute unused cell space equally around the terminal grid." = "Distribute unused cell space equally around the terminal grid.";
+"Divider Label" = "Divider Label";
 "Dock Panel" = "Dock Panel";
 "Don't ask again" = "Don't ask again";
 "Downloading and verifying the latest release. You can keep working." = "Downloading and verifying the latest release. You can keep working.";
@@ -579,6 +581,7 @@
 "Draw terminal text with a heavier stroke." = "Draw terminal text with a heavier stroke.";
 "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar." = "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar.";
 "Edit" = "Edit";
+"Edit Label…" = "Edit Label…";
 "Edit Project Prompt…" = "Edit Project Prompt…";
 "Edit Remote Server" = "Edit Remote Server";
 "Edit in %@" = "Edit in %@";
@@ -1154,6 +1157,7 @@
 "Remote project on %@" = "Remote project on %@";
 "Remove" = "Remove";
 "Remove %lld Servers…" = "Remove %lld Servers…";
+"Remove Divider" = "Remove Divider";
 "Remove Icon" = "Remove Icon";
 "Remove Logo" = "Remove Logo";
 "Remove Project?" = "Remove Project?";

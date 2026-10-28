@@ -26,6 +26,7 @@ impl AppState {
             version: crate::state::VERSION,
             projects: vec![home],
             workspaces: Vec::new(),
+            dividers: Vec::new(),
             window,
         })
     }

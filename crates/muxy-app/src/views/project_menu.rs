@@ -10,12 +10,14 @@ use crate::model::{AppModel, git::Repository};
 
 /// The menu of a top-level project. `worktrees` is `None` when its folder is not
 /// a Git repository, and otherwise whether its worktrees are shown.
-/// `folders` is whether its server can hold extra folders.
+/// `folders` is whether its server can hold extra folders, and `divider`
+/// whether the sidebar shows dividers.
 pub(crate) fn items(
     state: &AppState,
     project: &Project,
     worktrees: Option<bool>,
     folders: bool,
+    divider: bool,
 ) -> Vec<Item> {
     let id = project.id;
     if project.status() != ProjectStatus::Available {
@@ -52,6 +54,9 @@ pub(crate) fn items(
     }
     if folders && !project.home {
         items.push(Item::submenu(tr!("Folders"), folder_items(project)));
+    }
+    if divider {
+        items.push(Item::action(tr!("Add Divider Below"), Command::AddDivider(id)).separated());
     }
     items.extend(path_items(project));
     items.extend(removal(project).into_iter().map(Item::separated));
@@ -229,7 +234,15 @@ impl AppModel {
             project,
             repository.then(|| self.worktrees_visible(project.id)),
             folders,
+            self.dividers_shown(),
         )
+    }
+
+    pub(crate) fn divider_menu(id: muxy_app_core::DividerId) -> Vec<Item> {
+        vec![
+            Item::action(tr!("Edit Label…"), Command::EditDivider(id)),
+            Item::action(tr!("Remove Divider"), Command::RemoveDivider(id)),
+        ]
     }
 
     /// Adds an extra folder to a top-level project, chosen in Finder or, for

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::servers::ServerState;
 use crate::{
-    AppError, Branch, Color, Direction, Pane, PaneContent, PaneId, Project, ProjectId,
+    AppError, Branch, Color, Direction, Divider, Pane, PaneContent, PaneId, Project, ProjectId,
     ProjectStatus, ServerId, Tab, TabId, WindowBounds, WindowState, Workspace,
 };
 
@@ -28,6 +28,8 @@ pub struct AppState {
     pub(crate) projects: Vec<Project>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) workspaces: Vec<Workspace>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) dividers: Vec<Divider>,
     pub(crate) window: WindowState,
 }
 
@@ -45,6 +47,8 @@ struct StoredState {
     projects: Vec<Project>,
     #[serde(default)]
     workspaces: Vec<Workspace>,
+    #[serde(default)]
+    dividers: Vec<Divider>,
     window: WindowState,
     /// Versions 1 and 2 kept the local server's state here, at the top level.
     #[serde(default)]
@@ -91,6 +95,7 @@ impl TryFrom<StoredState> for AppState {
             version: VERSION,
             projects: stored.projects,
             workspaces: stored.workspaces,
+            dividers: stored.dividers,
             window: stored.window,
         };
         let previous_project = state.window.current_project;
@@ -398,6 +403,21 @@ impl AppState {
             .iter()
             .position(|project| project.id == id)
             .ok_or(AppError::UnknownProject(id))?;
+        // Dividers keep their spot: the moved project leaves its own behind and,
+        // landing below `to`'s project, takes over that project's.
+        let below = self.projects[to].id;
+        self.release_dividers(id);
+        if from < to {
+            let ids: Vec<_> = self
+                .dividers
+                .iter()
+                .filter(|divider| divider.after == below)
+                .map(|divider| divider.id)
+                .collect();
+            if !ids.is_empty() {
+                self.place_dividers(&ids, id, false)?;
+            }
+        }
         let project = self.projects.remove(from);
         self.projects.insert(to, project);
         Ok(())
@@ -422,6 +442,7 @@ impl AppState {
         }
         let server = self.projects[index].server_id;
         self.queue_project(server, mutation)?;
+        self.release_dividers(id);
         let project = self.projects.remove(index);
         self.retain_workspace_members();
         self.window.selected_tab.remove(&id);

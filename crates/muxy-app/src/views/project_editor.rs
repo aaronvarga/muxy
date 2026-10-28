@@ -5,7 +5,7 @@ use gpui::{
     AnyElement, AppContext, Context, Entity, Focusable, InteractiveElement, IntoElement,
     ParentElement, Pixels, Point, StatefulInteractiveElement, Styled, Window, div, px, size,
 };
-use muxy_app_core::{ProjectId, ProjectStatus, TabId, WorkspaceId};
+use muxy_app_core::{DividerId, ProjectId, ProjectStatus, TabId, WorkspaceId};
 use muxy_ui::text_input::{InputEvent, InputStyle, TextInput};
 use muxy_ui::tr;
 
@@ -29,6 +29,7 @@ enum Target {
     NewServerGroup(Servers),
     /// The remote server group at an index of `Settings::server_groups`.
     ServerGroup(usize),
+    Divider(DividerId),
 }
 
 pub(crate) struct Editor {
@@ -127,6 +128,24 @@ impl AppModel {
         }
     }
 
+    pub(crate) fn open_divider_editor(
+        &mut self,
+        id: DividerId,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(divider) = self
+            .state
+            .dividers()
+            .iter()
+            .find(|divider| divider.id == id)
+        {
+            let text = divider.label.clone().unwrap_or_default();
+            self.open_metadata_editor(Target::Divider(id), text, position, window, cx);
+        }
+    }
+
     fn open_metadata_editor(
         &mut self,
         target: Target,
@@ -182,6 +201,9 @@ impl AppModel {
             Target::ServerGroup(index) => {
                 self.name_server_group(Servers::Group(Some(index)), &text, cx)
             }
+            Target::Divider(id) => {
+                self.edit_workspaces(|state| state.set_divider_label(id, &text), cx)
+            }
         };
         if saved {
             self.dismiss_overlay(cx);
@@ -221,6 +243,7 @@ pub(crate) fn render(
                 Target::NewWorkspace(_) => tr!("New Workspace"),
                 Target::NewServerGroup(_) => tr!("New Group"),
                 Target::ServerGroup(_) => tr!("Rename Group"),
+                Target::Divider(_) => tr!("Divider Label"),
             }),
         )
         .child(
