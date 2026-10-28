@@ -329,9 +329,6 @@ fn node(
             first,
             second,
         } => (axis, ratio, first, second),
-        Layout::Leaf(id) if path.is_empty() => {
-            return pane_element(*id, model, cx);
-        }
         Layout::Leaf(id) => {
             return div()
                 .flex()
@@ -339,7 +336,12 @@ fn node(
                 .size_full()
                 .min_w(px(0.0))
                 .min_h(px(0.0))
-                .child(super::tab_strip::pane_controls(*id, model, cx))
+                .child(super::tab_strip::pane_controls(
+                    *id,
+                    path.is_empty(),
+                    model,
+                    cx,
+                ))
                 .child(
                     div()
                         .flex()

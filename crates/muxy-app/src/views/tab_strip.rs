@@ -327,8 +327,14 @@ fn move_button(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyEle
     .into_any_element()
 }
 
-/// Move, split, split, equalize and close buttons for one pane of a split tab.
-pub(super) fn pane_controls(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyElement {
+/// Move, split, split, equalize and close buttons for one pane of a split
+/// tab; a tab's only pane gets just the split buttons.
+pub(super) fn pane_controls(
+    pane: PaneId,
+    only: bool,
+    model: &AppModel,
+    cx: &Context<AppModel>,
+) -> AnyElement {
     let label = tr!("Close Pane");
     let tooltip = model
         .settings
@@ -380,11 +386,10 @@ pub(super) fn pane_controls(pane: PaneId, model: &AppModel, cx: &Context<AppMode
         .bg(model.theme.bg)
         .border_b_1()
         .border_color(model.theme.border)
-        .child(move_button(pane, model, cx))
+        .when(!only, |bar| bar.child(move_button(pane, model, cx)))
         .child(split_button(Some(pane), Direction::Right, model, cx))
         .child(split_button(Some(pane), Direction::Down, model, cx))
-        .child(equalize)
-        .child(close)
+        .when(!only, |bar| bar.child(equalize).child(close))
         .into_any_element()
 }
 
