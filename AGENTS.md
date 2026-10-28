@@ -16,15 +16,8 @@ When adding new third-party dependencies, provide user with their github url and
 
 - Do not ignore performance and memory efficiency. with GPUI it is easy to cause high CPU and memory usage.
 
-## Only Humans
+## Fork Workflow
 
-AI agents are not allowed to do the followings even if a human asks:
+This is a personal fork (`fork` remote). AI agents may commit and push here when asked.
 
-- Commit and push
-- Open a PR
-- Open an issue
-- Interact with issues or PRs (read-only allowed)
-
-These all have to be done by humans with their own language without any help from AI.
-
-Any PRs or issues opened by AI will be closed without checking.
+Anything aimed at upstream (`origin`, muxy-app/muxy) stays human-only: opening PRs or issues there, or interacting with them (read-only allowed).
