@@ -104,7 +104,7 @@ fn palette_queries_still_run_the_commands_they_found_first(cx: &mut TestAppConte
 }
 
 #[gpui::test]
-fn commands_run_in_the_active_terminal_without_opening_a_tab(cx: &mut TestAppContext) {
+fn commands_are_typed_into_the_active_terminal_without_submitting(cx: &mut TestAppContext) {
     let (boot, requests) = stub_boot(AppState::bootstrap().expect("state"));
     let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
     view.update(cx, |model, cx| {
@@ -143,6 +143,6 @@ fn commands_run_in_the_active_terminal_without_opening_a_tab(cx: &mut TestAppCon
     let channel = attachment().channel;
     assert!(requests.try_iter().any(|(_, work)| matches!(
         work,
-        Work::Input(actual, bytes) if actual == channel && bytes == b"\x15cargo test\r"
+        Work::Input(actual, bytes) if actual == channel && bytes == b"\x15cargo test"
     )));
 }

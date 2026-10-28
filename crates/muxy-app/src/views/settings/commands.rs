@@ -73,7 +73,7 @@ fn editor(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
         .child(form::row(
             pane.layout_style(),
             &tr!("Show in status bar"),
-            Some(tr!("The status bar's Commands menu runs it in the selected terminal.").as_str()),
+            Some(tr!("The status bar's Commands menu types it into the selected terminal without running it.").as_str()),
             draft_toggle(pane, "command-in-status-bar", |command| command.status_bar, |command| command.status_bar = !command.status_bar, cx),
             pane.compact,
         ))

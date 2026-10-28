@@ -1392,13 +1392,12 @@ impl TerminalPane {
         }
     }
 
-    /// Types a command at the prompt and presses Return, clearing typed input
-    /// first, as the composer submits.
-    pub(crate) fn run_command(&mut self, command: &str, cx: &mut Context<Self>) {
+    /// Types a command at the prompt without pressing Return, clearing typed
+    /// input first, so the user can finish the line.
+    pub(crate) fn type_command(&mut self, command: &str, cx: &mut Context<Self>) {
         if let Some(grid) = &self.grid {
             let mut bytes = vec![0x15];
             bytes.extend(clipboard::paste(command, grid.modes));
-            bytes.push(b'\r');
             self.send_paste(&bytes, cx);
         }
     }
