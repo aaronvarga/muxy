@@ -7,6 +7,12 @@ Paths are relative to the project folder. A tab works on its own project;
 other views work on the current project. Pass `{ project }` to target another
 project or worktree by ID.
 
+A project can have extra folders beside its own (`folders` in
+`projects.list()`; a worktree shows its parent's). Pass `{ root }`, one of those
+absolute paths, to work in that folder instead; paths are then relative to it.
+`move` stays within one folder, and Git calls cover only the project's own
+folder. Calls with `root` fail on servers older than the app.
+
 | Call | Needs | Returns |
 | --- | --- | --- |
 | `files.list(path)` | `files:read` | `[{ name, path, isDirectory, isIgnored }]` |
@@ -28,4 +34,4 @@ await muxy.files.write("notes/todo.md", readme.content + "\n- [ ] ship it");
 - `delete` moves files to the Trash.
 - Reads and writes are limited to 5 MiB, and listings to 16,384 entries.
 - Subscribe to `file.changed` (with `files:read`) to hear about changes; see
-  [Events](events.md).
+  [Events](events.md). Its `root` says which folder changed.

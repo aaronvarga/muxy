@@ -118,6 +118,7 @@ fn projects() -> TestResult<(AppState, Ids)> {
             directory: ServerPath(directory.as_bytes().to_vec()),
             kind: parent.map(|_| ProjectKind::Worktree),
             parent_id: parent,
+            folders: Vec::new(),
         };
     state.apply_catalog(
         ServerId::new(),

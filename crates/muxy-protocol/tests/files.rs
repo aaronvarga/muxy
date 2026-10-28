@@ -39,7 +39,8 @@ fn files_validation_bounds_content_names_selections_and_events() {
         assert!(
             FilesRequest {
                 project: ProjectId::new(),
-                action
+                action,
+                root: None
             }
             .validate()
             .is_err()
@@ -69,7 +70,8 @@ fn files_validation_bounds_content_names_selections_and_events() {
     assert!(
         FileChanges {
             paths: vec![p("file"); MAX_FILE_CHANGES + 1],
-            rescan: false
+            rescan: false,
+            root: None
         }
         .validate()
         .is_err()
@@ -83,6 +85,7 @@ fn change_merging_deduplicates_and_converts_overflow_to_rescan() {
         changes.merge(&FileChanges {
             paths: vec![p("file")],
             rescan: false,
+            root: None,
         });
     }
     assert_eq!(changes.paths, vec![p("file")]);
@@ -90,6 +93,7 @@ fn change_merging_deduplicates_and_converts_overflow_to_rescan() {
         changes.merge(&FileChanges {
             paths: vec![p(&index.to_string())],
             rescan: false,
+            root: None,
         });
     }
     assert!(changes.rescan);
@@ -97,6 +101,7 @@ fn change_merging_deduplicates_and_converts_overflow_to_rescan() {
     changes.merge(&FileChanges {
         paths: vec![p("later")],
         rescan: false,
+        root: None,
     });
     assert!(changes.paths.is_empty());
 }

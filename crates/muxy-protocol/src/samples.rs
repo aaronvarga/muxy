@@ -475,6 +475,10 @@ fn changed_samples() -> [Message; 2] {
         .map(|(topic, revision)| Message::Changed { topic, revision })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep every project message sample together"
+)]
 fn project_samples() -> Vec<Message> {
     use crate::{
         CatalogPage, OperationId, ProjectDescriptor, ProjectId, ProjectIntent, ProjectMutation,
@@ -490,6 +494,7 @@ fn project_samples() -> Vec<Message> {
         color: "#808080".into(),
         kind: None,
         parent_id: None,
+        folders: vec![ServerPath(b"/srv/shared".to_vec())],
     };
     let operation = OperationId::from_u128(2);
     let mut samples = vec![
@@ -538,6 +543,7 @@ fn project_samples() -> Vec<Message> {
                 revision: 1,
                 projects: vec![ProjectDescriptor {
                     home: true,
+                    folders: Vec::new(),
                     ..project.clone()
                 }],
                 next: None,
@@ -853,6 +859,7 @@ fn files_samples() -> Vec<Message> {
             body: RequestBody::Files(crate::FilesRequest {
                 project: crate::ProjectId::from_u128(1),
                 action: crate::FilesAction::List(ServerPath(Vec::new())),
+                root: Some(ServerPath(b"/srv/shared".to_vec())),
             }),
         },
         Message::Reply {
@@ -869,6 +876,7 @@ fn files_samples() -> Vec<Message> {
             changes: crate::FileChanges {
                 paths: vec![ServerPath(b"file".to_vec())],
                 rescan: false,
+                root: Some(ServerPath(b"/srv/shared".to_vec())),
             },
         },
         Message::Request {
@@ -876,6 +884,7 @@ fn files_samples() -> Vec<Message> {
             body: RequestBody::Files(crate::FilesRequest {
                 project: crate::ProjectId::from_u128(1),
                 action: crate::FilesAction::ReadBytes(ServerPath(b"logo.png".to_vec())),
+                root: None,
             }),
         },
         Message::Reply {
@@ -893,6 +902,7 @@ fn files_samples() -> Vec<Message> {
                     path: ServerPath(b"logo.png".to_vec()),
                     bytes: vec![0x89, b'P', b'N', b'G', 0xff],
                 },
+                root: None,
             }),
         },
     ]

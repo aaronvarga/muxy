@@ -35,6 +35,8 @@ impl Feature {
     pub const SESSION_ENVIRONMENT: Self = Self(2);
     /// Another computer can pair as `DeviceKind::Computer`, with desktop rights.
     pub const PAIRED_COMPUTERS: Self = Self(3);
+    /// Fork capability: projects carry extra folders, and file requests can name one.
+    pub const PROJECT_FOLDERS: Self = Self(0x8001);
 }
 
 /// Features this build's server supports.
@@ -42,4 +44,5 @@ pub const FEATURES: &[Feature] = &[
     Feature::TERMINAL_INPUT,
     Feature::SESSION_ENVIRONMENT,
     Feature::PAIRED_COMPUTERS,
+    Feature::PROJECT_FOLDERS,
 ];

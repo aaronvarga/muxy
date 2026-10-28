@@ -492,6 +492,7 @@ mod tests {
             color: "#808080".into(),
             kind: None,
             parent_id: None,
+            folders: Vec::new(),
         }
     }
 

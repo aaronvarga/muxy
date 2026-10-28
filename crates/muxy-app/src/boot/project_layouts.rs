@@ -8,6 +8,7 @@ pub(super) fn list(client: &Client, project: ProjectId) -> Result<Vec<Descriptor
         .files(FilesRequest {
             project,
             action: FilesAction::List(ServerPath(DIRECTORY.as_bytes().to_vec())),
+            root: None,
         })
         .map_err(|error| error.to_string())?
     {
@@ -25,6 +26,7 @@ pub(super) fn load(
         .files(FilesRequest {
             project,
             action: FilesAction::Read(layout.path.clone()),
+            root: None,
         })
         .map_err(|error| error.to_string())?
     {

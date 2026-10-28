@@ -116,6 +116,11 @@ impl AppModel {
                     "id": project.id.to_string(),
                     "name": project.name,
                     "path": project.directory.display().to_string(),
+                    "folders": project
+                        .folders
+                        .iter()
+                        .map(|folder| folder.display().to_string())
+                        .collect::<Vec<_>>(),
                     "isActive": project.id == root,
                     "sortOrder": order,
                     "iconColor": project.color.as_str(),

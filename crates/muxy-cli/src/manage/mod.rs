@@ -127,7 +127,11 @@ fn execute(invocation: Invocation, client: &Client, paths: Paths) -> Result {
                 return Err("watch requires a persistent client".into());
             }
             let project = projects::resolve(client, &project, paths)?.id;
-            Output::json(&client.files(FilesRequest { project, action })?)
+            Output::json(&client.files(FilesRequest {
+                project,
+                action,
+                root: None,
+            })?)
         }
         Action::Exec {
             project,

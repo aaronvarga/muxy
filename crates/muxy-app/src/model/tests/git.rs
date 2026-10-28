@@ -221,6 +221,7 @@ fn worktree_form_reviews_hooks_validates_templates_and_saves_the_submitted_locat
         color: "#ffffff".into(),
         kind: Some(muxy_protocol::ProjectKind::Worktree),
         parent_id: Some(project),
+        folders: Vec::new(),
     };
     view.update(cx, |model, cx| {
         assert!(

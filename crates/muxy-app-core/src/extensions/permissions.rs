@@ -232,6 +232,11 @@ impl Request {
                     "delete" => args["paths"][0].as_str().unwrap_or("").to_owned(),
                     _ => text("path"),
                 };
+                // An extra project folder is named, so the user sees where it acts.
+                let path = match args["root"].as_str().filter(|root| !root.is_empty()) {
+                    Some(root) => format!("{}/{path}", root.trim_end_matches('/')),
+                    None => path,
+                };
                 Some(Self::file(operation, &path))
             }
             "git.worktree.switch" => None,
