@@ -168,6 +168,12 @@ impl AppState {
                 .filter_map(|id| ids.get(id).copied())
                 .collect();
         }
+        // A divider below another computer's project left with that project.
+        restored.dividers.retain_mut(|divider| {
+            ids.get(&divider.after)
+                .map(|id| divider.after = *id)
+                .is_some()
+        });
         restored.servers.clone_from(&current.servers);
         restored.set_aside.clone_from(&current.set_aside);
         if let Some(local) = restored.servers.get_mut(&ServerId::local()) {

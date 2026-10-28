@@ -6,6 +6,7 @@ pub(crate) use resize::SidebarResize;
 pub(super) use resize::handle as resize_handle;
 
 use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use gpui::prelude::FluentBuilder;
@@ -16,7 +17,7 @@ use gpui::{
     px,
 };
 use muxy_app_core::{
-    Project, ProjectId, ProjectStatus, ServerId,
+    Divider, DividerId, Project, ProjectId, ProjectStatus, ServerId,
     settings::{AppLayout, ProjectOrder, SidebarCollapsedStyle},
 };
 
@@ -700,7 +701,7 @@ impl AppModel {
                 });
             }
             ProjectOrder::RecentlyActive => {
-                let recent: std::collections::HashMap<_, _> = self
+                let recent: HashMap<_, _> = self
                     .appearance
                     .project_recent
                     .iter()
@@ -960,6 +961,119 @@ fn server_note(server: ServerId, model: &AppModel) -> Option<AnyElement> {
     )
 }
 
+impl AppModel {
+    /// Dividers only make sense in the manual order of every listed project.
+    pub(crate) fn dividers_shown(&self) -> bool {
+        self.appearance.sidebar_project_order == ProjectOrder::Manual
+            && !self.appearance.sidebar_focus
+            && !self.state.remote_servers_selected()
+    }
+
+    /// The dividers below each of `parents`. A divider below a project the
+    /// sidebar doesn't list shows below the nearest listed project above it.
+    fn sidebar_dividers(&self, parents: &[&Project]) -> HashMap<ProjectId, Vec<&Divider>> {
+        let mut shown: HashMap<_, Vec<_>> = HashMap::new();
+        if !self.dividers_shown() || self.state.dividers().is_empty() {
+            return shown;
+        }
+        let mut anchored: HashMap<_, Vec<_>> = HashMap::new();
+        for divider in self.state.dividers() {
+            anchored.entry(divider.after).or_default().push(divider);
+        }
+        let listed: HashSet<_> = parents.iter().map(|project| project.id).collect();
+        let mut owner = None;
+        for project in self.state.projects() {
+            if project.parent_id.is_some() {
+                continue;
+            }
+            if listed.contains(&project.id) {
+                owner = Some(project.id);
+            }
+            if let (Some(owner), Some(dividers)) = (owner, anchored.remove(&project.id)) {
+                shown.entry(owner).or_default().extend(dividers);
+            }
+        }
+        shown
+    }
+
+    /// The sidebar's top-level rows in order, without worktrees.
+    fn sidebar_rows(&self) -> Vec<Row> {
+        let parents = self.listed_parents();
+        let dividers = self.sidebar_dividers(&parents);
+        parents
+            .iter()
+            .flat_map(|project| {
+                std::iter::once(Row::Project(project.id)).chain(
+                    dividers
+                        .get(&project.id)
+                        .into_iter()
+                        .flatten()
+                        .map(|divider| Row::Divider(divider.id)),
+                )
+            })
+            .collect()
+    }
+
+    /// Moves `project` across the dividers between it and `divider`, keeping
+    /// it in place among projects.
+    fn move_project_across(
+        &mut self,
+        project: ProjectId,
+        divider: DividerId,
+        cx: &mut Context<Self>,
+    ) {
+        let rows = self.sidebar_rows();
+        let at = |row| rows.iter().position(|candidate| *candidate == row);
+        let (Some(from), Some(to)) = (at(Row::Project(project)), at(Row::Divider(divider))) else {
+            return;
+        };
+        let crossed = if from < to {
+            &rows[from + 1..=to]
+        } else {
+            &rows[to..from]
+        };
+        let ids: Option<Vec<_>> = crossed
+            .iter()
+            .map(|row| match row {
+                Row::Divider(id) => Some(*id),
+                Row::Project(_) => None,
+            })
+            .collect();
+        let Some(ids) = ids else {
+            return;
+        };
+        if from < to {
+            let above = rows[..from].iter().rev().find_map(|row| match row {
+                Row::Project(id) => Some(*id),
+                Row::Divider(_) => None,
+            });
+            if let Some(above) = above {
+                self.edit_workspaces(|state| state.place_dividers(&ids, above, false), cx);
+            }
+        } else {
+            self.edit_workspaces(|state| state.place_dividers(&ids, project, true), cx);
+        }
+    }
+
+    /// Puts `divider` below `target`, or above it when dragged up past it.
+    fn move_divider_to(&mut self, divider: DividerId, target: ProjectId, cx: &mut Context<Self>) {
+        let rows = self.sidebar_rows();
+        let at = |row| rows.iter().position(|candidate| *candidate == row);
+        let (Some(from), Some(to)) = (at(Row::Divider(divider)), at(Row::Project(target))) else {
+            return;
+        };
+        let above = rows[..to].iter().rev().find_map(|row| match row {
+            Row::Project(id) => Some(*id),
+            Row::Divider(_) => None,
+        });
+        let (after, first) = match above {
+            Some(above) if to < from => (above, false),
+            _ => (target, true),
+        };
+        self.edit_workspaces(|state| state.place_dividers(&[divider], after, first), cx);
+    }
+}
+
 fn header(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     if !model.appearance.sidebar_expanded {
         return div().into_any_element();
@@ -1165,40 +1279,82 @@ fn layout_selector(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
         .into_any_element()
 }
 
+/// A top-level sidebar row a drag can land on.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Row {
+    Project(ProjectId),
+    Divider(DividerId),
+}
+
+fn drags_allowed(model: &AppModel) -> bool {
+    !model.coverage().modal() && model.appearance.sidebar_project_order == ProjectOrder::Manual
+}
+
 struct DraggedProject {
     id: ProjectId,
-    last_target: Cell<Option<ProjectId>>,
+    last_target: Cell<Option<Row>>,
 }
 
 impl DraggedProject {
-    fn move_to(&self, target: Option<ProjectId>, model: &mut AppModel, cx: &mut Context<AppModel>) {
-        if model.coverage().modal()
-            || model.appearance.sidebar_project_order != ProjectOrder::Manual
-        {
+    fn move_to(&self, target: Option<Row>, model: &mut AppModel, cx: &mut Context<AppModel>) {
+        if !drags_allowed(model) {
             return;
         }
-        let server = model.state.project_server(self.id);
-        let target = target
-            .filter(|target| *target != self.id && model.state.project_server(*target) == server);
+        // Home and unavailable projects stay put, so nothing swaps with them.
+        let target = target.filter(|target| match target {
+            Row::Project(id) => {
+                *id != self.id
+                    && model.state.project(*id).is_some_and(|project| {
+                        !project.home && project.status() == ProjectStatus::Available && model.state.project_server(*id) == model.state.project_server(self.id)
+                    })
+            }
+            Row::Divider(_) => true,
+        });
+        if self.last_target.replace(target) == target {
+            return;
+        }
+        match target {
+            Some(Row::Project(target)) => model.move_project(self.id, target, cx),
+            Some(Row::Divider(divider)) => model.move_project_across(self.id, divider, cx),
+            None => {}
+        }
+    }
+}
+
+struct DraggedDivider {
+    id: DividerId,
+    last_target: Cell<Option<ProjectId>>,
+}
+
+impl DraggedDivider {
+    fn move_to(&self, target: Option<Row>, model: &mut AppModel, cx: &mut Context<AppModel>) {
+        if !drags_allowed(model) {
+            return;
+        }
+        let target = match target {
+            Some(Row::Project(id)) => Some(id),
+            _ => None,
+        };
         if self.last_target.replace(target) != target
             && let Some(target) = target
         {
-            model.move_project(self.id, target, cx);
+            model.move_divider_to(self.id, target, cx);
         }
     }
 }
 
 #[derive(Default)]
-struct ProjectRows(Vec<(ProjectId, Bounds<Pixels>)>);
+struct ProjectRows(Vec<(Row, Bounds<Pixels>)>);
 
 impl ProjectRows {
-    fn at(&self, position: Point<Pixels>) -> Option<ProjectId> {
+    fn at(&self, position: Point<Pixels>) -> Option<Row> {
         self.0
             .iter()
-            .find_map(|(id, bounds)| bounds.contains(&position).then_some(*id))
+            .find_map(|(row, bounds)| bounds.contains(&position).then_some(*row))
     }
 }
 
+/// The sidebar's rows, with the drag target of each one.
 fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     let m = model.metrics;
     let wide = model.appearance.sidebar_expanded;
@@ -1206,6 +1362,8 @@ fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     let measured = targets.clone();
     let moving = targets.clone();
     let (rows, ids) = grouped_rows(model, cx);
+    let divider_targets = targets.clone();
+    let dropped_divider = targets.clone();
     div()
         .id("projects-scroll")
         .role(Role::Tree)
@@ -1232,9 +1390,34 @@ fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
                 }
             },
         ))
+        .on_drag_move(cx.listener(
+            move |model, event: &DragMoveEvent<DraggedDivider>, window, cx| {
+                if event.event.pressed_button != Some(gpui::MouseButton::Left) {
+                    cx.stop_active_drag(window);
+                    return;
+                }
+                let target = event
+                    .bounds
+                    .contains(&event.event.position)
+                    .then(|| divider_targets.borrow().at(event.event.position))
+                    .flatten();
+                if let Some(drag) = event.dragged_item().downcast_ref::<DraggedDivider>() {
+                    drag.move_to(target, model, cx);
+                }
+            },
+        ))
         .on_drop(
             cx.listener(move |model, drag: &DraggedProject, window, cx| {
                 drag.move_to(targets.borrow().at(window.mouse_position()), model, cx);
+            }),
+        )
+        .on_drop(
+            cx.listener(move |model, drag: &DraggedDivider, window, cx| {
+                drag.move_to(
+                    dropped_divider.borrow().at(window.mouse_position()),
+                    model,
+                    cx,
+                );
             }),
         )
         .child(
@@ -1263,13 +1446,15 @@ fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
 fn grouped_rows(
     model: &AppModel,
     cx: &mut Context<AppModel>,
-) -> (Vec<AnyElement>, Vec<Option<ProjectId>>) {
+) -> (Vec<AnyElement>, Vec<Option<Row>>) {
     let m = model.metrics;
     let wide = model.appearance.sidebar_expanded;
     let shortcuts = model.navigation_projects();
     let mut rows = Vec::new();
     let mut ids = Vec::new();
     let mut index = 0;
+    let parents = model.listed_parents();
+    let dividers = model.sidebar_dividers(&parents);
     for (position, group) in model.sidebar_groups().into_iter().enumerate() {
         let expanded = !group.heading || model.server_expanded(group.server);
         // Collapsed to icons, the sidebar shows no headings: a rule per
@@ -1288,15 +1473,23 @@ fn grouped_rows(
             );
             ids.push(None);
         }
-        for project in group.projects {
+        for (position, project) in group.projects.iter().enumerate() {
             let shortcut = shortcuts.iter().take(9).position(|id| *id == project.id);
             rows.push(worktrees::group(project, index, shortcut, model, cx));
             ids.push(
                 (!project.home
                     && project.parent_id.is_none()
                     && project.status() == ProjectStatus::Available)
-                    .then_some(project.id),
+                    .then_some(Row::Project(project.id)),
             );
+            if group.projects.get(position + 1).is_none_or(|next| next.parent_id.is_none())
+                && let Some(dividers) = dividers.get(&project.parent_id.unwrap_or(project.id))
+            {
+                for divider in dividers {
+                    rows.push(divider_row(divider, model, cx));
+                    ids.push(Some(Row::Divider(divider.id)));
+                }
+            }
             index += 1;
         }
         if !expanded {
@@ -1584,6 +1777,73 @@ pub(super) fn remote_description(project: &Project, model: &AppModel) -> Option<
 
 pub(super) fn tile_size(model: &AppModel) -> Pixels {
     model.sidebar_icon()
+}
+
+/// A line between projects, with its label when the sidebar is wide.
+fn divider_row(divider: &Divider, model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
+    let m = model.metrics;
+    let theme = &model.theme;
+    let wide = model.appearance.sidebar_expanded;
+    let id = divider.id;
+    let drag = DraggedDivider {
+        id,
+        last_target: Cell::new(None),
+    };
+    div()
+        .id(SharedString::from(format!("divider-{id}")))
+        .debug_selector(move || format!("divider-{id}"))
+        .flex()
+        .flex_none()
+        .items_center()
+        .gap(m.spacing3())
+        .h(m.scaled(16.0))
+        .when(wide, |row| row.w_full().px(m.spacing2()))
+        .when(!wide, |row| row.w(m.scaled(34.0)))
+        .on_mouse_down(
+            gpui::MouseButton::Right,
+            cx.listener(move |model, event: &gpui::MouseDownEvent, window, cx| {
+                model.open_menu(AppModel::divider_menu(id), event.position, window, cx);
+            }),
+        )
+        .on_drag(drag, |_, _, _, cx| cx.new(|_| Empty))
+        .when_some(divider.label.as_ref().filter(|_| wide), |row, label| {
+            row.child(
+                div()
+                    .flex_none()
+                    .max_w(m.scaled(180.0))
+                    .truncate()
+                    .text_size(m.font_footnote())
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.fg_muted)
+                    .child(label.clone()),
+            )
+        })
+        .child(div().flex_1().h(px(1.0)).bg(theme.border))
+        .into_any_element()
+}
+
+/// Marks another computer's project, naming it in a tooltip.
+pub(super) fn remote_marker(project: &Project, model: &AppModel) -> Option<AnyElement> {
+    let tooltip = remote_description(project, model)?;
+    let id = project.id;
+    let m = model.metrics;
+    Some(
+        div()
+            .id(SharedString::from(format!("project-remote-{id}")))
+            .debug_selector(move || format!("project-remote-{id}"))
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .size(m.scaled(18.0))
+            .tooltip(muxy_ui::components::tooltip(tooltip, &model.theme))
+            .child(IconGlyph::new(
+                Icon::Network,
+                m.font_caption(),
+                model.theme.fg_muted,
+            ))
+            .into_any_element(),
+    )
 }
 
 pub(crate) fn project_color(project: &Project, model: &AppModel) -> gpui::Rgba {

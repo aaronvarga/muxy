@@ -88,6 +88,9 @@ pub(crate) enum Command {
     RemoveProject(muxy_app_core::ProjectId),
     /// Add Project's folders on a server.
     AddProject(muxy_app_core::ServerId),
+    AddDivider(muxy_app_core::ProjectId),
+    EditDivider(muxy_app_core::DividerId),
+    RemoveDivider(muxy_app_core::DividerId),
     AddProjectFolder(muxy_app_core::ProjectId),
     /// Removes a project's extra folder, named by `project_menu::folder_key`
     /// so a list another device changed meanwhile loses the right one.
@@ -739,6 +742,16 @@ impl AppModel {
                 self.edit_project(|state| state.set_project_logo(id, None), cx);
             }
             Command::RemoveProject(id) => self.confirm_remove_project(id, cx),
+            Command::AddDivider(id) => {
+                self.edit_workspaces(|state| state.add_divider(id).map(drop), cx);
+            }
+            Command::EditDivider(id) => {
+                self.open_divider_editor(id, position, window, cx);
+                return;
+            }
+            Command::RemoveDivider(id) => {
+                self.edit_workspaces(|state| state.remove_divider(id), cx);
+            }
             Command::AddProjectFolder(id) => self.add_project_folder(id, cx),
             Command::RemoveProjectFolder(id, key) => self.remove_project_folder(id, key, cx),
             Command::AddProject(server) => {

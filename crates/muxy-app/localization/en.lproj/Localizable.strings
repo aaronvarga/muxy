@@ -138,6 +138,7 @@
 "Active system-wide" = "Active system-wide";
 "Add Binding" = "Add Binding";
 "Add Command" = "Add Command";
+"Add Divider Below" = "Add Divider Below";
 "Add Folder" = "Add Folder";
 "Add Folder…" = "Add Folder…";
 "Add Font…" = "Add Font…";
@@ -764,6 +765,7 @@
 "Dismiss Error" = "Dismiss Error";
 "Distribute unused cell space equally around the terminal grid." = "Distribute unused cell space equally around the terminal grid.";
 "Dock Floating Terminal" = "Dock Floating Terminal";
+"Divider Label" = "Divider Label";
 "Dock Panel" = "Dock Panel";
 "Dock as Tab" = "Dock as Tab";
 "Document" = "Document";
@@ -788,6 +790,7 @@
 "Edit %@" = "Edit %@";
 "Edit %@ with…" = "Edit %@ with…";
 "Edit Paired Server" = "Edit Paired Server";
+"Edit Label…" = "Edit Label…";
 "Edit Project Prompt…" = "Edit Project Prompt…";
 "Edit Remote Server" = "Edit Remote Server";
 "Edit in %@" = "Edit in %@";
@@ -1582,6 +1585,7 @@
 "Remove %@" = "Remove %@";
 "Remove %@ %@ %@" = "Remove %@ %@ %@";
 "Remove %lld Servers…" = "Remove %lld Servers…";
+"Remove Divider" = "Remove Divider";
 "Remove Icon" = "Remove Icon";
 "Remove Logo" = "Remove Logo";
 "Remove Project?" = "Remove Project?";
