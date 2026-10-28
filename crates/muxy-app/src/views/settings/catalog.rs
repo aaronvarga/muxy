@@ -364,6 +364,13 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Interface"),
     },
     Setting {
+        id: "sidebar-icon-size",
+        label: tr_key!("Sidebar icon size"),
+        description: tr_key!("How large project icons and logos appear in the sidebar."),
+        category: Category::Appearance,
+        section: tr_key!("Interface"),
+    },
+    Setting {
         id: "sidebar-vibrancy",
         label: tr_key!("Sidebar vibrancy"),
         description: tr_key!("Use a translucent macOS background while the sidebar is expanded."),

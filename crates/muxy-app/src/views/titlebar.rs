@@ -271,7 +271,7 @@ pub(crate) fn navigation(
                         .flex_none()
                         .items_center()
                         .justify_center()
-                        .w(m.sidebar_collapsed_width())
+                        .w(model.collapsed_sidebar_width())
                         .child(toggle),
                 )
                 .when(model.appearance.sidebar_expanded, |bar| {
@@ -329,7 +329,7 @@ fn sidebar_toggle(model: &AppModel, cx: &mut Context<AppModel>) -> Div {
 
 pub(super) fn navigation_width(model: &AppModel, _: &Window) -> f32 {
     if cfg!(target_os = "linux") {
-        return f32::from(model.metrics.sidebar_collapsed_width() + model.metrics.scaled(52.0));
+        return f32::from(model.collapsed_sidebar_width() + model.metrics.scaled(52.0));
     }
     let arrows = model.metrics.navigation_arrows_width();
     f32::from(if cfg!(target_os = "macos") {

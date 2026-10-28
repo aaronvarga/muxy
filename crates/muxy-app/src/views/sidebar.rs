@@ -273,6 +273,21 @@ impl AppModel {
         )
     }
 
+    /// The sidebar project icon size chosen in settings.
+    pub(crate) fn sidebar_icon(&self) -> Pixels {
+        self.metrics
+            .scaled(f32::from(self.appearance.sidebar_icon_size))
+    }
+
+    /// How much icons larger than the default widen collapsed sidebar rows.
+    fn sidebar_icon_growth(&self) -> Pixels {
+        px((f32::from(self.sidebar_icon()) - f32::from(self.metrics.icon_xxl())).max(0.0))
+    }
+
+    pub(crate) fn collapsed_sidebar_width(&self) -> Pixels {
+        self.metrics.sidebar_collapsed_width() + self.sidebar_icon_growth()
+    }
+
     pub(crate) fn sidebar_width(&self) -> f32 {
         if self.appearance.sidebar_expanded {
             let width = self
@@ -288,7 +303,7 @@ impl AppModel {
             || self.extension_sidebar_active())
             && self.appearance.sidebar_collapsed_style == SidebarCollapsedStyle::Icons
         {
-            f32::from(self.metrics.sidebar_collapsed_width())
+            f32::from(self.collapsed_sidebar_width())
         } else {
             0.0
         }
@@ -741,7 +756,11 @@ fn project_row(
             |label| {
                 div()
                     .debug_selector(move || format!("project-shortcut-{id}"))
-                    .child(super::shortcut_hints::badge(label, m.icon_xxl(), model))
+                    .child(super::shortcut_hints::badge(
+                        label,
+                        model.sidebar_icon(),
+                        model,
+                    ))
                     .into_any_element()
             },
         );
@@ -764,13 +783,16 @@ fn project_row(
         })
         .when(wide, |row| {
             row.p(m.spacing2())
-                .h(m.icon_xxl() + m.spacing2() * 2.0)
+                .h(model.sidebar_icon() + m.spacing2() * 2.0)
                 .gap(m.spacing4())
                 .rounded(m.radius_lg())
                 .when(active, |row| row.bg(theme.surface))
                 .hover(|style| style.bg(if active { theme.surface } else { theme.hover }))
         })
-        .when(!wide, |row| row.justify_center().size(m.scaled(34.0)))
+        .when(!wide, |row| {
+            row.justify_center()
+                .size(m.scaled(34.0) + model.sidebar_icon_growth())
+        })
         .when(missing, |row| row.opacity(0.5))
         .when(!missing, |row| {
             row.cursor_pointer()
@@ -955,7 +977,10 @@ pub(super) fn add_project_button(model: &AppModel, cx: &mut Context<AppModel>) -
                 .rounded(m.radius_lg())
                 .hover(|style| style.bg(theme.hover))
         })
-        .when(!wide, |row| row.justify_center().size(m.scaled(34.0)))
+        .when(!wide, |row| {
+            row.justify_center()
+                .size(m.scaled(34.0) + model.sidebar_icon_growth())
+        })
         .on_click(cx.listener(|model, event: &gpui::ClickEvent, window, cx| {
             model.choose_project_source(event.position(), window, cx);
         }))
@@ -965,7 +990,7 @@ pub(super) fn add_project_button(model: &AppModel, cx: &mut Context<AppModel>) -
                 .flex_none()
                 .items_center()
                 .justify_center()
-                .size(m.icon_xxl())
+                .size(model.sidebar_icon())
                 .rounded(m.radius_md())
                 .bg(theme.surface)
                 .child(IconGlyph::new(
@@ -994,10 +1019,12 @@ fn project_tile(project: &Project, model: &AppModel, group: SharedString) -> Any
         parse_hex(project.color.as_str()).unwrap_or(gpui::rgb(0x80_80_80))
     };
     let foreground = contrasting_foreground(color);
+    let size = model.sidebar_icon();
+    let scale = f32::from(size) / f32::from(m.icon_xxl());
     let glyph = if let Some((_, logo)) = model.project_logos.get(&project.id) {
         gpui::img(logo.clone())
-            .size(m.icon_xxl())
-            .rounded(m.radius_md())
+            .size(size)
+            .rounded(m.radius_md() * scale)
             .object_fit(gpui::ObjectFit::Cover)
             .into_any_element()
     } else if let Some(icon) = project
@@ -1006,19 +1033,28 @@ fn project_tile(project: &Project, model: &AppModel, group: SharedString) -> Any
         .filter(|icon| muxy_ui::symbols::PROJECT_ICONS || !icon.starts_with("sf:"))
     {
         if let Some(symbol) = icon.strip_prefix("sf:") {
-            SymbolGlyph::new(symbol.to_owned(), m.font_title_large(), foreground.into())
-                .into_any_element()
+            SymbolGlyph::new(
+                symbol.to_owned(),
+                m.font_title_large() * scale,
+                foreground.into(),
+            )
+            .into_any_element()
         } else {
             div()
-                .text_size(m.font_title_large())
+                .text_size(m.font_title_large() * scale)
                 .child(icon.clone())
                 .into_any_element()
         }
     } else if project.home && project.server_id.is_local() {
-        SymbolGlyph::new("house.fill", m.font_title_large(), foreground.into()).into_any_element()
+        SymbolGlyph::new(
+            "house.fill",
+            m.font_title_large() * scale,
+            foreground.into(),
+        )
+        .into_any_element()
     } else {
         div()
-            .text_size(m.font_emphasis())
+            .text_size(m.font_emphasis() * scale)
             .font_weight(FontWeight::BOLD)
             .text_color(foreground)
             .child(muxy_app_core::initial(&model.project_title(project)).to_uppercase())
@@ -1029,8 +1065,8 @@ fn project_tile(project: &Project, model: &AppModel, group: SharedString) -> Any
         .flex_none()
         .items_center()
         .justify_center()
-        .size(m.icon_xxl())
-        .rounded(m.radius_md())
+        .size(size)
+        .rounded(m.radius_md() * scale)
         .when(!model.project_logos.contains_key(&project.id), |tile| {
             tile.bg(color)
         })

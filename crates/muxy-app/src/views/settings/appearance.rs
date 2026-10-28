@@ -1,7 +1,9 @@
 use super::{Category, Change, PickerKind, SettingsEvent, SettingsView, Snapshot};
-use gpui::{AnyElement, Context, InteractiveElement, IntoElement};
+use gpui::{AnyElement, Context, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 use muxy_app_core::localization;
-use muxy_app_core::settings::{AgentsPanelGrouping, CloseBehavior, SidebarCollapsedStyle};
+use muxy_app_core::settings::{
+    AgentsPanelGrouping, CloseBehavior, SIDEBAR_ICON_SIZE, SidebarCollapsedStyle,
+};
 use muxy_ui::controls::{self, Choice};
 use muxy_ui::l10n::{tr_key, translate};
 use muxy_ui::tr;
@@ -118,6 +120,9 @@ pub(super) fn rows(
         && pane.matches(category, tr_key!("Collapsed sidebar style"))
     {
         rows.push(collapsed_sidebar_style(pane, cx));
+    }
+    if category == Category::Appearance && pane.matches(category, tr_key!("Sidebar icon size")) {
+        rows.push(sidebar_icon_size(pane, cx));
     }
     if category == Category::Appearance && pane.matches(category, tr_key!("Sidebar vibrancy")) {
         rows.push(pane.row(
@@ -360,5 +365,71 @@ fn collapsed_sidebar_style(pane: &SettingsView, cx: &mut Context<SettingsView>) 
                 )));
             }),
         ),
+    )
+}
+
+fn sidebar_icon_size(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
+    let (min, default, max) = SIDEBAR_ICON_SIZE;
+    let size = pane.snapshot.settings.appearance.sidebar_icon_size;
+    let m = pane.metrics;
+    let tile = m.scaled(f32::from(size));
+    let preview = div()
+        .debug_selector(|| "sidebar-icon-size-preview".into())
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .size(m.scaled(f32::from(max)))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_center()
+                .size(tile)
+                .rounded(m.radius_md() * (f32::from(size) / f32::from(default)))
+                .bg(pane.theme.accent)
+                .text_color(pane.theme.bg)
+                .text_size(tile * 0.5)
+                .font_weight(gpui::FontWeight::BOLD)
+                .child("M"),
+        );
+    pane.row(
+        "sidebar-icon-size",
+        tr_key!("Sidebar icon size"),
+        div()
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .child(
+                div()
+                    .flex_none()
+                    .debug_selector(|| "sidebar-icon-size-slider".into())
+                    .child(controls::slider(
+                        pane.style(),
+                        "sidebar-icon-size",
+                        f32::from(size),
+                        (f32::from(min), f32::from(max)),
+                        cx.listener(|view, grab: &controls::Grab, _, cx| {
+                            view.quick_slider = Some(("sidebar-icon-size", grab.bounds));
+                            view.move_quick_slider(
+                                "sidebar-icon-size",
+                                grab.bounds,
+                                grab.position,
+                                cx,
+                            );
+                        }),
+                    )),
+            )
+            .child(preview)
+            .child(controls::button(
+                pane.style(),
+                "sidebar-icon-size-reset",
+                &tr!("Reset"),
+                size != default,
+                cx.listener(move |_: &mut SettingsView, _, _, cx| {
+                    cx.emit(SettingsEvent::Change(Change::SidebarIconSize(default)));
+                }),
+            ))
+            .into_any_element(),
     )
 }

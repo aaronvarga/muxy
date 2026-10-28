@@ -243,8 +243,16 @@ impl SettingsView {
         position: gpui::Point<gpui::Pixels>,
         cx: &mut Context<Self>,
     ) {
-        let mut next = self.snapshot.settings.quick_terminal.clone();
         let fraction = controls::fraction_at(bounds, position);
+        if id == "sidebar-icon-size" {
+            let (min, _, max) = muxy_app_core::settings::SIDEBAR_ICON_SIZE;
+            let size = min + (fraction * f32::from(max - min)).round() as u8;
+            if size != self.snapshot.settings.appearance.sidebar_icon_size {
+                cx.emit(SettingsEvent::Change(Change::SidebarIconSize(size)));
+            }
+            return;
+        }
+        let mut next = self.snapshot.settings.quick_terminal.clone();
         if id == "quick-transparency" {
             next.transparency = (fraction * 55.0).round() as u8;
         } else {

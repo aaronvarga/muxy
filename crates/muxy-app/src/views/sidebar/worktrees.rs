@@ -226,7 +226,7 @@ fn row(
         .child(
             div()
                 .flex_none()
-                .w(m.icon_xxl())
+                .w(model.sidebar_icon())
                 .flex()
                 .items_center()
                 .justify_center()
@@ -279,7 +279,7 @@ fn creating_row(name: &str, parent: ProjectId, index: usize, model: &AppModel) -
         .child(
             div()
                 .flex_none()
-                .w(m.icon_xxl())
+                .w(model.sidebar_icon())
                 .flex()
                 .items_center()
                 .justify_center()
@@ -329,7 +329,7 @@ pub(crate) fn new_worktree(
         }))
         .child(
             div()
-                .w(m.icon_xxl())
+                .w(model.sidebar_icon())
                 .flex_none()
                 .flex()
                 .items_center()

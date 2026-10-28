@@ -310,6 +310,36 @@ fn invalid_queued_server_fields_do_not_stall_later_changes_or_allow_early_connec
 }
 
 #[gpui::test]
+fn sidebar_icon_slider_resizes_sidebar_live_and_saves(cx: &mut TestAppContext) {
+    use muxy_app_core::settings::{Appearance, SIDEBAR_ICON_SIZE};
+    let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
+    let path = boot.state_path.with_file_name("settings.toml");
+    let (model, settings) = settings_window(boot, cx);
+    let collapsed = model.read_with(settings, |model, _| model.sidebar_width());
+    click_preference(settings, "settings-category-Appearance");
+    click_preference(settings, "settings-disclosure-Appearance");
+    click_preference(settings, "settings-subcategory-Interface");
+    let bounds = settings
+        .debug_bounds("sidebar-icon-size-slider")
+        .expect("icon size slider");
+    settings.simulate_event(gpui::MouseDownEvent {
+        position: gpui::point(bounds.right() - px(1.0), bounds.center().y),
+        button: gpui::MouseButton::Left,
+        click_count: 1,
+        ..Default::default()
+    });
+    settings.run_until_parked();
+    model.read_with(settings, |model, _| {
+        assert_eq!(model.appearance.sidebar_icon_size, SIDEBAR_ICON_SIZE.2);
+        assert!(model.sidebar_width() > collapsed);
+    });
+    assert_eq!(
+        Appearance::load(&path).expect("saved").sidebar_icon_size,
+        SIDEBAR_ICON_SIZE.2
+    );
+}
+
+#[gpui::test]
 fn terminal_slider_previews_without_writing_and_saves_when_settings_close(cx: &mut TestAppContext) {
     use muxy_app_core::settings::TerminalSettings;
     let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
