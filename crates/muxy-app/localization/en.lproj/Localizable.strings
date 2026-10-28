@@ -892,6 +892,7 @@
 "Muxy on %@ is %@" = "Muxy on %@ is %@";
 "Muxy on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x muxy-server" = "Muxy on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x muxy-server";
 "Muxy on %@ is another version" = "Muxy on %@ is another version";
+"Muxy on GitHub" = "Muxy on GitHub";
 "Muxy recognizes AI agents like Claude Code and Codex, marks panes, tabs, and projects when they're working or need you, and notifies you when they're in the background." = "Muxy recognizes AI agents like Claude Code and Codex, marks panes, tabs, and projects when they're working or need you, and notifies you when they're in the background.";
 "Muxy updates" = "Muxy updates";
 "Muxy uses your SSH config, keys, and agent. A password is never saved." = "Muxy uses your SSH config, keys, and agent. A password is never saved.";

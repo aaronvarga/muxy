@@ -21,6 +21,7 @@ actions!(
     [
         OpenSettings,
         CheckForUpdates,
+        OpenRepository,
         InstallCommandLineTool,
         NewTab,
         ExistingTerminals,

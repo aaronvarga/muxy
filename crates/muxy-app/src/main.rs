@@ -97,10 +97,10 @@ use views::workspace::{
     EqualizeSplits, Find, FindNext, FindPrevious, FocusPaneDown, FocusPaneLeft, FocusPaneRight,
     FocusPaneUp, HideApp, HideOthers, IncreaseFontSize, InstallCommandLineTool, Minimize,
     NewBrowserTab, NewHomeTab, NewTab, NewTabInProject, NewWorktree, NextProject, NextPrompt,
-    NextTab, OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit, SelectCommandOutput,
-    SelectProject, SelectTab, ShowAll, SplitDown, SplitRight, SwitchWorktree, ToggleAgentSessions,
-    ToggleAgentsPanel, ToggleCommandPalette, ToggleComposer, ToggleFullScreen, ToggleSidebar,
-    ToggleThemePicker, ToggleVoiceRecording, ToggleZoomPane, Zoom, bind_keys,
+    NextTab, OpenRepository, OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit,
+    SelectCommandOutput, SelectProject, SelectTab, ShowAll, SplitDown, SplitRight, SwitchWorktree,
+    ToggleAgentSessions, ToggleAgentsPanel, ToggleCommandPalette, ToggleComposer, ToggleFullScreen,
+    ToggleSidebar, ToggleThemePicker, ToggleVoiceRecording, ToggleZoomPane, Zoom, bind_keys,
 };
 
 fn main() -> ExitCode {
@@ -190,9 +190,7 @@ fn run() -> ExitCode {
             profile.finish_on_quit(cx);
         }
         bind_keys(&boot.settings.keymap, cx);
-        cx.on_action(|_: &HideApp, cx| cx.hide());
-        cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
-        cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
+        app_actions(cx);
         cx.set_menus(menus());
         let bounds = restored_bounds(&boot, cx);
         let options = WindowOptions {
@@ -257,6 +255,13 @@ fn restored_bounds(boot: &boot::Boot, cx: &App) -> Bounds<gpui::Pixels> {
     Bounds::centered(None, size(px(width), px(height)), cx)
 }
 
+fn app_actions(cx: &mut App) {
+    cx.on_action(|_: &HideApp, cx| cx.hide());
+    cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
+    cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
+    cx.on_action(|_: &OpenRepository, cx| cx.open_url("https://github.com/muxy-app/muxy"));
+}
+
 fn app_name() -> &'static str {
     muxy_core::release::Channel::current().app_name()
 }
@@ -318,6 +323,7 @@ fn menus() -> Vec<Menu> {
             InstallCommandLineTool,
         ));
     }
+    app_items.push(MenuItem::action(tr!("Muxy on GitHub"), OpenRepository));
     app_items.extend([
         MenuItem::separator(),
         MenuItem::os_submenu(tr!("Services"), SystemMenuType::Services),
