@@ -84,6 +84,13 @@ pub struct Project {
     pub directory: PathBuf,
     pub kind: Option<ProjectKind>,
     pub parent_id: Option<ProjectId>,
+    /// Extra folders shown beside `directory`.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        with = "crate::catalog::directories"
+    )]
+    pub folders: Vec<PathBuf>,
     pub tabs: Vec<Tab>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) groups: Option<crate::TabGroups>,

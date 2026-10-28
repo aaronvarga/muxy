@@ -40,6 +40,8 @@ impl Feature {
     /// Paired phones can register for push notifications, and the server
     /// has a switch for them.
     pub const PUSH_NOTIFICATIONS: Self = Self(5);
+    /// Fork capability: projects carry extra folders, and file requests can name one.
+    pub const PROJECT_FOLDERS: Self = Self(0x8001);
 }
 
 /// Features this build's server supports.
@@ -49,4 +51,5 @@ pub const FEATURES: &[Feature] = &[
     Feature::PAIRED_COMPUTERS,
     Feature::SESSION_MOVE,
     Feature::PUSH_NOTIFICATIONS,
+    Feature::PROJECT_FOLDERS,
 ];

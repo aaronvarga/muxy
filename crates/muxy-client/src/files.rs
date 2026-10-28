@@ -29,7 +29,11 @@ impl Client {
         decode: fn(ReplyBody) -> Result<T, ClientError>,
     ) -> Result<T, ClientError> {
         decode(self.request_with_timeout(
-            RequestBody::Files(FilesRequest { project, action }),
+            RequestBody::Files(FilesRequest {
+                project,
+                action,
+                root: None,
+            }),
             FILES_TIMEOUT,
         )?)
     }
@@ -41,7 +45,11 @@ impl Client {
         decode: fn(ReplyBody) -> Result<T, ClientError>,
     ) -> Request<T> {
         self.request_async(
-            RequestBody::Files(FilesRequest { project, action }),
+            RequestBody::Files(FilesRequest {
+                project,
+                action,
+                root: None,
+            }),
             FILES_TIMEOUT,
             decode,
         )

@@ -14,6 +14,12 @@ pub struct FilesRequest {
     pub project: ProjectId,
     #[n(1)]
     pub action: FilesAction,
+    /// One of the project's extra folders, or its directory when `None`.
+    /// Needs `Feature::PROJECT_FOLDERS`; older servers ignore it.
+    #[n(2)]
+    #[cbor(default)]
+    #[serde(default)]
+    pub root: Option<ServerPath>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -133,6 +139,11 @@ pub struct FileChanges {
     pub paths: Vec<ServerPath>,
     #[n(1)]
     pub rescan: bool,
+    /// The extra folder that changed, or the project directory when `None`.
+    #[n(2)]
+    #[cbor(default)]
+    #[serde(default)]
+    pub root: Option<ServerPath>,
 }
 
 impl FileChanges {
@@ -157,6 +168,9 @@ impl FileChanges {
     pub fn validate(&self) -> Result<(), ErrorCode> {
         if self.paths.len() > MAX_FILE_CHANGES || (self.rescan && !self.paths.is_empty()) {
             return Err(ErrorCode::BadRequest);
+        }
+        if let Some(root) = &self.root {
+            crate::validate_absolute_path(root)?;
         }
         self.paths.iter().try_for_each(validate_relative_path)
     }
@@ -201,6 +215,9 @@ fn paths(values: &[ServerPath]) -> Result<(), ErrorCode> {
 
 impl FilesRequest {
     pub fn validate(&self) -> Result<(), ErrorCode> {
+        if let Some(root) = &self.root {
+            crate::validate_absolute_path(root)?;
+        }
         match &self.action {
             FilesAction::List(path)
             | FilesAction::Read(path)

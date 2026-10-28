@@ -80,7 +80,7 @@ impl Delivery {
             && let Some(deferred) = self
                 .deferred
                 .iter_mut()
-                .find(|deferred| deferred.coalesce_key() == Some(key))
+                .find(|deferred| deferred.coalesce_key().as_ref() == Some(&key))
         {
             deferred.merge(event);
             return Ok(Vec::new());

@@ -723,6 +723,7 @@ mod tests {
                 directory: ServerPath(b"/tmp".to_vec()),
                 kind: None,
                 parent_id: None,
+                folders: Vec::new(),
             }],
         }
     }

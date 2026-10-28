@@ -6,7 +6,7 @@ use minicbor::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 /// A Unix path on the server, as its bytes.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(transparent)]
 #[cbor(transparent)]
 pub struct ServerPath(

@@ -46,6 +46,7 @@ fn project(path: &Path) -> ProjectDescriptor {
         directory: ServerPath::from(path),
         kind: None,
         parent_id: None,
+        folders: Vec::new(),
     }
 }
 fn intent(mutation: ProjectMutation) -> ProjectIntent {

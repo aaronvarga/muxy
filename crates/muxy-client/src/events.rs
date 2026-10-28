@@ -78,7 +78,9 @@ impl ClientEvent {
         match self {
             Self::SessionMetadata { session, .. } => Some(CoalesceKey::SessionMetadata(*session)),
             Self::Progress { session, .. } => Some(CoalesceKey::Progress(*session)),
-            Self::FilesChanged { project, .. } => Some(CoalesceKey::FilesChanged(*project)),
+            Self::FilesChanged { project, changes } => {
+                Some(CoalesceKey::FilesChanged(*project, changes.root.clone()))
+            }
             Self::GitChanged { project } => Some(CoalesceKey::GitChanged(*project)),
             Self::CatalogChanged { .. } => Some(CoalesceKey::Changed(Topic::Catalog)),
             Self::SessionsChanged { .. } => Some(CoalesceKey::Changed(Topic::Sessions)),

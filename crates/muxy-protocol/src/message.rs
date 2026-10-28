@@ -25,12 +25,13 @@ open_enum! {
 
 /// What a queued message stands for: a newer message with the same key folds
 /// into it instead of waiting behind it.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum CoalesceKey {
     Changed(Topic),
     SessionMetadata(SessionId),
     Progress(SessionId),
-    FilesChanged(crate::ProjectId),
+    /// A project and the extra folder that changed, `None` for its directory.
+    FilesChanged(crate::ProjectId, Option<crate::ServerPath>),
     GitChanged(crate::ProjectId),
 }
 
@@ -106,7 +107,9 @@ impl Message {
             Self::Changed { topic, .. } => Some(CoalesceKey::Changed(*topic)),
             Self::SessionMetadata { session, .. } => Some(CoalesceKey::SessionMetadata(*session)),
             Self::Progress { session, .. } => Some(CoalesceKey::Progress(*session)),
-            Self::FilesChanged { project, .. } => Some(CoalesceKey::FilesChanged(*project)),
+            Self::FilesChanged { project, changes } => {
+                Some(CoalesceKey::FilesChanged(*project, changes.root.clone()))
+            }
             Self::GitChanged { project } => Some(CoalesceKey::GitChanged(*project)),
             _ => None,
         }

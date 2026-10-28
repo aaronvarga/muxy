@@ -7,10 +7,21 @@ use super::DebouncedWatch;
 use crate::ServerError;
 use crate::connection::Connection;
 
-/// One watch per project, whoever asks for it. A watch stops when its last
-/// subscription is dropped.
-#[derive(Clone, Default)]
-pub(crate) struct Shared(Arc<Mutex<HashMap<ProjectId, Arc<Slot>>>>);
+/// One watch per project (or per `K`, such as a project folder), whoever asks
+/// for it. A watch stops when its last subscription is dropped.
+pub(crate) struct Shared<K = ProjectId>(Arc<Mutex<HashMap<K, Arc<Slot>>>>);
+
+impl<K> Clone for Shared<K> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl<K> Default for Shared<K> {
+    fn default() -> Self {
+        Self(Arc::default())
+    }
+}
 
 #[derive(Default)]
 struct Slot {
@@ -56,44 +67,44 @@ impl Subscribers {
     }
 }
 
-pub(crate) struct Subscription {
-    shared: Shared,
-    project: ProjectId,
+pub(crate) struct Subscription<K: Clone + Eq + std::hash::Hash = ProjectId> {
+    shared: Shared<K>,
+    project: K,
     slot: Arc<Slot>,
     connection: Weak<Connection>,
 }
 
-impl Subscription {
-    pub(crate) fn project(&self) -> ProjectId {
-        self.project
+impl<K: Clone + Eq + std::hash::Hash> Subscription<K> {
+    pub(crate) fn project(&self) -> K {
+        self.project.clone()
     }
 }
 
-impl Shared {
+impl<K: Clone + Eq + std::hash::Hash> Shared<K> {
     /// Subscribes `connection` to the project's watch, starting it with `start`
     /// when nobody watches the project yet. `start` returns `None` when there
     /// is nothing to watch.
     pub(crate) fn subscribe(
         &self,
-        project: ProjectId,
+        project: K,
         connection: &Arc<Connection>,
         start: impl FnOnce(Subscribers) -> Result<Option<DebouncedWatch>, ServerError>,
-    ) -> Result<Option<Subscription>, ServerError> {
+    ) -> Result<Option<Subscription<K>>, ServerError> {
         loop {
-            let slot = Arc::clone(self.slots().entry(project).or_default());
+            let slot = Arc::clone(self.slots().entry(project.clone()).or_default());
             let mut watch = slot.watch.lock().unwrap_or_else(PoisonError::into_inner);
-            if !self.holds(project, &slot) {
+            if !self.holds(&project, &slot) {
                 continue;
             }
             if watch.is_none() {
                 match start(slot.subscribers.clone()) {
                     Ok(Some(started)) => *watch = Some(started),
                     Ok(None) => {
-                        self.forget(project, &slot);
+                        self.forget(&project, &slot);
                         return Ok(None);
                     }
                     Err(error) => {
-                        self.forget(project, &slot);
+                        self.forget(&project, &slot);
                         return Err(error);
                     }
                 }
@@ -110,24 +121,24 @@ impl Shared {
         }
     }
 
-    fn slots(&self) -> std::sync::MutexGuard<'_, HashMap<ProjectId, Arc<Slot>>> {
+    fn slots(&self) -> std::sync::MutexGuard<'_, HashMap<K, Arc<Slot>>> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn holds(&self, project: ProjectId, slot: &Arc<Slot>) -> bool {
+    fn holds(&self, project: &K, slot: &Arc<Slot>) -> bool {
         self.slots()
-            .get(&project)
+            .get(project)
             .is_some_and(|held| Arc::ptr_eq(held, slot))
     }
 
     /// Called with the slot's watch locked, so nobody joins it meanwhile.
-    fn forget(&self, project: ProjectId, slot: &Arc<Slot>) {
+    fn forget(&self, project: &K, slot: &Arc<Slot>) {
         let mut slots = self.slots();
         if slots
-            .get(&project)
+            .get(project)
             .is_some_and(|held| Arc::ptr_eq(held, slot))
         {
-            slots.remove(&project);
+            slots.remove(project);
         }
     }
 
@@ -137,7 +148,7 @@ impl Shared {
     }
 }
 
-impl Drop for Subscription {
+impl<K: Clone + Eq + std::hash::Hash> Drop for Subscription<K> {
     fn drop(&mut self) {
         let stopped_watch = {
             let mut watch = self
@@ -148,7 +159,7 @@ impl Drop for Subscription {
             if self.slot.subscribers.remove(&self.connection) {
                 None
             } else {
-                self.shared.forget(self.project, &self.slot);
+                self.shared.forget(&self.project, &self.slot);
                 watch.take()
             }
         };
@@ -156,7 +167,7 @@ impl Drop for Subscription {
     }
 }
 
-impl std::fmt::Debug for Shared {
+impl<K: Clone + Eq + std::hash::Hash> std::fmt::Debug for Shared<K> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("Shared")
