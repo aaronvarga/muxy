@@ -110,6 +110,8 @@ pub(crate) enum Command {
     RunCommandInPane(usize),
     /// Swaps a pane with its neighbor in a direction.
     MovePane(muxy_app_core::PaneId, muxy_app_core::Direction),
+    /// Shows or hides the titlebar button at this index of the titlebar menu.
+    ToggleTitlebarButton(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -739,6 +741,7 @@ impl AppModel {
             Command::CommandsBar(visible) => {
                 self.change_preference(super::settings::Change::CommandsBar(visible), cx);
             }
+            Command::ToggleTitlebarButton(index) => self.toggle_titlebar_button(index, cx),
             Command::ManageCommands => {
                 self.show_settings_at(super::settings::Category::Commands, cx);
             }

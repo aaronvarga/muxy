@@ -88,6 +88,9 @@ pub struct Appearance {
     pub worktree_recent: Vec<crate::ProjectId>,
     pub project_recent: Vec<crate::ProjectId>,
     pub hidden_worktrees: std::collections::BTreeSet<crate::ProjectId>,
+    /// Titlebar buttons the user hid, by key; extension buttons use
+    /// `top:<extension>:<item>`.
+    pub hidden_titlebar_buttons: std::collections::BTreeSet<String>,
     pub tab_focused_expanded: std::collections::BTreeMap<crate::ProjectId, bool>,
     #[serde(rename = "tab_focused_focus")]
     pub sidebar_focus: bool,
@@ -133,6 +136,7 @@ impl Default for Appearance {
             worktree_recent: Vec::new(),
             project_recent: Vec::new(),
             hidden_worktrees: std::collections::BTreeSet::new(),
+            hidden_titlebar_buttons: std::collections::BTreeSet::new(),
             tab_focused_expanded: std::collections::BTreeMap::new(),
             sidebar_focus: false,
             sidebar_project_order: ProjectOrder::default(),

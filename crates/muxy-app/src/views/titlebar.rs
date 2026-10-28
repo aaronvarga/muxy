@@ -52,15 +52,20 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
     } else {
         0
     };
-    let browser = available && model.browser_enabled();
-    let layouts = available && model.has_project_layouts();
+    let shown = |key| !model.appearance.hidden_titlebar_buttons.contains(key);
+    let existing_count = if shown(EXISTING) { existing_count } else { 0 };
+    let browser = available && model.browser_enabled() && shown(BROWSER);
+    let layouts = available && model.has_project_layouts() && shown(LAYOUTS);
     let zoom_tab = project.tabs.iter().find(|tab| {
         available
+            && shown(ZOOM)
             && Some(tab.id) == model.active_tab()
             && (tab.zoomed.is_some() || tab.panes.len() > 1)
     });
-    let split = available && model.active_pane().is_some();
-    let controls = 2
+    let split = available && model.active_pane().is_some() && shown(SPLIT);
+    let sessions = shown(SESSIONS);
+    let controls = 1
+        + u8::from(sessions)
         + 2 * u8::from(split)
         + u8::from(existing_count > 0)
         + u8::from(browser)
@@ -75,6 +80,14 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         .flex_none()
         .items_center()
         .when(cfg!(target_os = "linux"), Styled::h_full)
+        .on_mouse_down(
+            MouseButton::Right,
+            cx.listener(|model, event: &gpui::MouseDownEvent, window, cx| {
+                cx.stop_propagation();
+                let items = model.titlebar_button_items();
+                model.open_menu(items, event.position, window, cx);
+            }),
+        )
         .when(existing_count > 0, |bar| {
             bar.child(super::tab_strip::existing_terminals_button(
                 existing_count,
@@ -110,7 +123,9 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             bar.child(super::project_layouts::button(model, cx))
         })
         .child(model.extension_toolbar(cx))
-        .child(super::agent_sessions::button(model, cx))
+        .when(sessions, |bar| {
+            bar.child(super::agent_sessions::button(model, cx))
+        })
         .child(super::tab_strip::settings_button(model, cx));
     #[cfg(target_os = "linux")]
     if let Some(controls) = linux::controls(
@@ -124,6 +139,58 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         );
     }
     (bar, width)
+}
+
+const EXISTING: &str = "existing_terminals";
+const BROWSER: &str = "browser";
+const SPLIT: &str = "split";
+const ZOOM: &str = "zoom";
+const LAYOUTS: &str = "layouts";
+const SESSIONS: &str = "agent_sessions";
+
+impl AppModel {
+    /// Every titlebar button that can be hidden, by key and name. Settings
+    /// always stays, since its menu brings the others back.
+    fn titlebar_buttons(&self) -> Vec<(String, SharedString)> {
+        let mut buttons: Vec<(String, SharedString)> = vec![
+            (EXISTING.into(), tr!("Existing Terminals")),
+            (BROWSER.into(), tr!("Browser")),
+            (SPLIT.into(), tr!("Split Buttons")),
+            (ZOOM.into(), tr!("Zoom")),
+            (LAYOUTS.into(), tr!("Layouts")),
+        ];
+        buttons.extend(self.topbar_items().into_iter().map(|item| {
+            (
+                format!("top:{}:{}", item.owner, item.id),
+                item.tooltip.into(),
+            )
+        }));
+        buttons.push((SESSIONS.into(), tr!("Agent Sessions")));
+        buttons
+    }
+
+    pub(crate) fn titlebar_button_items(&self) -> Vec<super::menu::Item> {
+        self.titlebar_buttons()
+            .into_iter()
+            .enumerate()
+            .map(|(index, (key, label))| {
+                super::menu::Item::action(label, super::menu::Command::ToggleTitlebarButton(index))
+                    .checked_if(!self.appearance.hidden_titlebar_buttons.contains(&key))
+            })
+            .collect()
+    }
+
+    pub(crate) fn toggle_titlebar_button(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some((key, _)) = self.titlebar_buttons().into_iter().nth(index) else {
+            return;
+        };
+        let hidden = &mut self.appearance.hidden_titlebar_buttons;
+        if !hidden.remove(&key) {
+            hidden.insert(key);
+        }
+        self.save_appearance(cx);
+        cx.notify();
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
