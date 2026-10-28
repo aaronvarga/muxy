@@ -632,6 +632,7 @@
 "Equalize Splits" = "Equalize Splits";
 "Every setting on the Terminal page, including key bindings, returns to its default." = "Every setting on the Terminal page, including key bindings, returns to its default.";
 "Every target must have a live terminal before sending." = "Every target must have a live terminal before sending.";
+"Existing Terminals" = "Existing Terminals";
 "Existing Terminals…" = "Existing Terminals…";
 "Expand Composer" = "Expand Composer";
 "Expand Project" = "Expand Project";
@@ -823,6 +824,7 @@
 "Last seen %lld h ago" = "Last seen %lld h ago";
 "Last seen %lld min ago" = "Last seen %lld min ago";
 "Last seen just now" = "Last seen just now";
+"Layouts" = "Layouts";
 "Left" = "Left";
 "Let paired phones and computers reach this computer's server over the local network or a VPN. A paired phone gets full terminal access; a paired computer can also run commands and change or stop this server." = "Let paired phones and computers reach this computer's server over the local network or a VPN. A paired phone gets full terminal access; a paired computer can also run commands and change or stop this server.";
 "Let the desktop show through the terminal background." = "Let the desktop show through the terminal background.";
@@ -1411,6 +1413,7 @@
 "Space" = "Space";
 "Speech permission request did not complete. Try again." = "Speech permission request did not complete. Try again.";
 "Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition." = "Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition.";
+"Split Buttons" = "Split Buttons";
 "Split Down" = "Split Down";
 "Split Right" = "Split Right";
 "Squash" = "Squash";

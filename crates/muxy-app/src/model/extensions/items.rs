@@ -250,14 +250,23 @@ impl AppModel {
         }
     }
 
+    /// The titlebar's extension buttons the user hasn't hidden.
+    fn shown_topbar_items(&self) -> Vec<Item> {
+        let hidden = &self.appearance.hidden_titlebar_buttons;
+        self.topbar_items()
+            .into_iter()
+            .filter(|item| !hidden.contains(&format!("top:{}:{}", item.owner, item.id)))
+            .collect()
+    }
+
     pub(crate) fn extension_toolbar_width(&self) -> f32 {
-        f32::from(u16::try_from(self.topbar_items().len()).unwrap_or(u16::MAX))
+        f32::from(u16::try_from(self.shown_topbar_items().len()).unwrap_or(u16::MAX))
             * f32::from(self.metrics.control_medium() + self.metrics.spacing2())
     }
 
     pub(crate) fn extension_toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut bar = div().flex().flex_none().items_center();
-        for item in self.topbar_items() {
+        for item in self.shown_topbar_items() {
             let key = format!("top:{}:{}", item.owner, item.id);
             let anchor = self.extensions.items.anchor(&key);
             let icon = self.extension_icon(

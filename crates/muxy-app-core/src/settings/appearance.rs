@@ -96,6 +96,9 @@ pub struct Appearance {
     pub worktree_recent: Vec<crate::ProjectId>,
     pub project_recent: Vec<crate::ProjectId>,
     pub hidden_worktrees: std::collections::BTreeSet<crate::ProjectId>,
+    /// Titlebar buttons the user hid, by key; extension buttons use
+    /// `top:<extension>:<item>`.
+    pub hidden_titlebar_buttons: std::collections::BTreeSet<String>,
     pub tab_focused_expanded: std::collections::BTreeMap<crate::ProjectId, bool>,
     pub remember_projects_without_tabs: bool,
     /// Kept only while `remember_projects_without_tabs` is on.
@@ -147,6 +150,7 @@ impl Default for Appearance {
             worktree_recent: Vec::new(),
             project_recent: Vec::new(),
             hidden_worktrees: std::collections::BTreeSet::new(),
+            hidden_titlebar_buttons: std::collections::BTreeSet::new(),
             tab_focused_expanded: std::collections::BTreeMap::new(),
             remember_projects_without_tabs: false,
             projects_without_tabs_shown: false,
