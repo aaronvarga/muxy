@@ -63,6 +63,20 @@ fn editor(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
             pane.field("command-text"),
             pane.compact,
         ))
+        .child(form::row(
+            pane.layout_style(),
+            &tr!("Show in commands bar"),
+            Some(tr!("A button below the tabs runs it in a new split.").as_str()),
+            draft_toggle(pane, "command-in-bar", |command| !command.hidden, |command| command.hidden = !command.hidden, cx),
+            pane.compact,
+        ))
+        .child(form::row(
+            pane.layout_style(),
+            &tr!("Show in status bar"),
+            Some(tr!("The status bar's Commands menu runs it in the selected terminal.").as_str()),
+            draft_toggle(pane, "command-in-status-bar", |command| command.status_bar, |command| command.status_bar = !command.status_bar, cx),
+            pane.compact,
+        ))
         .child(
             div()
                 .flex()
@@ -89,6 +103,27 @@ fn editor(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
                 ),
         )
         .into_any_element()
+}
+
+/// A switch for a setting of the command being edited, saved with it.
+fn draft_toggle(
+    pane: &SettingsView,
+    id: &str,
+    value: fn(&CustomCommand) -> bool,
+    flip: fn(&mut CustomCommand),
+    cx: &mut Context<SettingsView>,
+) -> AnyElement {
+    controls::toggle(
+        pane.style(),
+        id,
+        pane.command_editor.as_ref().is_some_and(value),
+        cx.listener(move |pane, _, _, cx| {
+            if let Some(command) = &mut pane.command_editor {
+                flip(command);
+                cx.notify();
+            }
+        }),
+    )
 }
 
 pub(super) fn row(pane: &SettingsView, index: usize, cx: &mut Context<SettingsView>) -> AnyElement {

@@ -14,6 +14,10 @@ pub struct CustomCommand {
     /// Kept out of the commands bar; the palette and shortcut still run it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
+    /// Listed in the status bar's Commands menu, which types it into the
+    /// selected terminal instead of opening a split.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub status_bar: bool,
 }
 
 impl CustomCommand {
@@ -23,6 +27,7 @@ impl CustomCommand {
             name,
             command,
             hidden: false,
+            status_bar: false,
         }
     }
 

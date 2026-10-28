@@ -81,6 +81,7 @@
 "1 unread notification" = "1 unread notification";
 "A Git action is already pending" = "A Git action is already pending";
 "A Unicode range, such as U+E000-U+F8FF." = "A Unicode range, such as U+E000-U+F8FF.";
+"A button below the tabs runs it in a new split." = "A button below the tabs runs it in a new split.";
 "A color, cell-foreground, or cell-background. Leave empty to use the theme." = "A color, cell-foreground, or cell-background. Leave empty to use the theme.";
 "A process is still running in these tabs.\nAre you sure you want to close them?" = "A process is still running in these tabs.\nAre you sure you want to close them?";
 "A process is still running in this pane.\nAre you sure you want to close it?" = "A process is still running in this pane.\nAre you sure you want to close it?";
@@ -1337,6 +1338,8 @@
 "Show commands bar" = "Show commands bar";
 "Show connection and terminal information at the bottom of the workspace." = "Show connection and terminal information at the bottom of the workspace.";
 "Show in File Manager" = "Show in File Manager";
+"Show in commands bar" = "Show in commands bar";
+"Show in status bar" = "Show in status bar";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
 "Show project names alongside their icons in the workspace sidebar." = "Show project names alongside their icons in the workspace sidebar.";
 "Show status bar" = "Show status bar";
@@ -1462,6 +1465,7 @@
 "The signed app has an unexpected %@" = "The signed app has an unexpected %@";
 "The signed beta build number does not match the update feed" = "The signed beta build number does not match the update feed";
 "The staged update metadata changed. Check for updates again." = "The staged update metadata changed. Check for updates again.";
+"The status bar's Commands menu runs it in the selected terminal." = "The status bar's Commands menu runs it in the selected terminal.";
 "The terminal closed before sending." = "The terminal closed before sending.";
 "The typeface used to render text in every terminal pane." = "The typeface used to render text in every terminal pane.";
 "The update download is incomplete or has an unexpected size" = "The update download is incomplete or has an unexpected size";

@@ -99,6 +99,8 @@ pub(crate) enum Command {
     ToggleCommandInBar(usize),
     CommandsBar(bool),
     ManageCommands,
+    /// Types the custom command at this index into the active terminal.
+    RunCommandInPane(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -718,6 +720,16 @@ impl AppModel {
             }
             Command::ManageCommands => {
                 self.show_settings_at(super::settings::Category::Commands, cx);
+            }
+            Command::RunCommandInPane(index) => {
+                if let Some(id) = self
+                    .settings
+                    .commands
+                    .get(index)
+                    .map(|command| command.id.clone())
+                {
+                    self.run_custom_command_in_pane(&id, cx);
+                }
             }
             Command::BrowserInspect(pane) => {
                 if let Some(view) = self.browser_view(pane)

@@ -102,3 +102,47 @@ fn palette_queries_still_run_the_commands_they_found_first(cx: &mut TestAppConte
         assert!(tab.expect("tab").zoomed.is_some());
     });
 }
+
+#[gpui::test]
+fn commands_run_in_the_active_terminal_without_opening_a_tab(cx: &mut TestAppContext) {
+    let (boot, requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        model.receive((ServerId::local(), 1, Update::Connected(vec![])), cx);
+        acknowledge_catalog(model, cx);
+        model.new_tab(cx);
+        let pane = model.active_pane().expect("pane");
+        model.receive(
+            (
+                ServerId::local(),
+                1,
+                Update::Attached {
+                    pane,
+                    session: SessionId::new(42).expect("ID"),
+                    attachment: attachment(),
+                    created: true,
+                },
+            ),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    requests.try_iter().for_each(drop);
+    view.update(cx, |model, cx| {
+        let command =
+            muxy_app_core::settings::CustomCommand::new("Tests".into(), "cargo test".into());
+        let id = command.id.clone();
+        model.settings.commands.push(command);
+        let tabs = model.state.current_project().tabs.len();
+        let pane = model.active_pane();
+        model.run_custom_command_in_pane(&id, cx);
+        assert_eq!(model.state.current_project().tabs.len(), tabs);
+        assert_eq!(model.active_pane(), pane);
+    });
+    cx.run_until_parked();
+    let channel = attachment().channel;
+    assert!(requests.try_iter().any(|(_, work)| matches!(
+        work,
+        Work::Input(actual, bytes) if actual == channel && bytes == b"\x15cargo test\r"
+    )));
+}
