@@ -41,3 +41,26 @@ fn custom_commands_reject_invalid_definitions_without_writing() {
     };
     assert!(settings.validate().is_err());
 }
+
+#[test]
+fn command_placements_survive_saving_and_older_files_load() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.toml");
+    let mut command = command();
+    command.hidden = true;
+    command.status_bar = true;
+    let settings = Settings {
+        commands: vec![command.clone()],
+        ..Settings::default()
+    };
+    settings.save_commands(&path).unwrap();
+    assert_eq!(Settings::load(&path).unwrap().commands, [command]);
+
+    std::fs::write(
+        &path,
+        "[[commands]]\nid = \"old\"\nname = \"Old\"\ncommand = \"make\"\n",
+    )
+    .unwrap();
+    let old = &Settings::load(&path).unwrap().commands[0];
+    assert!(!old.hidden && !old.status_bar);
+}
