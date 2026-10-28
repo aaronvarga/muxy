@@ -33,6 +33,7 @@ actions!(
         ShowFloatingTerminalInAllProjects,
         ShowFloatingTerminalInItsProject,
         ToggleFloatingTerminals,
+        OpenRepository,
         InstallCommandLineTool,
         NewTab,
         ExistingTerminals,

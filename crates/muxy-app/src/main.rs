@@ -108,7 +108,7 @@ use views::workspace::{
     EqualizeSplits, Find, FindNext, FindPrevious, FocusPaneDown, FocusPaneLeft, FocusPaneRight,
     FocusPaneUp, HideApp, HideOthers, IncreaseFontSize, InstallCommandLineTool, Minimize,
     NewBrowserTab, NewHomeTab, NewTab, NewTabInProject, NewWorktree, NextProject, NextPrompt,
-    NextTab, OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit, SelectCommandOutput,
+    NextTab, OpenRepository, OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit, SelectCommandOutput,
     SelectProject, SelectTab, ShowAll, SplitDown, SplitRight, SwitchWorktree, ToggleAgentSessions,
     ToggleAgentsPanel, ToggleCommandPalette, ToggleComposer, ToggleFloatingTerminals,
     ToggleFullScreen, ToggleSidebar, ToggleThemePicker, ToggleZoomPane, Zoom, bind_keys,
@@ -201,9 +201,7 @@ fn run() -> ExitCode {
             profile.finish_on_quit(cx);
         }
         bind_keys(&boot.settings.keymap, cx);
-        cx.on_action(|_: &HideApp, cx| cx.hide());
-        cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
-        cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
+        app_actions(cx);
         cx.set_menus(menus());
         let bounds = restored_bounds(&boot, cx);
         let options = WindowOptions {
@@ -266,6 +264,13 @@ fn restored_bounds(boot: &boot::Boot, cx: &App) -> Bounds<gpui::Pixels> {
     }
     let [width, height] = boot.settings.window.default_size;
     Bounds::centered(None, size(px(width), px(height)), cx)
+}
+
+fn app_actions(cx: &mut App) {
+    cx.on_action(|_: &HideApp, cx| cx.hide());
+    cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
+    cx.on_action(|_: &ShowAll, cx| cx.unhide_other_apps());
+    cx.on_action(|_: &OpenRepository, cx| cx.open_url("https://github.com/muxy-app/muxy"));
 }
 
 fn app_name() -> &'static str {
@@ -348,6 +353,7 @@ fn menus() -> Vec<Menu> {
     if backends.has_backend(Feature::CommandLineTool) {
         app_items.push(menu_item(InstallCommandLineTool));
     }
+    app_items.push(MenuItem::action(tr!("Muxy on GitHub"), OpenRepository));
     app_items.extend([
         MenuItem::separator(),
         MenuItem::os_submenu(tr!("Services"), SystemMenuType::Services),
