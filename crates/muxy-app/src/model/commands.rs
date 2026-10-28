@@ -139,7 +139,7 @@ impl AppModel {
                 .is_some_and(|pane| self.terminal(&pane).is_some())
     }
 
-    /// Types a custom command into the active terminal and runs it there.
+    /// Types a custom command into the active terminal without running it.
     pub(crate) fn run_custom_command_in_pane(&mut self, id: &str, cx: &mut Context<Self>) {
         if !self.can_run_command_in_pane() {
             return;
@@ -162,7 +162,7 @@ impl AppModel {
         {
             terminal
                 .view
-                .update(cx, |view, cx| view.run_command(&text, cx));
+                .update(cx, |view, cx| view.type_command(&text, cx));
         }
     }
 
