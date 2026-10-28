@@ -36,6 +36,9 @@ pub enum SidebarCollapsedStyle {
     Hidden,
 }
 
+/// Minimum, default and maximum sidebar project icon sizes.
+pub const SIDEBAR_ICON_SIZE: (u8, u8, u8) = (20, 28, 48);
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InterfaceSize {
@@ -126,6 +129,8 @@ pub struct Appearance {
     pub sidebar_vibrancy_level: u8,
     pub sidebar_expanded_width: Option<f32>,
     pub sidebar_collapsed_style: SidebarCollapsedStyle,
+    /// Project icon size in the sidebar, in unscaled points.
+    pub sidebar_icon_size: u8,
     pub status_bar_visible: bool,
     /// Each pane shows a header with its icon, title and actions.
     pub pane_headers: bool,
@@ -194,6 +199,7 @@ impl Default for Appearance {
             sidebar_vibrancy_level: 50,
             sidebar_expanded_width: None,
             sidebar_collapsed_style: SidebarCollapsedStyle::default(),
+            sidebar_icon_size: SIDEBAR_ICON_SIZE.1,
             status_bar_visible: true,
             pane_headers: true,
             commands_bar_visible: true,

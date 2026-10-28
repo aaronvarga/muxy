@@ -26,6 +26,8 @@ pub(super) enum Commit {
     Field,
     /// One number of the Quick Terminal's settings.
     Quick,
+    /// The sidebar's project icon size.
+    SidebarIconSize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -223,7 +225,7 @@ impl SettingsView {
                 }
                 self.dirty.remove(spec.id);
             }
-            Commit::Quick => {}
+            Commit::Quick | Commit::SidebarIconSize => {}
         }
         cx.notify();
     }
@@ -249,6 +251,15 @@ impl SettingsView {
                 )]
                 let value = value.round() as u16;
                 Some(Change::QuickNumber(spec.id, value))
+            }
+            Commit::SidebarIconSize => {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the sidebar icon size stays within its small positive range"
+                )]
+                let value = value.round() as u8;
+                Some(Change::SidebarIconSize(value))
             }
         }
     }

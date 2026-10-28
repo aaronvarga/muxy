@@ -33,6 +33,7 @@ pub(crate) enum Change {
     AgentsPanelOption(AgentsPanelToggle, bool),
     StatusBar(bool),
     PaneHeaders(bool),
+    SidebarIconSize(u8),
     CommandsBar(bool),
     Tips(bool),
     RememberProjectsWithoutTabs(bool),
@@ -605,6 +606,11 @@ impl AppModel {
             }
             Change::InterfaceSize(size) => {
                 settings.appearance.interface_size = size;
+                settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
+            }
+            Change::SidebarIconSize(size) => {
+                let (min, _, max) = muxy_app_core::settings::SIDEBAR_ICON_SIZE;
+                settings.appearance.sidebar_icon_size = size.clamp(min, max);
                 settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
             }
             Change::AgentsPanel(value) => {
@@ -1390,6 +1396,7 @@ fn change_id(change: &Change) -> &str {
         Change::AgentsPanelOption(toggle, _) => toggle.id(),
         Change::SidebarCollapsedStyle(_) => "sidebar-collapsed-style",
         Change::InterfaceSize(_) => "interface-size",
+        Change::SidebarIconSize(_) => "sidebar-icon-size",
         Change::AgentsPanel(_) => "agents-panel",
         Change::AgentsPanelGrouping(_) => "agents-panel-grouping",
         Change::AgentsPanelIcon(_) => "agents-panel-icon",

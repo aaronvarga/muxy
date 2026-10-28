@@ -977,6 +977,7 @@
 "Host" = "Host";
 "House" = "House";
 "House Fill" = "House Fill";
+"How large project icons and logos appear in the sidebar." = "How large project icons and logos appear in the sidebar.";
 "How much heavier text is drawn when Thicken font is on." = "How much heavier text is drawn when Thicken font is on.";
 "How much of the macOS background effect shows through the theme color, from 0 to 100. Collapsed sidebars stay solid." = "How much of the macOS background effect shows through the theme color, from 0 to 100. Collapsed sidebars stay solid.";
 "How opaque the cursor is." = "How opaque the cursor is.";
@@ -1845,6 +1846,7 @@
 "Show “%@”" = "Show “%@”";
 "Shown in the sidebar" = "Shown in the sidebar";
 "Shows only the current project in the sidebar, or every project again." = "Shows only the current project in the sidebar, or every project again.";
+"Sidebar icon size" = "Sidebar icon size";
 "Sidebar vibrancy" = "Sidebar vibrancy";
 "Sidebar vibrancy level" = "Sidebar vibrancy level";
 "Size" = "Size";
