@@ -2022,6 +2022,7 @@
 "The store has no source for %@" = "The store has no source for %@";
 "The store takes at most 6 screenshots." = "The store takes at most 6 screenshots.";
 "The status bar's Commands menu runs it in the selected terminal." = "The status bar's Commands menu runs it in the selected terminal.";
+"The status bar's Commands menu types it into the selected terminal without running it." = "The status bar's Commands menu types it into the selected terminal without running it.";
 "The terminal closed before sending." = "The terminal closed before sending.";
 "The typeface used to render text in every terminal pane." = "The typeface used to render text in every terminal pane.";
 "The update download is incomplete or has an unexpected size" = "The update download is incomplete or has an unexpected size";
