@@ -395,3 +395,56 @@ fn split_directory_inherits_only_when_configured_and_falls_back_to_project(
         });
     }
 }
+
+#[gpui::test]
+fn moving_a_pane_swaps_it_with_its_neighbor_and_keeps_the_layout(cx: &mut TestAppContext) {
+    let (state, _, [first, second, third]) = split_state();
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        let layout = |model: &AppModel| model.state.home().tabs[0].layout.clone();
+        let rects = |model: &AppModel| {
+            layout(model)
+                .rects()
+                .into_iter()
+                .map(|(_, rect)| rect)
+                .collect::<Vec<_>>()
+        };
+        let before = rects(model);
+        model.move_pane_toward(third, Direction::Left, cx);
+        assert_eq!(layout(model).leaves(), [third, second, first]);
+        assert_eq!(rects(model), before);
+        assert_eq!(model.active_pane(), Some(third));
+
+        let unchanged = layout(model);
+        model.move_pane_toward(third, Direction::Left, cx);
+        assert_eq!(layout(model), unchanged, "no pane is left of it");
+
+        // Across a top/bottom split: first now sits below second.
+        model.move_pane_toward(first, Direction::Up, cx);
+        assert_eq!(layout(model).leaves(), [third, first, second]);
+        assert_eq!(rects(model), before);
+        model.move_pane_toward(first, Direction::Down, cx);
+        assert_eq!(layout(model).leaves(), [third, second, first]);
+    });
+}
+
+#[gpui::test]
+fn panes_stacked_top_to_bottom_move_only_up_and_down(cx: &mut TestAppContext) {
+    let mut state = AppState::bootstrap().expect("state");
+    state.open_terminal_tab(state.home().id).expect("tab");
+    let top = state.home().tabs[0].panes[0].id;
+    let bottom = state.split_pane(top, Direction::Down).expect("split");
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        let leaves = |model: &AppModel| model.state.home().tabs[0].layout.leaves();
+        for direction in [Direction::Left, Direction::Right, Direction::Down] {
+            model.move_pane_toward(bottom, direction, cx);
+            assert_eq!(leaves(model), [top, bottom], "{direction:?}");
+        }
+        model.move_pane_toward(bottom, Direction::Up, cx);
+        assert_eq!(leaves(model), [bottom, top]);
+        assert_eq!(model.active_pane(), Some(bottom));
+    });
+}

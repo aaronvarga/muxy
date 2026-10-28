@@ -101,6 +101,8 @@ pub(crate) enum Command {
     ManageCommands,
     /// Types the custom command at this index into the active terminal.
     RunCommandInPane(usize),
+    /// Swaps a pane with its neighbor in a direction.
+    MovePane(muxy_app_core::PaneId, muxy_app_core::Direction),
 }
 
 #[derive(Clone, Debug)]
@@ -721,6 +723,7 @@ impl AppModel {
             Command::ManageCommands => {
                 self.show_settings_at(super::settings::Category::Commands, cx);
             }
+            Command::MovePane(pane, direction) => self.move_pane_toward(pane, direction, cx),
             Command::RunCommandInPane(index) => {
                 if let Some(id) = self
                     .settings

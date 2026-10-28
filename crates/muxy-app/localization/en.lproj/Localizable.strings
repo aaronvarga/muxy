@@ -872,6 +872,11 @@
 "Mouse wheel scroll speed" = "Mouse wheel scroll speed";
 "Move %@.app to Applications and reopen it before installing its command line tool." = "Move %@.app to Applications and reopen it before installing its command line tool.";
 "Move %@.app to Applications and reopen it before updating" = "Move %@.app to Applications and reopen it before updating";
+"Move Down" = "Move Down";
+"Move Left" = "Move Left";
+"Move Pane" = "Move Pane";
+"Move Right" = "Move Right";
+"Move Up" = "Move Up";
 "Move to Bottom" = "Move to Bottom";
 "Move to Group" = "Move to Group";
 "Move to Group…" = "Move to Group…";

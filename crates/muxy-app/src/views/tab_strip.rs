@@ -291,7 +291,43 @@ pub(super) fn split_button(
         .into_any_element()
 }
 
-/// Split, split, equalize and close buttons for one pane of a split tab.
+/// Opens a menu moving `pane` to where a neighbor is, swapping the two.
+fn move_button(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyElement {
+    titlebar::scaled_icon_button(
+        SharedString::from(format!("move-pane-{pane}")),
+        Icon::Move,
+        PANE_BUTTON_SCALE,
+        tr!("Move Pane"),
+        model,
+    )
+    .debug_selector(|| "move-pane-button".into())
+    .on_click(
+        cx.listener(move |model, event: &gpui::ClickEvent, window, cx| {
+            use super::menu::{Command, Item};
+            cx.stop_propagation();
+            let items = [
+                (tr!("Move Left"), Direction::Left),
+                (tr!("Move Right"), Direction::Right),
+                (tr!("Move Up"), Direction::Up),
+                (tr!("Move Down"), Direction::Down),
+            ]
+            .into_iter()
+            .map(|(label, direction)| {
+                let item = Item::action(label, Command::MovePane(pane, direction));
+                if model.state.neighbor(pane, direction).is_some() {
+                    item
+                } else {
+                    item.disabled()
+                }
+            })
+            .collect();
+            model.open_menu(items, event.position(), window, cx);
+        }),
+    )
+    .into_any_element()
+}
+
+/// Move, split, split, equalize and close buttons for one pane of a split tab.
 pub(super) fn pane_controls(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyElement {
     let label = tr!("Close Pane");
     let tooltip = model
@@ -344,6 +380,7 @@ pub(super) fn pane_controls(pane: PaneId, model: &AppModel, cx: &Context<AppMode
         .bg(model.theme.bg)
         .border_b_1()
         .border_color(model.theme.border)
+        .child(move_button(pane, model, cx))
         .child(split_button(Some(pane), Direction::Right, model, cx))
         .child(split_button(Some(pane), Direction::Down, model, cx))
         .child(equalize)

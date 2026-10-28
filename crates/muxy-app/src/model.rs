@@ -781,6 +781,24 @@ impl AppModel {
         }
     }
 
+    /// Swaps `pane` with its neighbor toward `direction`, keeping the layout.
+    pub(crate) fn move_pane_toward(
+        &mut self,
+        pane: PaneId,
+        direction: Direction,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(neighbor) = self.state.neighbor(pane, direction) else {
+            return;
+        };
+        if self.close_request.is_none()
+            && self.edit_tab(|state| state.move_pane(pane, neighbor, None), cx)
+        {
+            self.changed(cx);
+            self.focus_requested = true;
+        }
+    }
+
     pub(crate) fn toggle_zoom_pane(&mut self, cx: &mut Context<Self>) {
         if self.quitting == Quitting::Idle
             && let Some(pane) = self.active_pane()
