@@ -1392,6 +1392,17 @@ impl TerminalPane {
         }
     }
 
+    /// Types a command at the prompt and presses Return, clearing typed input
+    /// first, as the composer submits.
+    pub(crate) fn run_command(&mut self, command: &str, cx: &mut Context<Self>) {
+        if let Some(grid) = &self.grid {
+            let mut bytes = vec![0x15];
+            bytes.extend(clipboard::paste(command, grid.modes));
+            bytes.push(b'\r');
+            self.send_paste(&bytes, cx);
+        }
+    }
+
     fn prepare_input(&mut self, cx: &mut Context<Self>) -> Option<ChannelId> {
         if self.state != PaneState::Live {
             return None;

@@ -130,6 +130,42 @@ impl AppModel {
         self.split_pane_running(muxy_app_core::Direction::Right, Some(&command.command), cx);
     }
 
+    /// Whether the active pane is a terminal a command can be typed into.
+    pub(crate) fn can_run_command_in_pane(&self) -> bool {
+        self.overlay.is_none()
+            && self.can_run_custom_command()
+            && self
+                .active_pane()
+                .is_some_and(|pane| self.terminal(&pane).is_some())
+    }
+
+    /// Types a custom command into the active terminal and runs it there.
+    pub(crate) fn run_custom_command_in_pane(&mut self, id: &str, cx: &mut Context<Self>) {
+        if !self.can_run_command_in_pane() {
+            return;
+        }
+        let Some(command) = self
+            .settings
+            .commands
+            .iter()
+            .find(|command| command.id == id)
+        else {
+            return;
+        };
+        if let Err(error) = command.validate() {
+            self.fail(error.to_string(), cx);
+            return;
+        }
+        let text = command.command.clone();
+        if let Some(pane) = self.active_pane()
+            && let Some(terminal) = self.terminal(&pane)
+        {
+            terminal
+                .view
+                .update(cx, |view, cx| view.run_command(&text, cx));
+        }
+    }
+
     pub(crate) fn register_custom_commands(&self, registry: &mut Registry<Handler>) {
         for command in &self.settings.commands {
             let id = command.id.clone();

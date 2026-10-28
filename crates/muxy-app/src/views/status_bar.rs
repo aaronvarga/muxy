@@ -39,6 +39,12 @@ pub(crate) fn status_bar(model: &AppModel, cx: &mut Context<AppModel>) -> impl I
                 .child(path_chip(model, cx))
                 .children(git_controls(model, cx))
                 .children(
+                    commands_chip(model, cx)
+                        .map(|chip| [separator(model), chip])
+                        .into_iter()
+                        .flatten(),
+                )
+                .children(
                     model
                         .extension_status_items(Side::Left, cx)
                         .into_iter()
@@ -194,6 +200,75 @@ fn path_chip(model: &AppModel, cx: &mut Context<AppModel>) -> impl IntoElement {
                 .font_weight(FontWeight::MEDIUM)
                 .child(display),
         )
+}
+
+/// Opens a menu of the custom commands shown in the status bar, which run in
+/// the active terminal, unlike the commands bar, which runs them in a split.
+fn commands_chip(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElement> {
+    if !model
+        .settings
+        .commands
+        .iter()
+        .any(|command| command.status_bar)
+    {
+        return None;
+    }
+    let m = model.metrics;
+    let theme = &model.theme;
+    Some(
+        div()
+            .id("status-commands")
+            .debug_selector(|| "status-commands".into())
+            .group("status-commands")
+            .flex()
+            .flex_none()
+            .items_center()
+            .h_full()
+            .gap(px(4.0))
+            .text_color(theme.fg_muted)
+            .cursor_pointer()
+            .hover(|style| style.text_color(theme.fg))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .on_click(cx.listener(|model, event: &gpui::ClickEvent, window, cx| {
+                cx.stop_propagation();
+                let enabled = model.can_run_command_in_pane();
+                let mut items: Vec<_> = model
+                    .settings
+                    .commands
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, command)| command.status_bar)
+                    .map(|(index, command)| {
+                        let item =
+                            Item::action(command.name.clone(), Command::RunCommandInPane(index));
+                        if enabled && !command.command.trim().is_empty() {
+                            item
+                        } else {
+                            item.disabled()
+                        }
+                    })
+                    .collect();
+                items.push(
+                    Item::action(tr!("Manage Commands…"), Command::ManageCommands).separated(),
+                );
+                model.open_menu(items, event.position(), window, cx);
+            }))
+            .child(
+                IconGlyph::new(Icon::Terminal, m.font_caption(), theme.fg_muted)
+                    .hover_in_group("status-commands", theme.fg),
+            )
+            .child(
+                div()
+                    .text_size(m.font_footnote())
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(tr!("Commands")),
+            )
+            .child(
+                IconGlyph::new(Icon::ChevronDown, m.font_caption(), theme.fg_muted)
+                    .hover_in_group("status-commands", theme.fg),
+            )
+            .into_any_element(),
+    )
 }
 
 fn separator(model: &AppModel) -> AnyElement {
