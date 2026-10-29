@@ -27,6 +27,12 @@ pub(crate) fn status_bar(model: &AppModel, cx: &mut Context<AppModel>) -> impl I
         .bg(theme.bg)
         .border_t_1()
         .border_color(theme.border)
+        .on_mouse_down(
+            MouseButton::Right,
+            cx.listener(|model, event: &gpui::MouseDownEvent, window, cx| {
+                model.open_menu(status_bar_items(model), event.position, window, cx);
+            }),
+        )
         .child(
             div()
                 .flex()
@@ -38,6 +44,8 @@ pub(crate) fn status_bar(model: &AppModel, cx: &mut Context<AppModel>) -> impl I
                 .px(px(10.0))
                 .child(path_chip(model, cx))
                 .children(git_controls(model, cx))
+                .child(separator(model))
+                .child(composer_chip(model, cx))
                 .children(
                     commands_chip(model, cx)
                         .map(|chip| [separator(model), chip])
@@ -61,8 +69,12 @@ pub(crate) fn status_bar(model: &AppModel, cx: &mut Context<AppModel>) -> impl I
                 .px(px(10.0))
                 .children(update_control(model, cx))
                 .children(super::disconnected::status(model, cx))
-                .child(super::proxy::control(model, cx))
-                .child(super::server_status::control(model, cx))
+                .when(shown(model, PROXY), |bar| {
+                    bar.child(super::proxy::control(model, cx))
+                })
+                .when(shown(model, SERVER), |bar| {
+                    bar.child(super::server_status::control(model, cx))
+                })
                 .children(
                     model
                         .extension_status_items(Side::Right, cx)
@@ -70,6 +82,47 @@ pub(crate) fn status_bar(model: &AppModel, cx: &mut Context<AppModel>) -> impl I
                         .flat_map(|item| [item_separator(model), item]),
                 ),
         )
+}
+
+fn action_key(action: AiAction) -> &'static str {
+    match action {
+        AiAction::Commit => "commit",
+        AiAction::CreatePullRequest => "create_pr",
+    }
+}
+
+const PROXY: &str = "proxy";
+const SERVER: &str = "server";
+
+fn shown(model: &AppModel, key: &str) -> bool {
+    !model.appearance.hidden_status_bar_items.contains(key)
+}
+
+/// A checklist of the status bar items that can be hidden, opened by
+/// right-clicking the bar.
+fn status_bar_items(model: &AppModel) -> Vec<Item> {
+    [
+        (action_key(AiAction::Commit), tr!("Commit")),
+        (action_key(AiAction::CreatePullRequest), tr!("Create PR")),
+        (PROXY, tr!("Proxy")),
+        (SERVER, tr!("Server")),
+    ]
+    .into_iter()
+    .map(|(key, label)| {
+        Item::action(label, Command::ToggleStatusBarItem(key)).checked_if(shown(model, key))
+    })
+    .collect()
+}
+
+impl AppModel {
+    pub(crate) fn toggle_status_bar_item(&mut self, key: &str, cx: &mut Context<Self>) {
+        let hidden = &mut self.appearance.hidden_status_bar_items;
+        if !hidden.remove(key) {
+            hidden.insert(key.to_owned());
+        }
+        self.save_appearance(cx);
+        cx.notify();
+    }
 }
 
 /// The divider main draws beside each extension status-bar item.
@@ -176,6 +229,7 @@ fn path_chip(model: &AppModel, cx: &mut Context<AppModel>) -> impl IntoElement {
                 .on_mouse_down(
                     MouseButton::Right,
                     cx.listener(move |model, event: &gpui::MouseDownEvent, window, cx| {
+                        cx.stop_propagation();
                         let mut items = vec![Item::action(tr!("Copy Path"), Command::CopyPath(id))];
                         if local {
                             items.push(Item::action(
@@ -204,6 +258,44 @@ fn path_chip(model: &AppModel, cx: &mut Context<AppModel>) -> impl IntoElement {
 
 /// Opens a menu of the custom commands shown in the status bar, which run in
 /// the active terminal, unlike the commands bar, which runs them in a split.
+fn composer_chip(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
+    let m = model.metrics;
+    let theme = &model.theme;
+    let color = if model.composer.view.is_some() {
+        theme.fg
+    } else {
+        theme.fg_muted
+    };
+    div()
+        .id("status-composer")
+        .debug_selector(|| "status-composer".into())
+        .group("status-composer")
+        .flex()
+        .flex_none()
+        .items_center()
+        .h_full()
+        .gap(px(4.0))
+        .text_color(color)
+        .cursor_pointer()
+        .hover(|style| style.text_color(theme.fg))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(cx.listener(|model, _, window, cx| {
+            cx.stop_propagation();
+            model.toggle_composer(window, cx);
+        }))
+        .child(
+            IconGlyph::new(Icon::Pencil, m.font_caption(), color)
+                .hover_in_group("status-composer", theme.fg),
+        )
+        .child(
+            div()
+                .text_size(m.font_footnote())
+                .font_weight(FontWeight::MEDIUM)
+                .child(tr!("Composer")),
+        )
+        .into_any_element()
+}
+
 fn commands_chip(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElement> {
     if !model
         .settings
@@ -396,6 +488,9 @@ fn ai_action_chip(
     model: &AppModel,
     cx: &mut Context<AppModel>,
 ) -> Option<AnyElement> {
+    if !shown(model, action_key(action)) {
+        return None;
+    }
     let project = model.state.current_project().id;
     let step = model
         .ai

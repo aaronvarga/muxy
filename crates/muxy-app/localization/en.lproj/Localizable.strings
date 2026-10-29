@@ -714,6 +714,7 @@
 "Hide" = "Hide";
 "Hide %@" = "Hide %@";
 "Hide Others" = "Hide Others";
+"Hide Project" = "Hide Project";
 "Hide Tips" = "Hide Tips";
 "Hide Tips?" = "Hide Tips?";
 "Hide agents panel" = "Hide agents panel";
@@ -819,6 +820,7 @@
 "Keys the terminal handles while it is focused. They take precedence over app shortcuts." = "Keys the terminal handles while it is focused. They take precedence over app shortcuts.";
 "Language" = "Language";
 "Language packs and other resource-only extensions keep working." = "Language packs and other resource-only extensions keep working.";
+"Large" = "Large";
 "Last 24 hours" = "Last 24 hours";
 "Last seen %lld d ago" = "Last seen %lld d ago";
 "Last seen %lld h ago" = "Last seen %lld h ago";
@@ -873,6 +875,7 @@
 "Mark each agent with the color of the project it runs in." = "Mark each agent with the color of the project it runs in.";
 "Maximize" = "Maximize";
 "Maximize Pane" = "Maximize Pane";
+"Medium" = "Medium";
 "Merge" = "Merge";
 "Merge %@ into %@ and push the updated branch?" = "Merge %@ into %@ and push the updated branch?";
 "Merge Commit" = "Merge Commit";
@@ -1045,6 +1048,7 @@
 "Open a Copy" = "Open a Copy";
 "Open a live terminal before sending." = "Open a live terminal before sending.";
 "Open a live terminal before starting dictation." = "Open a live terminal before starting dictation.";
+"Open a new tab to start working in this project." = "Open a new tab to start working in this project.";
 "Open a new terminal tab to start working in this project." = "Open a new terminal tab to start working in this project.";
 "Open configuration files in the system editor. Restart Muxy after editing app settings. Terminal settings reload when Muxy or Settings becomes active." = "Open configuration files in the system editor. Restart Muxy after editing app settings. Terminal settings reload when Muxy or Settings becomes active.";
 "Open files with" = "Open files with";
@@ -1375,6 +1379,7 @@
 "Show All" = "Show All";
 "Show All Projects" = "Show All Projects";
 "Show Commands Bar" = "Show Commands Bar";
+"Show Hidden Project" = "Show Hidden Project";
 "Show Muxy Tip" = "Show Muxy Tip";
 "Show Muxy tips at the bottom of the built-in sidebar." = "Show Muxy tips at the bottom of the built-in sidebar.";
 "Show Pairing Code" = "Show Pairing Code";
@@ -1409,6 +1414,7 @@
 "Sidebar vibrancy" = "Sidebar vibrancy";
 "Sidebar vibrancy level" = "Sidebar vibrancy level";
 "Size" = "Size";
+"Small" = "Small";
 "Some history exceeds the scan limit." = "Some history exceeds the scan limit.";
 "Space" = "Space";
 "Speech permission request did not complete. Try again." = "Speech permission request did not complete. Try again.";
@@ -1580,6 +1586,7 @@
 "Trackpad scroll speed" = "Trackpad scroll speed";
 "Transcribing on this computer…" = "Transcribing on this computer…";
 "Transparency of the terminal background." = "Transparency of the terminal background.";
+"Transparent" = "Transparent";
 "Trust & Test" = "Trust & Test";
 "Try Again" = "Try Again";
 "Try a different name or clear your search." = "Try a different name or clear your search.";

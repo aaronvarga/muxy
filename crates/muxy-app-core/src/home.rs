@@ -28,6 +28,7 @@ impl AppState {
             workspaces: Vec::new(),
             removed_projects: Vec::new(),
             dividers: Vec::new(),
+            hidden: std::collections::BTreeSet::new(),
             window,
         })
     }

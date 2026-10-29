@@ -10,6 +10,31 @@ pub struct Divider {
     pub after: ProjectId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// Keeps the gap but draws no line.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub transparent: bool,
+    #[serde(default, skip_serializing_if = "DividerSize::is_medium")]
+    pub size: DividerSize,
+}
+
+/// How much vertical space a divider takes in the sidebar.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DividerSize {
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
+impl DividerSize {
+    #[allow(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "serde's skip_serializing_if passes a reference"
+    )]
+    fn is_medium(&self) -> bool {
+        *self == Self::Medium
+    }
 }
 
 impl AppState {
@@ -25,6 +50,8 @@ impl AppState {
             id,
             after,
             label: None,
+            transparent: false,
+            size: DividerSize::Medium,
         });
         self.place_dividers(&[id], after, true)?;
         Ok(id)
@@ -34,6 +61,20 @@ impl AppState {
     pub fn set_divider_label(&mut self, id: DividerId, label: &str) -> Result<(), AppError> {
         let label = label.trim();
         self.divider_mut(id)?.label = (!label.is_empty()).then(|| label.to_owned());
+        Ok(())
+    }
+
+    pub fn set_divider_transparent(
+        &mut self,
+        id: DividerId,
+        transparent: bool,
+    ) -> Result<(), AppError> {
+        self.divider_mut(id)?.transparent = transparent;
+        Ok(())
+    }
+
+    pub fn set_divider_size(&mut self, id: DividerId, size: DividerSize) -> Result<(), AppError> {
+        self.divider_mut(id)?.size = size;
         Ok(())
     }
 

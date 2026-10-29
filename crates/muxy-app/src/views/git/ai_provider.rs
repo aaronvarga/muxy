@@ -148,6 +148,11 @@ fn provider_icon(provider: Option<Provider>, model: &AppModel) -> AnyElement {
             } else {
                 provider.id
             };
+            if provider.id == "codex" {
+                return gpui::img("icons/provider-codex.png")
+                    .size(size)
+                    .into_any_element();
+            }
             let path = SharedString::from(format!("icons/provider-{name}.svg"));
             if provider.id == "claude" {
                 gpui::img(path).size(size).into_any_element()

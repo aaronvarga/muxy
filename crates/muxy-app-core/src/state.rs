@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 
@@ -34,6 +34,9 @@ pub struct AppState {
     pub(crate) removed_projects: Vec<RemovedProject>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) dividers: Vec<Divider>,
+    /// Top-level projects the sidebar leaves out in every workspace.
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub(crate) hidden: BTreeSet<ProjectId>,
     pub(crate) window: WindowState,
 }
 
@@ -55,6 +58,8 @@ struct StoredState {
     removed_projects: Vec<RemovedProject>,
     #[serde(default)]
     dividers: Vec<Divider>,
+    #[serde(default)]
+    hidden: BTreeSet<ProjectId>,
     window: WindowState,
     /// Versions 1 and 2 kept the local server's state here, at the top level.
     #[serde(default)]
@@ -103,6 +108,7 @@ impl TryFrom<StoredState> for AppState {
             workspaces: stored.workspaces,
             removed_projects: stored.removed_projects,
             dividers: stored.dividers,
+            hidden: stored.hidden,
             window: stored.window,
         };
         let previous_project = state.window.current_project;
