@@ -24,12 +24,23 @@ pub(crate) fn tab_strip(
     actions: (gpui::Div, f32),
     cx: &mut Context<AppModel>,
 ) -> AnyElement {
+    // The bottom line is part of the strip, painted under the tabs, so the
+    // selected tab can cover it and run into the toolbar below.
     let strip = titlebar::background("tab-strip")
         .relative()
         .flex()
         .items_center()
-        .h(px(32.0))
-        .flex_none();
+        .h(px(33.0))
+        .flex_none()
+        .child(
+            div()
+                .absolute()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .h(px(1.0))
+                .bg(model.theme.border),
+        );
     let (actions, actions_width) = actions;
     if model.state.current_project().status() == muxy_app_core::ProjectStatus::Missing {
         return strip.justify_end().child(actions).into_any_element();
@@ -46,7 +57,7 @@ pub(crate) fn tab_strip(
     let ideal_width = available / f32::from(count.max(1));
     let width = ideal_width.clamp(44.0, 200.0);
     let tabs: Vec<_> = model.state.current_project().tabs.iter().collect();
-    let mut cells = tab_cells(&tabs, width, true, model, cx);
+    let mut cells = tab_cells(&tabs, width, true, true, model, cx);
     let new_button = new_tab_button(None, model, cx);
     let pinned_button = if ideal_width < 44.0 {
         Some(new_button)
@@ -92,7 +103,7 @@ pub(crate) fn group_strip(
     let count = u16::try_from(tabs.len()).unwrap_or(u16::MAX).max(1);
     let control_width = f32::from(model.metrics.control_medium() + model.metrics.spacing2() * 2.0);
     let cell_width = ((width - control_width) / f32::from(count)).clamp(44.0, 200.0);
-    let cells = tab_cells(&tabs, cell_width, focused, model, cx).child(new_tab_button(
+    let cells = tab_cells(&tabs, cell_width, focused, false, model, cx).child(new_tab_button(
         group.tabs().last().copied(),
         model,
         cx,
@@ -128,17 +139,21 @@ pub(crate) fn group_strip(
         .into_any_element()
 }
 
-/// Tab cells for `tabs`, measured for dragging. `shortcuts` shows ⌘1–9 hints.
+/// Tab cells for `tabs`, measured for dragging. `shortcuts` shows ⌘1–9 hints;
+/// `integrated` draws the selected tab joined to the toolbar below the strip.
 fn tab_cells(
     tabs: &[&Tab],
     width: f32,
     shortcuts: bool,
+    integrated: bool,
     model: &AppModel,
     cx: &mut Context<AppModel>,
 ) -> gpui::Div {
     let mut cells = div().flex().flex_none().items_center().h_full();
     for (index, tab) in tabs.iter().enumerate() {
-        cells = cells.child(tab_cell(tab, index, width, shortcuts, model, cx));
+        cells = cells.child(tab_cell(
+            tab, index, width, shortcuts, integrated, model, cx,
+        ));
     }
     drag::measure_tabs(
         cells,
@@ -486,6 +501,7 @@ fn tab_cell(
     index: usize,
     width: f32,
     shortcuts: bool,
+    integrated: bool,
     model: &AppModel,
     cx: &mut Context<AppModel>,
 ) -> AnyElement {
@@ -528,14 +544,27 @@ fn tab_cell(
         .flex_none()
         .items_center()
         .w(px(width))
-        .h_full()
         .overflow_hidden()
-        .border_r(px(1.0))
         .border_color(theme.border)
         .cursor_pointer()
         .text_size(px(12.0))
         .text_color(foreground)
-        .when(active, |tab| tab.bg(theme.surface))
+        .when(!integrated, |cell| {
+            cell.h_full()
+                .border_r(px(1.0))
+                .when(active, |tab| tab.bg(theme.surface))
+        })
+        .when(integrated, |cell| {
+            cell.mt(px(4.0))
+                .h(px(29.0))
+                .rounded_t(px(6.0))
+                .when(active, |tab| {
+                    tab.bg(super::commands_bar::background(model))
+                        .border_t(px(1.0))
+                        .border_l(px(1.0))
+                        .border_r(px(1.0))
+                })
+        })
         .when_some(color, |cell, color| {
             cell.bg(color.opacity(if active { 0.18 } else { 0.04 }))
                 .when(!model.tab_drag.is_active(), |cell| {

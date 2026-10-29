@@ -59,7 +59,12 @@ pub(crate) fn items(
         items.push(Item::action(tr!("Add Divider Below"), Command::AddDivider(id)).separated());
     }
     items.extend(path_items(project));
-    items.extend(removal(project).into_iter().map(Item::separated));
+    if !project.home {
+        items.push(
+            Item::action(tr!("Hide Project"), Command::SetProjectHidden(id, true)).separated(),
+        );
+    }
+    items.extend(removal(project));
     items
 }
 
@@ -238,9 +243,29 @@ impl AppModel {
         )
     }
 
-    pub(crate) fn divider_menu(id: muxy_app_core::DividerId) -> Vec<Item> {
+    pub(crate) fn divider_menu(divider: &muxy_app_core::Divider) -> Vec<Item> {
+        let id = divider.id;
         vec![
             Item::action(tr!("Edit Label…"), Command::EditDivider(id)),
+            Item::action(
+                tr!("Transparent"),
+                Command::SetDividerTransparent(id, !divider.transparent),
+            )
+            .checked_if(divider.transparent),
+            Item::submenu(
+                tr!("Size"),
+                [
+                    (tr!("Small"), muxy_app_core::DividerSize::Small),
+                    (tr!("Medium"), muxy_app_core::DividerSize::Medium),
+                    (tr!("Large"), muxy_app_core::DividerSize::Large),
+                ]
+                .into_iter()
+                .map(|(label, size)| {
+                    Item::action(label, Command::SetDividerSize(id, size))
+                        .checked_if(divider.size == size)
+                })
+                .collect(),
+            ),
             Item::action(tr!("Remove Divider"), Command::RemoveDivider(id)),
         ]
     }

@@ -152,6 +152,15 @@ pub(crate) fn sidebar(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             .into_any_element();
     }
     let header = header(model, cx);
+    // Collapsed project rows start flush with the content's top edge; any
+    // higher and the titlebar covers the selected project's ring.
+    let lift = if model.appearance.layout == AppLayout::ProjectFocused
+        && !model.appearance.sidebar_expanded
+    {
+        m.spacing2()
+    } else {
+        px(0.0)
+    };
     let contents = match model.appearance.layout {
         AppLayout::ProjectFocused => project_list(model, cx),
         AppLayout::TabFocused | AppLayout::AgentsFocused => {
@@ -174,7 +183,7 @@ pub(crate) fn sidebar(model: &AppModel, window: &Window, cx: &mut Context<AppMod
                 .min_h(px(0.0))
                 .bg(model.sidebar_background())
                 .map(|sidebar| super::titlebar::top_corners(sidebar, window, true, false))
-                .child(div().h(m.title_bar_height()).flex_none())
+                .child(div().h(m.title_bar_height() - lift).flex_none())
                 .child(header)
                 .child(contents)
                 .children(tips::footer(model, cx))
@@ -659,6 +668,19 @@ fn filter_items(model: &AppModel) -> Vec<Item> {
         )
         .checked_if(!focused && active == Some(workspace.id))
     }));
+    let hidden: Vec<_> = model
+        .state
+        .hidden_projects()
+        .map(|project| {
+            Item::action(
+                model.project_title(project),
+                Command::SetProjectHidden(project.id, false),
+            )
+        })
+        .collect();
+    if !hidden.is_empty() {
+        items.push(Item::submenu(tr!("Show Hidden Project"), hidden).separated());
+    }
     items.push(
         Item::action(tr!("Focus Current Project"), Command::FocusProject(true))
             .checked_if(focused)
@@ -1135,6 +1157,7 @@ fn divider_row(divider: &Divider, model: &AppModel, cx: &mut Context<AppModel>) 
     let theme = &model.theme;
     let wide = model.appearance.sidebar_expanded;
     let id = divider.id;
+    let menu = AppModel::divider_menu(divider);
     let drag = DraggedDivider {
         id,
         last_target: Cell::new(None),
@@ -1146,13 +1169,20 @@ fn divider_row(divider: &Divider, model: &AppModel, cx: &mut Context<AppModel>) 
         .flex_none()
         .items_center()
         .gap(m.spacing3())
-        .h(m.scaled(16.0))
+        // A minimum, so a label still fits in a small divider.
+        .min_h(m.scaled(match divider.size {
+            muxy_app_core::DividerSize::Small => 8.0,
+            muxy_app_core::DividerSize::Medium => 16.0,
+            muxy_app_core::DividerSize::Large => 32.0,
+        }))
         .when(wide, |row| row.w_full().px(m.spacing2()))
-        .when(!wide, |row| row.w(m.scaled(34.0)))
+        .when(!wide, |row| {
+            row.w(m.scaled(34.0) + model.sidebar_icon_growth())
+        })
         .on_mouse_down(
             gpui::MouseButton::Right,
             cx.listener(move |model, event: &gpui::MouseDownEvent, window, cx| {
-                model.open_menu(AppModel::divider_menu(id), event.position, window, cx);
+                model.open_menu(menu.clone(), event.position, window, cx);
             }),
         )
         .on_drag(drag, |_, _, _, cx| cx.new(|_| Empty))
@@ -1168,7 +1198,12 @@ fn divider_row(divider: &Divider, model: &AppModel, cx: &mut Context<AppModel>) 
                     .child(label.clone()),
             )
         })
-        .child(div().flex_1().h(px(1.0)).bg(theme.border))
+        .child(
+            div()
+                .flex_1()
+                .h(px(1.0))
+                .when(!divider.transparent, |line| line.bg(theme.border)),
+        )
         .into_any_element()
 }
 

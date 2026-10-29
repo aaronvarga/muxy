@@ -78,9 +78,12 @@ pub(crate) enum Command {
     ProjectLogo(muxy_app_core::ProjectId),
     RemoveProjectLogo(muxy_app_core::ProjectId),
     RemoveProject(muxy_app_core::ProjectId),
+    SetProjectHidden(muxy_app_core::ProjectId, bool),
     AddDivider(muxy_app_core::ProjectId),
     EditDivider(muxy_app_core::DividerId),
     RemoveDivider(muxy_app_core::DividerId),
+    SetDividerTransparent(muxy_app_core::DividerId, bool),
+    SetDividerSize(muxy_app_core::DividerId, muxy_app_core::DividerSize),
     AddProjectFolder(muxy_app_core::ProjectId),
     /// Removes a project's extra folder, named by `project_menu::folder_key`
     /// so a list another device changed meanwhile loses the right one.
@@ -112,6 +115,8 @@ pub(crate) enum Command {
     MovePane(muxy_app_core::PaneId, muxy_app_core::Direction),
     /// Shows or hides the titlebar button at this index of the titlebar menu.
     ToggleTitlebarButton(usize),
+    /// Shows or hides the status bar item with this key.
+    ToggleStatusBarItem(&'static str),
 }
 
 #[derive(Clone, Debug)]
@@ -685,6 +690,9 @@ impl AppModel {
                 self.edit_project(|state| state.set_project_logo(id, None), cx);
             }
             Command::RemoveProject(id) => self.confirm_remove_project(id, cx),
+            Command::SetProjectHidden(id, hidden) => {
+                self.edit_workspaces(|state| state.set_project_hidden(id, hidden), cx);
+            }
             Command::AddDivider(id) => {
                 self.edit_workspaces(|state| state.add_divider(id).map(drop), cx);
             }
@@ -694,6 +702,12 @@ impl AppModel {
             }
             Command::RemoveDivider(id) => {
                 self.edit_workspaces(|state| state.remove_divider(id), cx);
+            }
+            Command::SetDividerSize(id, size) => {
+                self.edit_workspaces(|state| state.set_divider_size(id, size), cx);
+            }
+            Command::SetDividerTransparent(id, transparent) => {
+                self.edit_workspaces(|state| state.set_divider_transparent(id, transparent), cx);
             }
             Command::AddProjectFolder(id) => self.add_project_folder(id, cx),
             Command::RemoveProjectFolder(id, key) => self.remove_project_folder(id, key, cx),
@@ -742,6 +756,7 @@ impl AppModel {
                 self.change_preference(super::settings::Change::CommandsBar(visible), cx);
             }
             Command::ToggleTitlebarButton(index) => self.toggle_titlebar_button(index, cx),
+            Command::ToggleStatusBarItem(key) => self.toggle_status_bar_item(key, cx),
             Command::ManageCommands => {
                 self.show_settings_at(super::settings::Category::Commands, cx);
             }

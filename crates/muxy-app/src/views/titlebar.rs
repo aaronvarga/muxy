@@ -327,8 +327,10 @@ pub(crate) fn navigation(
         } else {
             theme.bg
         })
-        .border_r_1()
-        .border_color(theme.border)
+        // Past the sidebar, the buttons run straight into the first tab.
+        .when(sidebar_width >= navigation_width(model, window), |bar| {
+            bar.border_r_1().border_color(theme.border)
+        })
         .map(|bar| top_corners(bar, window, true, false))
         .map(|bar| {
             if cfg!(target_os = "linux") {

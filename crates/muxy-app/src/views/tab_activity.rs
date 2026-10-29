@@ -669,6 +669,12 @@ pub(super) fn provider_icon(provider: AgentProvider, size: Pixels, model: &AppMo
                 .into_any_element();
         }
     };
+    // Codex uses its colored brand mark, a bitmap like Claude's logo.
+    if provider == AgentProvider::Codex {
+        return gpui::img("icons/provider-codex.png")
+            .size(size)
+            .into_any_element();
+    }
     let path = SharedString::from(format!("icons/provider-{name}.svg"));
     if provider == AgentProvider::Claude {
         gpui::img(path).size(size).into_any_element()

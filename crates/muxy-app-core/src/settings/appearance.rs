@@ -91,6 +91,8 @@ pub struct Appearance {
     /// Titlebar buttons the user hid, by key; extension buttons use
     /// `top:<extension>:<item>`.
     pub hidden_titlebar_buttons: std::collections::BTreeSet<String>,
+    /// Status bar items the user hid, by key.
+    pub hidden_status_bar_items: std::collections::BTreeSet<String>,
     pub tab_focused_expanded: std::collections::BTreeMap<crate::ProjectId, bool>,
     #[serde(rename = "tab_focused_focus")]
     pub sidebar_focus: bool,
@@ -137,6 +139,7 @@ impl Default for Appearance {
             project_recent: Vec::new(),
             hidden_worktrees: std::collections::BTreeSet::new(),
             hidden_titlebar_buttons: std::collections::BTreeSet::new(),
+            hidden_status_bar_items: std::collections::BTreeSet::new(),
             tab_focused_expanded: std::collections::BTreeMap::new(),
             sidebar_focus: false,
             sidebar_project_order: ProjectOrder::default(),

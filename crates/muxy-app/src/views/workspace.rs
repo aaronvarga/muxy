@@ -975,11 +975,19 @@ impl Render for AppModel {
         let tab_focused = self.appearance.layout == muxy_app_core::settings::AppLayout::TabFocused
             && !self.extension_sidebar_active();
         let sidebar_width = self.sidebar_width();
-        let header = if tab_focused || self.state.current_project().groups().is_some() {
-            super::tab_sidebar::titlebar(self, sidebar_width, window, actions, cx)
-        } else {
-            tab_strip::tab_strip(self, sidebar_width, window, (actions, actions_width), cx)
-        };
+        // The tab strip draws its own bottom line, under its tabs.
+        let (header, header_line) =
+            if tab_focused || self.state.current_project().groups().is_some() {
+                (
+                    super::tab_sidebar::titlebar(self, sidebar_width, window, actions, cx),
+                    true,
+                )
+            } else {
+                (
+                    tab_strip::tab_strip(self, sidebar_width, window, (actions, actions_width), cx),
+                    false,
+                )
+            };
         let content = super::splits::render(self, window, cx).unwrap_or_else(|| empty(self, cx));
         let content = self.webview_panel_content(content, window, cx);
         let content = super::agents_panel::right_panel_content(content, self, window, cx);
@@ -1023,7 +1031,9 @@ impl Render for AppModel {
                                 titlebar::top_corners(header, window, sidebar_width <= 0.0, true)
                             })
                             .child(header)
-                            .child(div().h(px(1.0)).flex_none().bg(theme.border)),
+                            .when(header_line, |header| {
+                                header.child(div().h(px(1.0)).flex_none().bg(theme.border))
+                            }),
                     )
                     .children(super::commands_bar::commands_bar(self, cx))
                     .child(
@@ -1086,6 +1096,12 @@ fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
     let theme = &model.theme;
     let m = model.metrics;
     let missing = model.state.current_project().status() == muxy_app_core::ProjectStatus::Missing;
+    let has_commands = model
+        .settings
+        .commands
+        .iter()
+        .any(|command| !command.hidden);
+    let cards = (!missing && has_commands).then(|| command_cards(model, cx));
     div()
         .bg(theme.bg)
         .size_full()
@@ -1093,6 +1109,8 @@ fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
         .flex_col()
         .items_center()
         .justify_center()
+        // Sits above the middle, where centered content looks centered.
+        .pb(m.scaled(96.0))
         .gap(m.spacing7())
         .child(IconGlyph::new(
             Icon::AppWindow,
@@ -1111,9 +1129,10 @@ fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
                 .text_center()
                 .text_size(m.font_body())
                 .text_color(theme.fg_muted)
-                .child(if missing { tr!("This project’s folder could not be found. Remove the project from the sidebar to clear its tabs.") } else { tr!("Open a new terminal tab to start working in this project.") }),
+                .child(if missing { tr!("This project’s folder could not be found. Remove the project from the sidebar to clear its tabs.") } else if cards.is_some() { tr!("Open a new tab to start working in this project.") } else { tr!("Open a new terminal tab to start working in this project.") }),
         )
-        .when(!missing, |view| view.child(
+        .children(cards)
+        .when(!missing && !has_commands, |view| view.child(
             div()
                 .id("empty-new-tab")
                 .flex()
@@ -1138,4 +1157,88 @@ fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
                 )),
         ))
         .into_any_element()
+}
+
+/// A card per commands-bar command, each opening a tab that runs it.
+fn command_cards(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
+    let theme = &model.theme;
+    let m = model.metrics;
+    div()
+        .flex()
+        .flex_wrap()
+        .justify_center()
+        .gap(m.spacing5())
+        .max_w(m.scaled(720.0))
+        .children(
+            model
+                .settings
+                .commands
+                .iter()
+                .filter(|command| !command.hidden)
+                .map(|command| {
+                    let id = command.id.clone();
+                    let group = gpui::SharedString::from(format!("empty-command-{id}"));
+                    let icon = super::commands_bar::agent(command).map_or_else(
+                        || {
+                            IconGlyph::new(Icon::Terminal, m.icon_xxl(), theme.fg)
+                                .into_any_element()
+                        },
+                        |agent| super::tab_activity::provider_icon(agent, m.icon_xxl(), model),
+                    );
+                    div()
+                        .id(group.clone())
+                        .group(group.clone())
+                        .w(m.scaled(196.0))
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .gap(m.spacing5())
+                        .px(m.spacing6())
+                        .py(m.spacing7())
+                        .rounded(m.radius_xl())
+                        .border_1()
+                        .border_color(theme.border)
+                        .bg(theme.surface)
+                        .cursor_pointer()
+                        .hover(|style| style.bg(theme.hover).border_color(theme.accent))
+                        .on_click(cx.listener(move |model, _, window, cx| {
+                            model.run_custom_command(&id, cx);
+                            model.focus_active(window, cx);
+                        }))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .size(m.scaled(56.0))
+                                .rounded(m.radius_lg())
+                                .bg(theme.bg)
+                                .child(icon),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .items_center()
+                                .gap(m.spacing1())
+                                .max_w_full()
+                                .child(
+                                    div()
+                                        .max_w_full()
+                                        .truncate()
+                                        .text_size(m.font_emphasis())
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(theme.fg)
+                                        .child(command.name.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(m.font_footnote())
+                                        .text_color(theme.fg_muted)
+                                        .group_hover(group, |style| style.text_color(theme.fg))
+                                        .child(tr!("New Tab")),
+                                ),
+                        )
+                }),
+        )
 }

@@ -162,6 +162,16 @@ impl AppState {
                 .map(|id| divider.after = *id)
                 .is_some()
         });
+        restored.hidden = restored
+            .hidden
+            .iter()
+            .filter_map(|id| ids.get(id).copied())
+            .chain(current.hidden.iter().copied().filter(|project| {
+                current
+                    .project_server(*project)
+                    .is_some_and(|server| !server.is_local())
+            }))
+            .collect();
         restored.servers.clone_from(&current.servers);
         if let Some(local) = restored.servers.get_mut(&ServerId::local()) {
             local.pending_cancellations.clear();
