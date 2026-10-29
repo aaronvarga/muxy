@@ -159,6 +159,11 @@ fn provider_icon(provider: Option<Provider>, model: &AppModel) -> AnyElement {
     match provider {
         None => SymbolGlyph::new("sparkles", size, model.theme.fg).into_any_element(),
         Some(provider) => {
+            if provider.id == "codex" {
+                return gpui::img("icons/provider-codex.png")
+                    .size(size)
+                    .into_any_element();
+            }
             let path = provider_icon_path(provider);
             if provider.id == "claude" {
                 gpui::img(path).size(size).into_any_element()

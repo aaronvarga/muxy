@@ -61,10 +61,7 @@ pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Opti
             .h(m.tab_bar_height())
             .px(px(6.0))
             .overflow_hidden()
-            .bg(gpui::Hsla {
-                l: (theme.bg.l - 0.025).max(0.0),
-                ..theme.bg
-            })
+            .bg(background(model))
             .border_b_1()
             .border_color(theme.border)
             .text_size(m.font_footnote())
@@ -93,10 +90,24 @@ pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Opti
     )
 }
 
+/// The bar's background, which the selected tab above it also uses; the
+/// content's background when the bar is hidden.
+pub(crate) fn background(model: &AppModel) -> gpui::Hsla {
+    let bg = model.theme.bg;
+    if model.appearance.commands_bar_visible {
+        gpui::Hsla {
+            l: (bg.l - 0.025).max(0.0),
+            ..bg
+        }
+    } else {
+        bg
+    }
+}
+
 /// The agent a command starts, so its button shows the agent's logo: the
 /// program it runs, else the first word of its name, for commands run
 /// through an alias.
-fn agent(command: &muxy_app_core::settings::CustomCommand) -> Option<AgentProvider> {
+pub(super) fn agent(command: &muxy_app_core::settings::CustomCommand) -> Option<AgentProvider> {
     let program = command
         .command
         .split_whitespace()

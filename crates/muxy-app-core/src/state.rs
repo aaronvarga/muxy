@@ -38,6 +38,9 @@ pub struct AppState {
     pub(crate) removed_projects: Vec<RemovedProject>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) dividers: Vec<Divider>,
+    /// Top-level projects the sidebar leaves out in every workspace.
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub(crate) hidden: BTreeSet<ProjectId>,
     pub(crate) window: WindowState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) set_aside: Option<SetAsideView>,
@@ -67,6 +70,8 @@ struct StoredState {
     removed_projects: Vec<RemovedProject>,
     #[serde(default)]
     dividers: Vec<Divider>,
+    #[serde(default)]
+    hidden: BTreeSet<ProjectId>,
     window: WindowState,
     #[serde(default)]
     set_aside: Option<SetAsideView>,
@@ -122,6 +127,7 @@ impl TryFrom<StoredState> for AppState {
             workspaces: stored.workspaces,
             removed_projects: stored.removed_projects,
             dividers: stored.dividers,
+            hidden: stored.hidden,
             window: stored.window,
             set_aside: stored.set_aside,
             session_moves: stored.session_moves,

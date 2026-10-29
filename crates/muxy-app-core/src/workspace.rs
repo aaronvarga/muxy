@@ -31,6 +31,9 @@ impl AppState {
     /// server's Home and its members, with worktrees following their parent.
     pub fn is_listed(&self, project: &Project) -> bool {
         let root = project.parent_id.unwrap_or(project.id);
+        if self.hidden.contains(&root) {
+            return false;
+        }
         self.active_workspace()
             .is_none_or(|workspace| project.home || workspace.projects.contains(&root))
     }
@@ -105,8 +108,13 @@ impl AppState {
     }
 
     /// Keeps the current project listed by switching to a workspace that
-    /// contains it, or to all projects.
+    /// contains it, or to all projects. A project of another server than the
+    /// default one is never listed, whichever workspace is active.
+    /// A hidden project shown anyway, as from Switch Project, is unhidden.
     pub fn reveal_current_project(&mut self) {
+        let current = self.current_project();
+        let root = current.parent_id.unwrap_or(current.id);
+        self.hidden.remove(&root);
         let current = self.current_project();
         if self.is_listed(current) {
             return;
@@ -131,9 +139,35 @@ impl AppState {
                 .projects
                 .retain(|project| members.contains(project));
         }
+        self.hidden.retain(|project| members.contains(project));
         if self.active_workspace().is_none() {
             self.window.workspace = None;
         }
+    }
+
+    pub fn hidden_projects(&self) -> impl Iterator<Item = &Project> {
+        self.projects
+            .iter()
+            .filter(|project| self.hidden.contains(&project.id))
+    }
+
+    /// Hides a top-level project from the sidebar, keeping its tabs, icon and
+    /// workspaces for when it is shown again.
+    pub fn set_project_hidden(&mut self, project: ProjectId, hidden: bool) -> Result<(), AppError> {
+        let candidate = self
+            .project(project)
+            .ok_or(AppError::UnknownProject(project))?;
+        if candidate.home || candidate.parent_id.is_some() {
+            return Err(AppError::InvalidState(
+                "only top-level projects other than Home can be hidden".into(),
+            ));
+        }
+        if hidden {
+            self.hidden.insert(project);
+        } else {
+            self.hidden.remove(&project);
+        }
+        Ok(())
     }
 
     fn workspace_mut(&mut self, id: WorkspaceId) -> Result<&mut Workspace, AppError> {

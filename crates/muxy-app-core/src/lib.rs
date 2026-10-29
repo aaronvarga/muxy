@@ -37,7 +37,7 @@ pub mod webview;
 mod window;
 mod workspace;
 
-pub use divider::Divider;
+pub use divider::{Divider, DividerSize};
 pub use error::AppError;
 pub use groups::{TabGroup, TabGroups};
 pub use ids::{

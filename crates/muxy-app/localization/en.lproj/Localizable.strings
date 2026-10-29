@@ -967,6 +967,9 @@
 "Hide" = "Hide";
 "Hide %@" = "Hide %@";
 "Hide Others" = "Hide Others";
+"Hide Project" = "Hide Project";
+"Hide Tips" = "Hide Tips";
+"Hide Tips?" = "Hide Tips?";
 "Hide agents panel" = "Hide agents panel";
 "Hide projects without tabs" = "Hide projects without tabs";
 "Hides the panel" = "Hides the panel";
@@ -1169,6 +1172,7 @@
 "Maximize" = "Maximize";
 "Maximize Pane" = "Maximize Pane";
 "Menu" = "Menu";
+"Medium" = "Medium";
 "Merge" = "Merge";
 "Merge %@ into %@ and push the updated branch?" = "Merge %@ into %@ and push the updated branch?";
 "Merge Commit" = "Merge Commit";
@@ -1373,6 +1377,8 @@
 "Open Web Inspector" = "Open Web Inspector";
 "Open a Copy" = "Open a Copy";
 "Open a live terminal before sending." = "Open a live terminal before sending.";
+"Open a live terminal before starting dictation." = "Open a live terminal before starting dictation.";
+"Open a new tab to start working in this project." = "Open a new tab to start working in this project.";
 "Open a new terminal tab to start working in this project." = "Open a new terminal tab to start working in this project.";
 "Open configuration files in the system editor. After editing app settings, run muxy config reload or restart Muxy. Terminal settings reload when Muxy or Settings becomes active." = "Open configuration files in the system editor. After editing app settings, run muxy config reload or restart Muxy. Terminal settings reload when Muxy or Settings becomes active.";
 "Open files with" = "Open files with";
@@ -1818,6 +1824,7 @@
 "Show Floating Terminal Only in Its Project" = "Show Floating Terminal Only in Its Project";
 "Show Floating Terminal in All Projects" = "Show Floating Terminal in All Projects";
 "Show Commands Bar" = "Show Commands Bar";
+"Show Hidden Project" = "Show Hidden Project";
 "Show Muxy Tip" = "Show Muxy Tip";
 "Show Only in %@" = "Show Only in %@";
 "Show Pairing Code" = "Show Pairing Code";
@@ -1862,6 +1869,7 @@
 "Size" = "Size";
 "Skip Tour" = "Skip Tour";
 "Skip whenever you like. You can replay it from the command palette." = "Skip whenever you like. You can replay it from the command palette.";
+"Small" = "Small";
 "Some history exceeds the scan limit." = "Some history exceeds the scan limit.";
 "Sort Projects" = "Sort Projects";
 "Sort extensions" = "Sort extensions";
@@ -2101,6 +2109,7 @@
 "Top padding" = "Top padding";
 "Trackpad scroll speed" = "Trackpad scroll speed";
 "Transparency of the terminal background." = "Transparency of the terminal background.";
+"Transparent" = "Transparent";
 "Trust & Test" = "Trust & Test";
 "Try Again" = "Try Again";
 "Try a different name or clear your search." = "Try a different name or clear your search.";
