@@ -1,15 +1,21 @@
+use std::collections::HashMap;
+
 use async_channel::{Receiver, Sender};
 use block2::RcBlock;
 use objc2::{
-    DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, rc::Retained, sel,
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send,
+    rc::Retained, sel,
 };
 use objc2_app_kit::{
-    NSAccessibility, NSBezierPath, NSColor, NSImage, NSImageSymbolConfiguration, NSMenu,
-    NSMenuItem, NSSquareStatusItemLength, NSStatusBar, NSStatusItem,
+    NSAccessibility, NSBezierPath, NSColor, NSCompositingOperation, NSFont, NSFontAttributeName,
+    NSForegroundColorAttributeName, NSImage, NSImageSymbolConfiguration, NSMenu, NSMenuItem,
+    NSSquareStatusItemLength, NSStatusBar, NSStatusItem, NSStringDrawing,
 };
-use objc2_foundation::{NSObject, NSObjectProtocol, NSPoint, NSSize, NSString};
+use objc2_foundation::{
+    NSData, NSDictionary, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
+};
 
-use super::{Attention, Entry};
+use super::{Attention, Entry, ProjectIcon};
 use crate::tr;
 
 define_class!(
@@ -41,6 +47,7 @@ pub struct StatusMenu {
     yellow: Retained<NSImage>,
     blue: Retained<NSImage>,
     entries: Option<Vec<Entry>>,
+    icons: HashMap<ProjectIcon, Retained<NSImage>>,
     mtm: MainThreadMarker,
 }
 
@@ -65,6 +72,7 @@ impl StatusMenu {
             yellow,
             blue,
             entries: None,
+            icons: HashMap::new(),
             mtm,
         };
         menu.update(Vec::new());
@@ -94,18 +102,26 @@ impl StatusMenu {
             empty.setEnabled(false);
             menu.addItem(&empty);
         }
+        let mut icons = HashMap::new();
         for entry in &entries {
             let row = self.row(&entry.id, &entry.label);
-            match entry.attention {
-                Some(Attention::Input) => row.setImage(Some(&self.yellow)),
-                Some(Attention::Unread) => row.setImage(Some(&self.blue)),
-                None => {}
-            }
+            let icon = icons.entry(entry.icon.clone()).or_insert_with(|| {
+                self.icons
+                    .remove(&entry.icon)
+                    .unwrap_or_else(|| project_icon(&entry.icon))
+            });
+            let dot = match entry.attention {
+                Some(Attention::Input) => Some(self.yellow.clone()),
+                Some(Attention::Unread) => Some(self.blue.clone()),
+                None => None,
+            };
+            row.setImage(Some(&session_icon(icon.clone(), dot)));
             menu.addItem(&row);
         }
         menu.addItem(&NSMenuItem::separatorItem(self.mtm));
         menu.addItem(&self.row("command-center", &tr!("Command Center")));
         self.item.setMenu(Some(&menu));
+        self.icons = icons;
         self.entries = Some(entries);
     }
 
@@ -147,6 +163,97 @@ impl Drop for StatusMenu {
         self.item.setMenu(None);
         NSStatusBar::systemStatusBar().removeStatusItem(&self.item);
     }
+}
+
+fn draw_image(image: &NSImage, rect: NSRect) {
+    image.drawInRect_fromRect_operation_fraction(
+        rect,
+        NSRect::ZERO,
+        NSCompositingOperation::SourceOver,
+        1.0,
+    );
+}
+
+fn session_icon(icon: Retained<NSImage>, dot: Option<Retained<NSImage>>) -> Retained<NSImage> {
+    let draw = RcBlock::new(move |_| {
+        draw_image(&icon, NSRect::new(NSPoint::ZERO, NSSize::new(18.0, 18.0)));
+        if let Some(dot) = &dot {
+            draw_image(
+                dot,
+                NSRect::new(NSPoint::new(22.0, 4.5), NSSize::new(9.0, 9.0)),
+            );
+        }
+        true.into()
+    });
+    let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(32.0, 18.0), true, &draw);
+    image.setTemplate(false);
+    image
+}
+
+fn project_icon(icon: &ProjectIcon) -> Retained<NSImage> {
+    if let Some(bytes) = &icon.logo
+        && let Some(image) = NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(bytes))
+    {
+        image.setSize(NSSize::new(18.0, 18.0));
+        image.setTemplate(false);
+        return image;
+    }
+    let rgb = u32::from_str_radix(icon.color.trim_start_matches('#'), 16).unwrap_or(0x0080_8080);
+    let channel = |shift: u32| f64::from((rgb >> shift) & 255_u32) / 255.0;
+    let (red, green, blue) = (channel(16), channel(8), channel(0));
+    let background = NSColor::colorWithSRGBRed_green_blue_alpha(red, green, blue, 1.0);
+    let foreground = if 0.2126 * red + 0.7152 * green + 0.0722 * blue > 0.5 {
+        NSColor::blackColor()
+    } else {
+        NSColor::whiteColor()
+    };
+    let symbol = icon
+        .glyph
+        .strip_prefix("sf:")
+        .and_then(|name| symbol(name, 13.0, Some(&foreground)));
+    let text = NSString::from_str(&icon.glyph);
+    let font = NSFont::systemFontOfSize(13.0);
+    // SAFETY: AppKit's attribute keys have their documented font and color value types.
+    let attributes = unsafe {
+        NSDictionary::from_slices(
+            &[NSFontAttributeName, NSForegroundColorAttributeName],
+            &[
+                font.as_ref() as &objc2::runtime::AnyObject,
+                foreground.as_ref(),
+            ],
+        )
+    };
+    let draw = RcBlock::new(move |_| {
+        background.setFill();
+        NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+            NSRect::new(NSPoint::ZERO, NSSize::new(18.0, 18.0)),
+            4.0,
+            4.0,
+        )
+        .fill();
+        if let Some(symbol) = &symbol {
+            draw_image(
+                symbol,
+                NSRect::new(NSPoint::new(2.0, 2.0), NSSize::new(14.0, 14.0)),
+            );
+        } else {
+            // SAFETY: The dictionary contains valid NSString drawing attributes.
+            unsafe {
+                let size = text.sizeWithAttributes(Some(&attributes));
+                text.drawInRect_withAttributes(
+                    NSRect::new(
+                        NSPoint::new((18.0 - size.width) / 2.0, (18.0 - size.height) / 2.0),
+                        size,
+                    ),
+                    Some(&attributes),
+                );
+            }
+        }
+        true.into()
+    });
+    let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(18.0, 18.0), true, &draw);
+    image.setTemplate(false);
+    image
 }
 
 fn app_icon(color: Option<Retained<NSColor>>) -> Retained<NSImage> {
@@ -199,6 +306,64 @@ fn symbol(name: &str, size: f64, color: Option<&NSColor>) -> Option<Retained<NSI
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn project_images_keep_attention_dots_separate_and_colored() {
+        let logo = app_icon(None).TIFFRepresentation().expect("logo").to_vec();
+        for (glyph, logo) in [
+            ("A", Some(std::sync::Arc::from(logo))),
+            ("sf:house.fill", None),
+            ("🚀", None),
+            ("A", Some(std::sync::Arc::from(&b"invalid"[..]))),
+        ] {
+            let icon = project_icon(&ProjectIcon {
+                logo,
+                glyph: glyph.into(),
+                color: "#1188cc".into(),
+            });
+            for color in [
+                None,
+                Some(NSColor::systemYellowColor()),
+                Some(NSColor::systemBlueColor()),
+            ] {
+                let dot = color
+                    .as_ref()
+                    .and_then(|color| symbol("circle.fill", 9.0, Some(color)));
+                let image = session_icon(icon.clone(), dot);
+                assert!(!image.isTemplate());
+                let pixels = crate::bitmap::render_rgba(&image, 64, 36).expect("bitmap");
+                assert!(
+                    pixels
+                        .chunks_exact(4)
+                        .enumerate()
+                        .any(|(i, pixel)| i % 64 < 36 && pixel[3] > 128)
+                );
+                let dots: Vec<_> = pixels
+                    .chunks_exact(4)
+                    .enumerate()
+                    .filter(|(i, pixel)| i % 64 >= 44 && pixel[3] > 128)
+                    .map(|(_, pixel)| pixel)
+                    .collect();
+                if let Some(color) = color {
+                    assert!(
+                        !dots.is_empty(),
+                        "attention dot must survive the project image"
+                    );
+                    let blue = color == NSColor::systemBlueColor();
+                    assert!(dots.iter().any(|pixel| if blue {
+                        pixel[2] > pixel[0]
+                    } else {
+                        pixel[0] > pixel[2]
+                    }));
+                } else {
+                    assert!(
+                        dots.is_empty(),
+                        "clear sessions must not show an attention dot"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn attention_symbols_render_color_instead_of_menu_templates() {
