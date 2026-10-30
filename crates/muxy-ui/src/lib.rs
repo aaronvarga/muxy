@@ -67,6 +67,9 @@ pub mod pasteboard;
 )]
 pub mod native_menu;
 
+#[allow(unsafe_code, reason = "Main-thread macOS status item and menu target")]
+pub mod status_menu;
+
 #[allow(unsafe_code, reason = "Main-thread WebKit and native view integration")]
 pub mod webview;
 
