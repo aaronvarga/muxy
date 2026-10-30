@@ -127,6 +127,13 @@ impl StatusMenu {
             item.setTarget(Some(&self.target));
             item.setRepresentedObject(Some(&NSString::from_str(id)));
         }
+        // macOS 27 hides images in automatic mode; older systems lack this selector.
+        if item.respondsToSelector(sel!(setPreferredImageVisibility:)) {
+            // SAFETY: Availability is checked; NSMenuItemImageVisibilityVisible is NSInteger 1.
+            unsafe {
+                let _: () = msg_send![&*item, setPreferredImageVisibility: 1_isize];
+            }
+        }
         item.setToolTip(Some(&NSString::from_str(label)));
         item
     }
