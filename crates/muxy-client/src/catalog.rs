@@ -215,6 +215,19 @@ impl Client {
         self.all_project_sessions(project, available)
     }
 
+    /// All live sessions, including terminals already displayed by this client.
+    pub fn running_project_sessions(
+        &self,
+        project: ProjectId,
+    ) -> Result<ProjectSessions, ClientError> {
+        self.all_project_sessions(project, |session| {
+            matches!(
+                session.status,
+                muxy_protocol::SessionStatus::Live | muxy_protocol::SessionStatus::Starting
+            )
+        })
+    }
+
     /// Every terminal of the project that `keep` accepts, from one consistent
     /// listing.
     pub fn all_project_sessions(
