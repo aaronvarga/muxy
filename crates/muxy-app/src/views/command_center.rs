@@ -535,23 +535,6 @@ pub(super) fn render(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement
                         .unwrap_or_else(|_| div().into_any_element());
                     list.layout_as_root(bounds.size.into(), window, cx);
                     list.prepaint_at(bounds.origin, window, cx);
-                    let _ = owner.update(cx, |model, cx| {
-                        let state = &model.command_center.scroll;
-                        let start = state.logical_scroll_top().item_ix;
-                        let mut end = start;
-                        while let Some(row) = state.bounds_for_item(end) {
-                            if !row.intersects(&bounds) {
-                                break;
-                            }
-                            end += 1;
-                        }
-                        model.command_center_rows(
-                            start..end,
-                            model.command_center.columns,
-                            window,
-                            cx,
-                        );
-                    });
                     list
                 },
                 |_, mut list, window, cx| list.paint(window, cx),
@@ -561,6 +544,10 @@ pub(super) fn render(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement
         .into_any_element()
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Packed tile geometry and its virtualized scroll viewport"
+)]
 fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppModel>) -> AnyElement {
     let m = model.metrics;
     let [columns, rows] = model.appearance.command_center_layout.grid(
@@ -571,77 +558,142 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
     let gap = m.spacing4();
     let dimensions = [columns, rows];
     let columns = usize::from(columns);
-    let row_count = model.command_center.tiles.len().div_ceil(columns);
-    let compact: Vec<_> = model
+    let height = ((size.height + gap) / f32::from(rows)).max(m.scaled(180.0));
+    let compact_height = m.scaled(36.0) + px(4.0) + gap;
+    let mut bottoms = vec![px(0.0); columns];
+    let positions: Vec<_> = model
         .command_center
         .tiles
-        .chunks(columns)
-        .map(|tiles| {
-            tiles
-                .iter()
-                .all(|tile| model.command_center.is_collapsed(tile))
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            let column = index % columns;
+            let top = bottoms[column];
+            let extent = if model.command_center.is_collapsed(entry) {
+                compact_height
+            } else {
+                height
+            };
+            bottoms[column] += extent;
+            (top, extent - gap)
         })
         .collect();
-    let compact_count = compact.iter().filter(|compact| **compact).count();
-    let compact_rows = f32::from(u16::try_from(compact_count).unwrap_or(u16::MAX));
-    let expanded_slots = if model.appearance.command_center_layout == GridLayout::Auto {
-        usize::from(rows).min(row_count - compact_count)
-    } else {
-        usize::from(rows).saturating_sub(compact_count)
-    }
-    .max(1);
-    let compact_height = m.scaled(36.0) + px(4.0) + gap;
-    let height = ((size.height + gap - compact_height * compact_rows)
-        / f32::from(u16::try_from(expanded_slots).unwrap_or(u16::MAX)))
-    .max(m.scaled(180.0));
-    let scrolling = height
-        * f32::from(u16::try_from(row_count - compact_count).unwrap_or(u16::MAX))
-        + compact_height * compact_rows
-        - gap
-        > size.height + px(0.5);
+    let total = (bottoms.into_iter().max().unwrap_or_default() - gap).max(px(0.0));
+    let scrolling = total > size.height + px(0.5);
+    let row_count = model.command_center.tiles.len().div_ceil(columns);
+    let bands: Vec<_> = (0..row_count)
+        .map(|row| (total - height * f32::from(u16::try_from(row).unwrap_or(u16::MAX))).min(height))
+        .take_while(|height| *height > px(0.0))
+        .collect();
+    let grid = (dimensions, size, row_count, total);
     model.command_center.columns = columns;
-    let grid = (dimensions, size, row_count);
     if model.command_center.grid != Some(grid) {
         let offset = model.command_center.scroll.logical_scroll_top();
-        model.command_center.scroll.reset(row_count);
+        model.command_center.scroll.reset(bands.len());
         model.command_center.scroll.scroll_to(offset);
         model.command_center.scrollbar.reset();
         model.command_center.grid = Some(grid);
     }
+    if let Some(pane) = model.command_center.reveal.take()
+        && let Some(index) = model
+            .command_center
+            .tiles
+            .iter()
+            .position(|tile| tile.pane == pane)
+    {
+        let current = model.command_center.scroll.logical_scroll_top();
+        let offset = height * f32::from(u16::try_from(current.item_ix).unwrap_or(u16::MAX))
+            + current.offset_in_item;
+        let (top, extent) = positions[index];
+        let target = if top < offset {
+            top
+        } else if top + extent > offset + size.height {
+            top + extent - size.height
+        } else {
+            offset
+        };
+        let mut remaining = target;
+        let mut item_ix = 0;
+        while item_ix + 1 < bands.len() && remaining >= bands[item_ix] {
+            remaining -= bands[item_ix];
+            item_ix += 1;
+        }
+        model.command_center.scroll.scroll_to(gpui::ListOffset {
+            item_ix,
+            offset_in_item: remaining,
+        });
+    }
+    let scroll = model.command_center.scroll.clone();
+    let paint_scroll = scroll.clone();
     let owner = cx.weak_entity();
-    let list = gpui::list(model.command_center.scroll.clone(), move |row, _, cx| {
-        owner
-            .update(cx, |model, cx| {
-                let height = if compact[row] { compact_height } else { height };
-                let mut cells = div()
-                    .debug_selector(move || format!("command-center-row-{row}"))
-                    .flex()
-                    .items_start()
-                    .w_full()
-                    .gap(m.spacing4())
-                    .h(if row + 1 == row_count {
-                        height - gap
-                    } else {
-                        height
-                    })
-                    .pb(if row + 1 == row_count { px(0.0) } else { gap });
-                for column in 0..columns {
-                    let index = row * columns + column;
-                    cells = cells.child(match model.command_center.tiles.get(index) {
-                        Some(entry) => tile(entry, index, model, cx),
-                        None => div().flex_1().min_w(px(0.0)).into_any_element(),
-                    });
-                }
-                cells.into_any_element()
-            })
-            .unwrap_or_else(|_| div().into_any_element())
+    // The list supplies scrolling; only intersecting packed tiles build UI.
+    let list = gpui::list(scroll, move |row, _, _| {
+        div().w_full().h(bands[row]).into_any_element()
     })
     .size_full();
+    let tiles = canvas(
+        move |bounds, window, cx| {
+            let top = paint_scroll.logical_scroll_top();
+            let offset = height * f32::from(u16::try_from(top.item_ix).unwrap_or(u16::MAX))
+                + top.offset_in_item;
+            let width = (bounds.size.width
+                - gap * f32::from(u16::try_from(columns - 1).unwrap_or(u16::MAX)))
+                / f32::from(dimensions[0]);
+            let mut elements = Vec::new();
+            let _ = owner.update(cx, |model, cx| {
+                let mut visible = Vec::new();
+                window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
+                    for (index, (top, tile_height)) in positions.iter().enumerate() {
+                        let frame = gpui::Bounds::new(
+                            bounds.origin
+                                + gpui::point(
+                                    (width + gap)
+                                        * f32::from(
+                                            u16::try_from(index % columns).unwrap_or(u16::MAX),
+                                        ),
+                                    *top - offset,
+                                ),
+                            gpui::size(width, *tile_height),
+                        );
+                        if !frame.intersects(&bounds) {
+                            continue;
+                        }
+                        let entry = &model.command_center.tiles[index];
+                        if !model.command_center.is_collapsed(entry) {
+                            visible.push(entry.pane);
+                        }
+                        let mut element = div()
+                            .size_full()
+                            .child(tile(entry, index, model, cx))
+                            .into_any_element();
+                        element.layout_as_root(frame.size.into(), window, cx);
+                        element.prepaint_at(frame.origin, window, cx);
+                        elements.push(element);
+                    }
+                });
+                model.command_center_visible(visible, window, cx);
+            });
+            (bounds, elements)
+        },
+        |_, (bounds, mut elements), window, cx| {
+            window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
+                for element in &mut elements {
+                    element.paint(window, cx);
+                }
+            });
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .bottom_0()
+    .right(if scrolling { m.scaled(12.0) } else { px(0.0) });
     div()
         .relative()
         .size_full()
         .when(scrolling, |grid| grid.pr(m.scaled(12.0)))
         .child(list)
+        .child(tiles)
         .when(scrolling, |grid| {
             grid.child(
                 div().absolute().top_0().right_0().bottom_0().child(
