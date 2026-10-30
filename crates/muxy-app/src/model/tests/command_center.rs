@@ -659,6 +659,23 @@ fn dashboard_layout_menu_and_scrolling_only_attach_visible_tiles(cx: &mut TestAp
         assert_eq!(artwork.size.width, model.metrics.scaled(26.0));
         assert!(name.size.width > px(0.0));
     });
+    preferences::click_preference(cx, "command-center-collapse-0-false");
+    let header = cx
+        .debug_bounds("command-center-drag-0")
+        .expect("collapsed header");
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: header.center(),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.0), px(-500.0))),
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        let offset = model.command_center.scroll.logical_scroll_top();
+        assert!(
+            offset.item_ix > 0 || offset.offset_in_item > px(0.0),
+            "scrolling a header must scroll the packed dashboard"
+        );
+    });
     view.update(cx, |model, cx| {
         model.command_center.scroll.scroll_to(gpui::ListOffset {
             item_ix: 4,

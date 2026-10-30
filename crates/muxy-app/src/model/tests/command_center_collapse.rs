@@ -77,7 +77,10 @@ fn collapsing_tiles_keeps_sessions_and_attention_without_live_hidden_views(
     });
     cx.run_until_parked();
     let before = view.read_with(cx, |model, _| model.state.clone());
-    let full_row = cx.debug_bounds("command-center-row-0").expect("row");
+    let below = cx.debug_bounds("command-center-drag-2").expect("below");
+    let neighbor_below = cx
+        .debug_bounds("command-center-drag-3")
+        .expect("neighbor below");
     requests.try_iter().for_each(drop);
     preferences::click_preference(cx, "command-center-collapse-0-false");
     view.read_with(cx, |model, _| {
@@ -90,11 +93,17 @@ fn collapsing_tiles_keeps_sessions_and_attention_without_live_hidden_views(
         cx.debug_bounds("command-center-attention-0-Blocked")
             .is_some()
     );
+    assert!(
+        cx.debug_bounds("command-center-drag-2")
+            .expect("moved tile")
+            .top()
+            < below.top()
+    );
     assert_eq!(
-        cx.debug_bounds("command-center-row-0")
-            .expect("mixed row")
-            .size,
-        full_row.size
+        cx.debug_bounds("command-center-drag-3")
+            .expect("neighbor")
+            .top(),
+        neighbor_below.top()
     );
     let collapsed = cx
         .debug_bounds("command-center-tile-0-Blocked-focused-false")
@@ -114,14 +123,34 @@ fn collapsing_tiles_keeps_sessions_and_attention_without_live_hidden_views(
         Work::Discard(..) | Work::EndAll(_) | Work::StopServer { .. }
     )));
     preferences::click_preference(cx, "command-center-collapse-1-false");
-    let compact_row = cx
-        .debug_bounds("command-center-row-0")
-        .expect("compact row");
-    assert!(compact_row.size.height < full_row.size.height / 2.0);
-    let expanded_row = cx
-        .debug_bounds("command-center-row-1")
-        .expect("expanded row");
-    assert!(expanded_row.size.height > full_row.size.height);
+    assert!(
+        cx.debug_bounds("command-center-drag-3")
+            .expect("moved neighbor")
+            .top()
+            < neighbor_below.top()
+    );
+    assert_eq!(
+        cx.debug_bounds("command-center-drag-2")
+            .expect("packed tile")
+            .top(),
+        cx.debug_bounds("command-center-drag-3")
+            .expect("packed neighbor")
+            .top()
+    );
+    preferences::click_preference(cx, "command-center-collapse-0-true");
+    assert_eq!(
+        cx.debug_bounds("command-center-drag-2")
+            .expect("restored below")
+            .top(),
+        below.top()
+    );
+    assert!(
+        cx.debug_bounds("command-center-drag-3")
+            .expect("neighbor stays packed")
+            .top()
+            < neighbor_below.top()
+    );
+    preferences::click_preference(cx, "command-center-collapse-0-false");
     let at = cx
         .debug_bounds("command-center-drag-0")
         .expect("header")
