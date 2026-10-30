@@ -148,9 +148,11 @@ fn app_icon(color: Option<Retained<NSColor>>) -> Retained<NSImage> {
     let draw = RcBlock::new(move |_| {
         color.setFill();
         // The two filled chevrons from packaging/macos/AppIconBeta.svg, without the tile background.
+        let scale = 14.0 / 550.0;
+        let left = (18.0 - 492.89 * scale) / 2.0;
         for offset in [0.0, 194.0] {
             let path = NSBezierPath::bezierPath();
-            let point = |x, y| NSPoint::new(0.935 + (x + offset) * 18.0 / 550.0, y * 18.0 / 550.0);
+            let point = |x, y| NSPoint::new(left + (x + offset) * scale, 2.0 + y * scale);
             path.moveToPoint(point(0.0, 0.0));
             for (x, y) in [
                 (298.89, 275.0),
