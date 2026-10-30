@@ -27,7 +27,8 @@ tile. Right-click for clipboard actions or **Open in Project**.
 
 Use the chevron in a tile's header to collapse its terminal to the header, or
 choose **Collapse Terminal** from its right-click menu. The project artwork,
-title, attention indicator, drag handle, and session controls stay available.
+title, attention indicator, and session controls stay available. The chevron is
+just before **Open in Project**, and the entire header remains draggable.
 Use the chevron again, or **Expand Terminal**, to restore the terminal. Collapsed
 sessions keep running, but their hidden views detach; keyboard pane navigation
 skips them. Entirely collapsed rows shrink and expanded rows use the freed space.
