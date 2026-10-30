@@ -37,9 +37,11 @@ Other columns keep their positions and terminal sizes. Collapse choices follow t
 sessions through reordering and switching projects while the app is running;
 they reset when the app restarts.
 
-A thin animated top edge pulses while a session is working, using the same
-activity and terminal-progress detection as the sidebar. It remains visible on
-collapsed headers. Paused progress has a steady yellow top edge; errors use red.
+A thin purple/orange/cyan gradient pulses across the bottom of the header while
+a session is working, using the same activity and terminal-progress detection as
+the sidebar. It remains visible on
+collapsed headers. Paused progress has a steady yellow header underline; errors
+use red.
 On macOS the pulse uses Core Animation and does not redraw terminal contents.
 
 A blue border marks the focused terminal. Amber borders and labels mark

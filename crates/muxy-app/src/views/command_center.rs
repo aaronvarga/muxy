@@ -793,6 +793,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
             div()
                 .id(SharedString::from(format!("command-center-drag-{pane}")))
                 .debug_selector(move || format!("command-center-drag-{index}"))
+                .relative()
                 .flex()
                 .items_center()
                 .flex_none()
@@ -913,7 +914,37 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                         model.close_pane(pane, cx);
                         cx.stop_propagation();
                     })),
-                ),
+                )
+                .when_some(progress, |header, progress| {
+                    use muxy_protocol::ProgressState;
+                    let color = match progress.state {
+                        ProgressState::Paused => model.theme.warning,
+                        ProgressState::Error => model.theme.danger,
+                        _ => model.theme.accent,
+                    };
+                    let paused =
+                        matches!(progress.state, ProgressState::Paused | ProgressState::Error);
+                    header.child(
+                        div()
+                            .debug_selector(move || {
+                                format!("command-center-progress-{index}-{:?}", progress.state)
+                            })
+                            .absolute()
+                            .bottom_0()
+                            .left_0()
+                            .right_0()
+                            .h(px(2.0))
+                            .child(if paused {
+                                div().size_full().bg(color).into_any_element()
+                            } else {
+                                model.spinners.activity_border(
+                                    format!("command-center-working-{pane}"),
+                                    px(2.0),
+                                    color,
+                                )
+                            }),
+                    )
+                }),
         )
         .when(!collapsed, |tile| {
             tile.child(
@@ -958,35 +989,6 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                 )
             },
         )
-        .when_some(progress, |tile, progress| {
-            use muxy_protocol::ProgressState;
-            let color = match progress.state {
-                ProgressState::Paused => model.theme.warning,
-                ProgressState::Error => model.theme.danger,
-                _ => model.theme.accent,
-            };
-            let paused = matches!(progress.state, ProgressState::Paused | ProgressState::Error);
-            tile.child(
-                div()
-                    .debug_selector(move || {
-                        format!("command-center-progress-{index}-{:?}", progress.state)
-                    })
-                    .absolute()
-                    .top_0()
-                    .left(m.radius_md())
-                    .right(m.radius_md())
-                    .h(px(2.0))
-                    .child(if paused {
-                        div().size_full().bg(color).into_any_element()
-                    } else {
-                        model.spinners.top_border(
-                            format!("command-center-working-{pane}"),
-                            px(2.0),
-                            color,
-                        )
-                    }),
-            )
-        })
         .child(
             div()
                 .id(SharedString::from(format!("command-center-drop-{pane}")))

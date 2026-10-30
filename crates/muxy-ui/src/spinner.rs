@@ -6,12 +6,12 @@ use std::ptr;
 use gpui::{Bounds, Pixels, Rgba, Window};
 use objc2::rc::Retained;
 use objc2::{MainThreadMarker, MainThreadOnly};
-use objc2_app_kit::NSView;
+use objc2_app_kit::{NSColor, NSView};
 use objc2_core_graphics::{CGColor, CGPath};
-use objc2_foundation::{NSNumber, NSPoint, NSRect, NSSize, ns_string};
+use objc2_foundation::{NSArray, NSNumber, NSPoint, NSRect, NSSize, ns_string};
 use objc2_quartz_core::{
-    CABasicAnimation, CAMediaTiming, CAMediaTimingFunction, CAShapeLayer, CATransaction,
-    kCALineCapRound, kCAMediaTimingFunctionLinear,
+    CABasicAnimation, CAGradientLayer, CAMediaTiming, CAMediaTimingFunction, CAShapeLayer,
+    CATransaction, kCALineCapRound, kCAMediaTimingFunctionLinear,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
@@ -28,7 +28,7 @@ pub struct NativeSpinner {
     color: Cell<Option<Rgba>>,
     scale_factor: Cell<Option<f32>>,
     visible: Cell<bool>,
-    top_border: bool,
+    gradient: Option<Retained<CAGradientLayer>>,
 }
 
 impl std::fmt::Debug for NativeSpinner {
@@ -72,13 +72,21 @@ impl NativeSpinner {
             color: Cell::new(None),
             scale_factor: Cell::new(None),
             visible: Cell::new(false),
-            top_border: false,
+            gradient: None,
         })
     }
 
-    pub fn top_border(window: &Window) -> Result<Self, String> {
+    pub fn activity_border(window: &Window) -> Result<Self, String> {
         let mut spinner = Self::new(window)?;
-        spinner.top_border = true;
+        let gradient = activity_gradient();
+        spinner.track.setHidden(true);
+        spinner.arc.setHidden(true);
+        spinner
+            .view
+            .layer()
+            .ok_or("activity view has no layer")?
+            .addSublayer(&gradient);
+        spinner.gradient = Some(gradient);
         Ok(spinner)
     }
 
@@ -88,6 +96,9 @@ impl NativeSpinner {
         let frame = self.frame_in_parent(bounds);
         if self.frame.get() != Some(frame) {
             self.view.setFrame(frame);
+            if let Some(gradient) = &self.gradient {
+                gradient.setFrame(NSRect::new(NSPoint::ZERO, frame.size));
+            }
             if self
                 .frame
                 .get()
@@ -98,6 +109,9 @@ impl NativeSpinner {
             self.frame.set(Some(frame));
         }
         if self.scale_factor.replace(Some(scale_factor)) != Some(scale_factor) {
+            if let Some(gradient) = &self.gradient {
+                gradient.setContentsScale(f64::from(scale_factor));
+            }
             for shape in [&self.track, &self.arc] {
                 shape.setContentsScale(f64::from(scale_factor));
             }
@@ -107,8 +121,8 @@ impl NativeSpinner {
                 a: color.a * TRACK_ALPHA,
                 ..color
             };
-            paint(&self.track, track, self.top_border);
-            paint(&self.arc, color, self.top_border);
+            paint(&self.track, track);
+            paint(&self.arc, color);
             self.color.set(Some(color));
         }
         CATransaction::commit();
@@ -122,6 +136,9 @@ impl NativeSpinner {
                 self.turn();
             } else {
                 self.arc.removeAllAnimations();
+                if let Some(gradient) = &self.gradient {
+                    gradient.removeAllAnimations();
+                }
             }
         }
     }
@@ -141,15 +158,6 @@ impl NativeSpinner {
     }
 
     fn layout(&self, size: NSSize) {
-        if self.top_border {
-            let rect = NSRect::new(NSPoint::ZERO, size);
-            let path = unsafe { CGPath::with_rect(rect, ptr::null()) };
-            for shape in [&self.track, &self.arc] {
-                shape.setFrame(rect);
-                shape.setPath(Some(&path));
-            }
-            return;
-        }
         let diameter = size.width.min(size.height);
         let line = (diameter * LINE_FRACTION).max(1.0);
         let inset = NSRect::new(
@@ -168,18 +176,39 @@ impl NativeSpinner {
     }
 
     fn turn(&self) {
-        self.arc
-            .addAnimation_forKey(&animation(self.top_border), Some(ns_string!("activity")));
+        if let Some(gradient) = &self.gradient {
+            gradient.addAnimation_forKey(&animation(true), Some(ns_string!("activity")));
+        } else {
+            self.arc
+                .addAnimation_forKey(&animation(false), Some(ns_string!("activity")));
+        }
     }
 }
 
-fn animation(top_border: bool) -> Retained<CABasicAnimation> {
-    let animation = CABasicAnimation::animationWithKeyPath(Some(if top_border {
+fn activity_gradient() -> Retained<CAGradientLayer> {
+    let layer = CAGradientLayer::new();
+    let colors = [
+        NSColor::colorWithSRGBRed_green_blue_alpha(0.66, 0.33, 0.97, 1.0).CGColor(),
+        NSColor::colorWithSRGBRed_green_blue_alpha(1.0, 0.58, 0.20, 1.0).CGColor(),
+        NSColor::colorWithSRGBRed_green_blue_alpha(0.13, 0.83, 0.93, 1.0).CGColor(),
+    ];
+    let colors = NSArray::from_slice(&[&*colors[0], &*colors[1], &*colors[2]]);
+    // SAFETY: CAGradientLayer expects an NSArray containing CGColor objects.
+    unsafe {
+        let _: () = objc2::msg_send![&*layer, setColors: &*colors];
+    }
+    layer.setStartPoint(NSPoint::new(0.0, 0.5));
+    layer.setEndPoint(NSPoint::new(1.0, 0.5));
+    layer
+}
+
+fn animation(activity_border: bool) -> Retained<CABasicAnimation> {
+    let animation = CABasicAnimation::animationWithKeyPath(Some(if activity_border {
         ns_string!("opacity")
     } else {
         ns_string!("transform.rotation.z")
     }));
-    let (from, to) = if top_border {
+    let (from, to) = if activity_border {
         (0.2, 1.0)
     } else {
         (0.0, -std::f64::consts::TAU)
@@ -191,7 +220,7 @@ fn animation(top_border: bool) -> Retained<CABasicAnimation> {
     let timing = unsafe { CAMediaTimingFunction::functionWithName(kCAMediaTimingFunctionLinear) };
     animation.setTimingFunction(Some(&timing));
     animation.setDuration(0.8);
-    animation.setAutoreverses(top_border);
+    animation.setAutoreverses(activity_border);
     animation.setRepeatCount(f32::INFINITY);
     animation
 }
@@ -199,22 +228,21 @@ fn animation(top_border: bool) -> Retained<CABasicAnimation> {
 impl Drop for NativeSpinner {
     fn drop(&mut self) {
         self.arc.removeAllAnimations();
+        if let Some(gradient) = &self.gradient {
+            gradient.removeAllAnimations();
+        }
         self.view.removeFromSuperview();
     }
 }
 
-fn paint(shape: &CAShapeLayer, color: Rgba, filled: bool) {
+fn paint(shape: &CAShapeLayer, color: Rgba) {
     let color = CGColor::new_srgb(
         f64::from(color.r),
         f64::from(color.g),
         f64::from(color.b),
         f64::from(color.a),
     );
-    if filled {
-        shape.setFillColor(Some(&color));
-    } else {
-        shape.setStrokeColor(Some(&color));
-    }
+    shape.setStrokeColor(Some(&color));
 }
 
 #[cfg(test)]
@@ -222,7 +250,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn top_border_pulses_without_rotating_the_strip_or_changing_spinner_motion() {
+    fn activity_gradient_spans_the_header_with_three_color_stops() {
+        let gradient = activity_gradient();
+        assert_eq!(gradient.startPoint(), NSPoint::new(0.0, 0.5));
+        assert_eq!(gradient.endPoint(), NSPoint::new(1.0, 0.5));
+        assert_eq!(gradient.colors().expect("colors").count(), 3);
+    }
+
+    #[test]
+    fn activity_border_pulses_without_rotating_the_strip_or_changing_spinner_motion() {
         let pulse = animation(true);
         assert_eq!(pulse.keyPath().as_deref(), Some(ns_string!("opacity")));
         assert!(pulse.autoreverses());

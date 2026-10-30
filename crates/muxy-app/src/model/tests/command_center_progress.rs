@@ -60,8 +60,9 @@ fn progress_border_matches_session_activity_without_resizing_and_survives_collap
         .debug_bounds("command-center-progress-0-Running")
         .expect("working border");
     let header = cx.debug_bounds("command-center-drag-0").expect("header");
-    assert!(bar.top() >= header.top() && bar.top() <= header.top() + px(2.0));
-    assert!(bar.left() > header.left() && bar.right() < header.right());
+    assert!((bar.bottom() - header.bottom()).abs() <= px(0.5));
+    assert_eq!(bar.left(), header.left());
+    assert_eq!(bar.right(), header.right());
     assert_eq!(bar.size.height, px(2.0));
     assert!(
         cx.debug_bounds("command-center-progress-1-Paused")
