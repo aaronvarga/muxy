@@ -685,6 +685,16 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                 session == entry.session.info.id
             })
         });
+    let progress = match super::tab_activity::resolve(
+        entry.server,
+        &[entry.session.info.id],
+        false,
+        false,
+        model,
+    ) {
+        super::tab_activity::Status::Progress(progress) => Some(progress),
+        _ => None,
+    };
     let attention = match status {
         ActivityIndicator::Blocked => Some(tr!("Needs input")),
         ActivityIndicator::Completed => Some(tr!("Unread update")),
@@ -896,6 +906,35 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                 )
             },
         )
+        .when_some(progress, |tile, progress| {
+            use muxy_protocol::ProgressState;
+            let color = match progress.state {
+                ProgressState::Paused => model.theme.warning,
+                ProgressState::Error => model.theme.danger,
+                _ => model.theme.accent,
+            };
+            let paused = matches!(progress.state, ProgressState::Paused | ProgressState::Error);
+            tile.child(
+                div()
+                    .debug_selector(move || {
+                        format!("command-center-progress-{index}-{:?}", progress.state)
+                    })
+                    .absolute()
+                    .top_0()
+                    .left(m.radius_md())
+                    .right(m.radius_md())
+                    .h(px(2.0))
+                    .child(if paused {
+                        div().size_full().bg(color).into_any_element()
+                    } else {
+                        model.spinners.top_border(
+                            format!("command-center-working-{pane}"),
+                            px(2.0),
+                            color,
+                        )
+                    }),
+            )
+        })
         .child(
             div()
                 .id(SharedString::from(format!("command-center-drop-{pane}")))

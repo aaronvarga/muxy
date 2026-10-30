@@ -33,7 +33,7 @@ pub(super) enum Status {
 }
 
 /// Sessions are numbered per server, so they are looked up on `server`.
-fn resolve(
+pub(super) fn resolve(
     server: ServerId,
     sessions: &[SessionId],
     completion: bool,
@@ -312,6 +312,21 @@ impl Spinners {
         color: Hsla,
         owner: Option<gpui::EntityId>,
     ) -> AnyElement {
+        self.glyph_with_shape(id, size, color, owner, false)
+    }
+
+    pub(super) fn top_border(&self, id: String, height: Pixels, color: Hsla) -> AnyElement {
+        self.glyph_with_shape(id, height, color, None, true)
+    }
+
+    fn glyph_with_shape(
+        &self,
+        id: String,
+        size: Pixels,
+        color: Hsla,
+        owner: Option<gpui::EntityId>,
+        top_border: bool,
+    ) -> AnyElement {
         let registry = self.0.clone();
         canvas(
             |_, _, _| (),
@@ -323,6 +338,8 @@ impl Spinners {
                             let native = Rc::new(Native {
                                 spinner: if cfg!(test) {
                                     None
+                                } else if top_border {
+                                    NativeSpinner::top_border(window).ok()
                                 } else {
                                     NativeSpinner::new(window).ok()
                                 },
@@ -355,7 +372,13 @@ impl Spinners {
                 });
             },
         )
-        .size(size)
+        .map(|canvas| {
+            if top_border {
+                canvas.w_full().h(size)
+            } else {
+                canvas.size(size)
+            }
+        })
         .into_any_element()
     }
 }
@@ -387,6 +410,25 @@ impl Spinners {
         _owner: Option<gpui::EntityId>,
     ) -> AnyElement {
         self.glyph(id, size, color)
+    }
+
+    #[allow(
+        clippy::unused_self,
+        reason = "Portable progress uses GPUI's animation state"
+    )]
+    pub(super) fn top_border(&self, id: String, height: Pixels, color: Hsla) -> AnyElement {
+        use gpui::{Animation, AnimationExt as _};
+        let bar = div().w_full().h(height).bg(color);
+        if cfg!(test) {
+            bar.into_any_element()
+        } else {
+            bar.with_animation(
+                SharedString::from(id),
+                Animation::new(std::time::Duration::from_millis(1600)).repeat(),
+                |bar, phase| bar.opacity(0.2 + 0.8 * (phase * std::f32::consts::PI).sin()),
+            )
+            .into_any_element()
+        }
     }
 
     fn glyph(&self, id: String, size: Pixels, color: Hsla) -> AnyElement {
