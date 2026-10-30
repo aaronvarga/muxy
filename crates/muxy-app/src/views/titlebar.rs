@@ -44,7 +44,8 @@ pub(super) fn top_corners<T: Styled>(element: T, window: &Window, left: bool, ri
 
 pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppModel>) -> (Div, f32) {
     let project = model.state.current_project();
-    let available = project.status() == muxy_app_core::ProjectStatus::Available;
+    let available =
+        !model.command_center.active && project.status() == muxy_app_core::ProjectStatus::Available;
     let existing_count = if available {
         model.existing_terminal_count()
     } else {
@@ -61,7 +62,7 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             && (tab.zoomed.is_some() || tab.panes.len() > 1)
     });
     let split = available && model.active_pane().is_some() && shown(SPLIT);
-    let sessions = shown(SESSIONS);
+    let sessions = !model.command_center.active && shown(SESSIONS);
     let controls = 1
         + u8::from(sessions)
         + 2 * u8::from(split)
@@ -134,7 +135,9 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         .when(layouts, |bar| {
             bar.child(super::project_layouts::button(model, cx))
         })
-        .child(model.extension_toolbar(cx))
+        .when(!model.command_center.active, |bar| {
+            bar.child(model.extension_toolbar(cx))
+        })
         .when(sessions, |bar| {
             bar.child(super::agent_sessions::button(model, cx))
         })
@@ -352,6 +355,9 @@ pub(crate) fn navigation(
             theme.bg
         })
         // Past the sidebar, the buttons run straight into the first tab.
+        .when(model.command_center.active, |bar| {
+            bar.border_b_1().border_color(theme.border)
+        })
         .when(sidebar_width >= navigation_width(model, window), |bar| {
             bar.border_r_1().border_color(theme.border)
         })

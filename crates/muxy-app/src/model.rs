@@ -6,6 +6,7 @@ pub(crate) mod banners;
 pub(crate) mod browsers;
 pub(crate) mod capabilities;
 mod catalog;
+pub(crate) mod command_center;
 pub(crate) mod commands;
 mod composer;
 mod diagnostics;
@@ -136,6 +137,7 @@ pub(crate) struct AppModel {
     pub(crate) window: gpui::AnyWindowHandle,
     pub(crate) state: AppState,
     pub(crate) grids: HashMap<PaneId, PaneView>,
+    pub(crate) command_center: command_center::CommandCenter,
     pub(crate) error: Option<String>,
     error_detail: Option<String>,
     problem_serial: u64,
@@ -399,6 +401,7 @@ impl AppModel {
             self.navigation_target_exists(project, tab)
         }) && self.state.select_tab(project, tab).is_ok()
         {
+            self.command_center.leave();
             self.navigation.commit(index);
             self.changed(cx);
             self.focus_requested = true;
@@ -541,6 +544,7 @@ impl AppModel {
             ),
             proxy: proxy::ProxyState::load(boot.state_path.with_file_name("proxy.toml")),
             existing_sessions: crate::views::session_picker::ExistingSessions::default(),
+            command_center: command_center::CommandCenter::default(),
             quick: quick_terminal::QuickTerminalRuntime::new(&boot.settings.quick_terminal, cx),
             window: window.window_handle(),
             state: boot.state,
@@ -677,6 +681,9 @@ impl AppModel {
     }
 
     pub(crate) fn active_tab(&self) -> Option<TabId> {
+        if self.command_center.active {
+            return None;
+        }
         let project = self.state.current_project();
         let selected = self.state.window().selected_tab.get(&project.id).copied()?;
         if project.status() == ProjectStatus::Missing {
@@ -686,6 +693,13 @@ impl AppModel {
     }
 
     pub(crate) fn active_pane(&self) -> Option<PaneId> {
+        if self.command_center.active {
+            return self
+                .command_center
+                .focused
+                .filter(|id| self.command_center.visible.contains(id))
+                .or_else(|| self.command_center.visible.first().copied());
+        }
         self.active_tab()?;
         self.state.window().active_pane
     }
@@ -699,6 +713,9 @@ impl AppModel {
     }
 
     pub(crate) fn visible_panes(&self) -> Vec<PaneId> {
+        if self.command_center.active {
+            return self.command_center.visible.clone();
+        }
         self.visible_tabs()
             .into_iter()
             .filter_map(|id| self.tab(id))
@@ -717,6 +734,11 @@ impl AppModel {
         command: Option<&str>,
         cx: &mut Context<Self>,
     ) {
+        if self.command_center.active
+            && let Some(pane) = self.active_pane()
+        {
+            self.open_command_center_project(pane, cx);
+        }
         if self.quitting != Quitting::Idle || self.close_request.is_some() {
             return;
         }
@@ -775,6 +797,10 @@ impl AppModel {
     }
 
     pub(crate) fn focus_pane(&mut self, pane: PaneId, cx: &mut Context<Self>) {
+        if self.command_center.active {
+            self.command_center_focus(pane, cx);
+            return;
+        }
         if self.quitting != Quitting::Idle
             || self
                 .pane_tab(pane)
@@ -791,6 +817,10 @@ impl AppModel {
 
     /// Moves focus to the neighboring pane, or into the neighboring group.
     pub(crate) fn focus_direction(&mut self, direction: Direction, cx: &mut Context<Self>) {
+        if self.command_center.active {
+            self.command_center_direction(direction, cx);
+            return;
+        }
         let Some(pane) = self.active_pane() else {
             return;
         };
@@ -864,6 +894,7 @@ impl AppModel {
         if self.quitting != Quitting::Idle {
             return;
         }
+        self.command_center.leave();
         if self.state.select_project(project).is_ok() {
             self.dismiss_overlay(cx);
             self.changed(cx);
@@ -1101,7 +1132,11 @@ impl AppModel {
     }
 
     pub(crate) fn new_tab(&mut self, cx: &mut Context<Self>) {
-        self.new_tab_in(self.state.current_project().id, cx);
+        let project = self
+            .active_pane()
+            .and_then(|pane| self.command_center_project(pane))
+            .unwrap_or(self.state.current_project().id);
+        self.new_tab_in(project, cx);
     }
 
     /// Opens a terminal tab in `project` and shows it, switching the sidebar's
@@ -1110,6 +1145,7 @@ impl AppModel {
         if self.quitting != Quitting::Idle {
             return;
         }
+        self.command_center.leave();
         match self.state.open_terminal_tab(project) {
             Ok(_) => {
                 self.changed(cx);
@@ -1163,6 +1199,7 @@ impl AppModel {
         let Some(project) = self.tab_project(tab).map(|project| project.id) else {
             return;
         };
+        self.command_center.leave();
         match self.state.select_tab(project, tab) {
             Ok(()) => {
                 self.changed(cx);
@@ -1223,6 +1260,10 @@ impl AppModel {
     }
 
     pub(crate) fn close_pane(&mut self, pane: PaneId, cx: &mut Context<Self>) {
+        if self.command_center.active && self.command_center.tile(pane).is_some() {
+            self.close_command_center_terminal(pane, cx);
+            return;
+        }
         if let Some(tab) = self.pane_tab(pane) {
             self.begin_close_tabs(vec![tab], Some(pane), None, cx);
         }
@@ -1614,6 +1655,9 @@ impl AppModel {
     }
 
     fn is_terminal(&self, id: PaneId) -> bool {
+        if self.command_center.tile(id).is_some() {
+            return true;
+        }
         self.state
             .projects()
             .iter()
@@ -1624,6 +1668,9 @@ impl AppModel {
     }
 
     pub(crate) fn pane_session(&self, id: PaneId) -> Option<SessionId> {
+        if let Some(tile) = self.command_center.tile(id) {
+            return Some(tile.session.info.id);
+        }
         self.state
             .projects()
             .iter()
@@ -1818,7 +1865,7 @@ impl AppModel {
                 let (grid, scroll) = pane.view.update(cx, |pane, _| {
                     (pane.grid.take(), std::mem::take(&mut pane.scroll))
                 });
-                if let Some(grid) = grid {
+                if let Some(grid) = grid.filter(|_| self.command_center.tile(id).is_none()) {
                     self.snapshots.insert(id, grid);
                     if scroll.view.is_some() {
                         self.scrolls.insert(id, scroll);
@@ -1835,6 +1882,7 @@ impl AppModel {
             .flat_map(|tab| &tab.panes)
             .chain(self.state.quick_terminal())
             .map(|pane| pane.id)
+            .chain(self.command_center.tiles.iter().map(|tile| tile.pane))
             .collect();
         self.completions.retain(|id| panes.contains(id));
         for server in self.servers.ids() {
@@ -1863,6 +1911,10 @@ impl AppModel {
         self.ensure_visible(cx);
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep terminal view construction and event routing together"
+    )]
     fn create_terminal_view(&mut self, id: PaneId, cx: &mut Context<Self>) {
         let mut terminal = self.terminal.clone();
         if let Some(font_size) = self.font_sizes.get(&id) {
@@ -1882,6 +1934,10 @@ impl AppModel {
             pane.native_vibrancy =
                 self.terminal_background.available && !self.is_quick_terminal(id);
             pane.configured_font_size = self.terminal.font_size;
+            #[cfg(target_os = "macos")]
+            {
+                pane.native_scroll_enabled = self.command_center.tile(id).is_none();
+            }
             pane.copy_on_select = self.settings.clipboard.copy_on_select;
             pane.open_context = open_context;
             pane.grid = snapshot;
@@ -1893,6 +1949,14 @@ impl AppModel {
         });
         let subscription = cx.subscribe(&view, move |model, _, event, cx| match event {
             PaneEvent::Title(title) => {
+                if let Some(tile) = model
+                    .command_center
+                    .tiles
+                    .iter_mut()
+                    .find(|tile| tile.pane == id)
+                {
+                    tile.title.clone_from(title);
+                }
                 let _ = model.state.set_pane_title(id, title.clone());
                 model.sync_extension_events(cx);
                 cx.notify();
@@ -1903,7 +1967,9 @@ impl AppModel {
             }
             PaneEvent::Upload(upload) => model.upload_to_pane(id, upload.clone(), cx),
             PaneEvent::ContextMenu(position) => {
-                if model.is_quick_terminal(id) {
+                if model.command_center.tile(id).is_some() {
+                    model.command_center_menu(id, *position, cx);
+                } else if model.is_quick_terminal(id) {
                     model.quick_terminal_menu(*position, cx);
                 } else {
                     model.terminal_menu(id, *position, cx);
@@ -1970,7 +2036,7 @@ impl AppModel {
     }
 
     fn pane_state(&self, id: PaneId) -> PaneState {
-        let server = self.state.pane_server(id).unwrap_or_else(ServerId::local);
+        let server = self.pane_server(id).unwrap_or_else(ServerId::local);
         match self.connection(server) {
             ConnectionState::Connecting => PaneState::Connecting,
             ConnectionState::Disconnected => PaneState::Disconnected,
@@ -2047,7 +2113,7 @@ impl AppModel {
             return;
         }
         for id in self.attached_panes() {
-            let server = self.state.pane_server(id).unwrap_or_else(ServerId::local);
+            let server = self.pane_server(id).unwrap_or_else(ServerId::local);
             if self.pending.contains_key(&id) || !self.ready(server) || !self.confirmed(server) {
                 continue;
             }
@@ -2068,6 +2134,10 @@ impl AppModel {
     }
 
     fn start_attach(&mut self, pane: PaneId, size: Size, cx: &mut Context<Self>) {
+        if self.command_center.tile(pane).is_some() {
+            self.attach_command_center(pane, size, cx);
+            return;
+        }
         let Some(server) = self.state.pane_server(pane) else {
             return;
         };
@@ -2154,7 +2224,7 @@ impl AppModel {
     fn viewport(&mut self, id: PaneId, size: Size, cx: &mut Context<Self>) {
         let attachment = self.attachment(id, cx);
         let server = attachment.map_or_else(
-            || self.state.pane_server(id).unwrap_or_else(ServerId::local),
+            || self.pane_server(id).unwrap_or_else(ServerId::local),
             |(server, _)| server,
         );
         crate::diagnostics::event(
@@ -2181,7 +2251,7 @@ impl AppModel {
         request: crate::views::terminal::scroll::HistoryRequest,
         cx: &mut Context<Self>,
     ) {
-        let Some(server) = self.state.pane_server(pane) else {
+        let Some(server) = self.pane_server(pane) else {
             return;
         };
         if self.quitting != Quitting::Idle || !self.ready(server) {
@@ -2215,7 +2285,7 @@ impl AppModel {
         request: crate::views::terminal::find::SearchRequest,
         cx: &mut Context<Self>,
     ) {
-        let Some(server) = self.state.pane_server(pane) else {
+        let Some(server) = self.pane_server(pane) else {
             return;
         };
         if self.quitting != Quitting::Idle || !self.ready(server) {
@@ -2489,6 +2559,10 @@ impl AppModel {
         created: bool,
         cx: &mut Context<Self>,
     ) {
+        if self.command_center.tile(pane).is_some() {
+            self.receive_command_center_attached(server, pane, session, attachment, cx);
+            return;
+        }
         crate::diagnostics::event(
             "terminal.attached",
             format_args!(
@@ -2564,6 +2638,10 @@ impl AppModel {
         error: &muxy_client::ClientError,
         cx: &mut Context<Self>,
     ) {
+        if self.command_center.tile(pane).is_some() {
+            self.command_center_attach_failed(pane, error, cx);
+            return;
+        }
         crate::diagnostics::event(
             "terminal.attach_failed",
             format_args!(
@@ -2856,8 +2934,13 @@ impl AppModel {
         session: SessionId,
         cx: &mut Context<Self>,
     ) {
+        self.forget_listed_session(server, session);
+        self.sync_command_center(cx);
         self.forget_session_activity(server, session, cx);
         if !self.state.session_references(server).contains(&session) {
+            if self.command_center.active {
+                self.sync_visible(cx);
+            }
             return;
         }
         if server.is_local()
@@ -2952,6 +3035,8 @@ impl Drop for AppModel {
 #[cfg(test)]
 mod tests {
     mod capabilities;
+    mod command_center;
+    pub(super) mod extensions;
     mod webviews;
     use muxy_protocol::ExitReason;
     mod activity;

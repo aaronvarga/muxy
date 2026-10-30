@@ -459,6 +459,7 @@ impl AppModel {
             self.state = previous;
             return Err("could not save webview tab".into());
         }
+        self.command_center.leave();
         self.sync_visible(cx);
         self.focus_requested = true;
         cx.notify();
