@@ -166,26 +166,34 @@ impl Drop for StatusMenu {
 }
 
 fn draw_image(image: &NSImage, rect: NSRect) {
-    image.drawInRect_fromRect_operation_fraction(
-        rect,
-        NSRect::ZERO,
-        NSCompositingOperation::SourceOver,
-        1.0,
-    );
+    // SAFETY: No hints dictionary is supplied; nested images must respect the flipped canvas.
+    unsafe {
+        image.drawInRect_fromRect_operation_fraction_respectFlipped_hints(
+            rect,
+            NSRect::ZERO,
+            NSCompositingOperation::SourceOver,
+            1.0,
+            true,
+            None,
+        );
+    }
 }
 
 fn session_icon(icon: Retained<NSImage>, dot: Option<Retained<NSImage>>) -> Retained<NSImage> {
     let draw = RcBlock::new(move |_| {
-        draw_image(&icon, NSRect::new(NSPoint::ZERO, NSSize::new(18.0, 18.0)));
+        draw_image(
+            &icon,
+            NSRect::new(NSPoint::new(0.0, 2.0), NSSize::new(18.0, 18.0)),
+        );
         if let Some(dot) = &dot {
             draw_image(
                 dot,
-                NSRect::new(NSPoint::new(22.0, 4.5), NSSize::new(9.0, 9.0)),
+                NSRect::new(NSPoint::new(12.0, 0.0), NSSize::new(8.0, 8.0)),
             );
         }
         true.into()
     });
-    let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(32.0, 18.0), true, &draw);
+    let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(20.0, 20.0), true, &draw);
     image.setTemplate(false);
     image
 }
@@ -308,7 +316,51 @@ mod tests {
     use super::*;
 
     #[test]
-    fn project_images_keep_attention_dots_separate_and_colored() {
+    fn compositing_keeps_bitmap_logos_and_generated_icons_upright() {
+        let draw = RcBlock::new(|_| {
+            NSColor::redColor().setFill();
+            NSBezierPath::bezierPathWithRect(NSRect::new(
+                NSPoint::new(0.0, 9.0),
+                NSSize::new(18.0, 9.0),
+            ))
+            .fill();
+            NSColor::blueColor().setFill();
+            NSBezierPath::bezierPathWithRect(NSRect::new(NSPoint::ZERO, NSSize::new(18.0, 9.0)))
+                .fill();
+            true.into()
+        });
+        let logo =
+            NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(18.0, 18.0), false, &draw)
+                .TIFFRepresentation()
+                .expect("bitmap logo")
+                .to_vec();
+        for (glyph, logo) in [
+            ("A", Some(std::sync::Arc::from(logo))),
+            ("sf:house.fill", None),
+            ("🚀", None),
+        ] {
+            let source = project_icon(&ProjectIcon {
+                logo,
+                glyph: glyph.into(),
+                color: "#1188cc".into(),
+            });
+            let expected = crate::bitmap::render_rgba(&source, 36, 36).expect("source");
+            let draw = RcBlock::new(move |_| {
+                draw_image(&source, NSRect::new(NSPoint::ZERO, NSSize::new(18.0, 18.0)));
+                true.into()
+            });
+            let composite =
+                NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(18.0, 18.0), true, &draw);
+            let actual = crate::bitmap::render_rgba(&composite, 36, 36).expect("composite");
+            assert!(
+                actual == expected,
+                "{glyph}: compositing must preserve the original orientation"
+            );
+        }
+    }
+
+    #[test]
+    fn attention_dots_overlay_the_upper_right_of_project_images() {
         let logo = app_icon(None).TIFFRepresentation().expect("logo").to_vec();
         for (glyph, logo) in [
             ("A", Some(std::sync::Arc::from(logo))),
@@ -329,38 +381,40 @@ mod tests {
                 let dot = color
                     .as_ref()
                     .and_then(|color| symbol("circle.fill", 9.0, Some(color)));
-                let image = session_icon(icon.clone(), dot);
+                let image = session_icon(icon.clone(), dot.clone());
                 assert!(!image.isTemplate());
-                let pixels = crate::bitmap::render_rgba(&image, 64, 36).expect("bitmap");
-                assert!(
-                    pixels
-                        .chunks_exact(4)
-                        .enumerate()
-                        .any(|(i, pixel)| i % 64 < 36 && pixel[3] > 128)
+                assert_eq!(image.size(), NSSize::new(20.0, 20.0));
+                let base = icon.clone();
+                // Independent unflipped reference: artwork below a badge overlapping its upper-right corner.
+                let draw = RcBlock::new(move |_| {
+                    base.drawInRect_fromRect_operation_fraction(
+                        NSRect::new(NSPoint::ZERO, NSSize::new(18.0, 18.0)),
+                        NSRect::ZERO,
+                        NSCompositingOperation::SourceOver,
+                        1.0,
+                    );
+                    if let Some(dot) = &dot {
+                        dot.drawInRect_fromRect_operation_fraction(
+                            NSRect::new(NSPoint::new(12.0, 12.0), NSSize::new(8.0, 8.0)),
+                            NSRect::ZERO,
+                            NSCompositingOperation::SourceOver,
+                            1.0,
+                        );
+                    }
+                    true.into()
+                });
+                let reference = NSImage::imageWithSize_flipped_drawingHandler(
+                    NSSize::new(20.0, 20.0),
+                    false,
+                    &draw,
                 );
-                let dots: Vec<_> = pixels
-                    .chunks_exact(4)
-                    .enumerate()
-                    .filter(|(i, pixel)| i % 64 >= 44 && pixel[3] > 128)
-                    .map(|(_, pixel)| pixel)
-                    .collect();
-                if let Some(color) = color {
-                    assert!(
-                        !dots.is_empty(),
-                        "attention dot must survive the project image"
-                    );
-                    let blue = color == NSColor::systemBlueColor();
-                    assert!(dots.iter().any(|pixel| if blue {
-                        pixel[2] > pixel[0]
-                    } else {
-                        pixel[0] > pixel[2]
-                    }));
-                } else {
-                    assert!(
-                        dots.is_empty(),
-                        "clear sessions must not show an attention dot"
-                    );
-                }
+                let expected =
+                    crate::bitmap::render_rgba(&reference, 40, 40).expect("reference bitmap");
+                let actual = crate::bitmap::render_rgba(&image, 40, 40).expect("menu bitmap");
+                assert!(
+                    actual == expected,
+                    "{glyph}: artwork must remain upright with the attention badge over its corner"
+                );
             }
         }
     }
