@@ -1,12 +1,13 @@
 use async_channel::{Receiver, Sender};
+use block2::RcBlock;
 use objc2::{
     DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, rc::Retained, sel,
 };
 use objc2_app_kit::{
-    NSAccessibility, NSColor, NSImage, NSImageSymbolConfiguration, NSMenu, NSMenuItem,
-    NSSquareStatusItemLength, NSStatusBar, NSStatusItem,
+    NSAccessibility, NSBezierPath, NSColor, NSImage, NSImageSymbolConfiguration, NSMenu,
+    NSMenuItem, NSSquareStatusItemLength, NSStatusBar, NSStatusItem,
 };
-use objc2_foundation::{NSObject, NSObjectProtocol, NSSize, NSString};
+use objc2_foundation::{NSObject, NSObjectProtocol, NSPoint, NSSize, NSString};
 
 use super::{Attention, Entry};
 use crate::tr;
@@ -46,8 +47,8 @@ pub struct StatusMenu {
 impl StatusMenu {
     pub fn new() -> Option<(Self, Receiver<String>)> {
         let mtm = MainThreadMarker::new()?;
-        let normal = symbol("square.grid.2x2", 16.0, None)?;
-        let red = symbol("square.grid.2x2", 16.0, Some(&NSColor::systemRedColor()))?;
+        let normal = app_icon(None);
+        let red = app_icon(Some(NSColor::systemRedColor()));
         let yellow = symbol("circle.fill", 9.0, Some(&NSColor::systemYellowColor()))?;
         let blue = symbol("circle.fill", 9.0, Some(&NSColor::systemBlueColor()))?;
         let (sender, receiver) = async_channel::bounded(32);
@@ -141,6 +142,35 @@ impl Drop for StatusMenu {
     }
 }
 
+fn app_icon(color: Option<Retained<NSColor>>) -> Retained<NSImage> {
+    let template = color.is_none();
+    let color = color.unwrap_or_else(NSColor::blackColor);
+    let draw = RcBlock::new(move |_| {
+        color.setFill();
+        // The two filled chevrons from packaging/macos/AppIconBeta.svg, without the tile background.
+        for offset in [0.0, 194.0] {
+            let path = NSBezierPath::bezierPath();
+            let point = |x, y| NSPoint::new(0.935 + (x + offset) * 18.0 / 550.0, y * 18.0 / 550.0);
+            path.moveToPoint(point(0.0, 0.0));
+            for (x, y) in [
+                (298.89, 275.0),
+                (0.0, 550.0),
+                (0.0, 430.43),
+                (167.38, 275.0),
+                (0.0, 119.57),
+            ] {
+                path.lineToPoint(point(x, y));
+            }
+            path.closePath();
+            path.fill();
+        }
+        true.into()
+    });
+    let image = NSImage::imageWithSize_flipped_drawingHandler(NSSize::new(18.0, 18.0), true, &draw);
+    image.setTemplate(template);
+    image
+}
+
 fn symbol(name: &str, size: f64, color: Option<&NSColor>) -> Option<Retained<NSImage>> {
     let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(
         &NSString::from_str(name),
@@ -163,17 +193,17 @@ mod tests {
 
     #[test]
     fn attention_symbols_render_color_instead_of_menu_templates() {
-        assert!(
-            symbol("square.grid.2x2", 16.0, None)
-                .expect("normal icon")
-                .isTemplate()
-        );
+        assert!(app_icon(None).isTemplate());
         for (name, color, channels) in [
-            ("square.grid.2x2", NSColor::systemRedColor(), [0, 1]),
+            ("muxy", NSColor::systemRedColor(), [0, 1]),
             ("circle.fill", NSColor::systemYellowColor(), [1, 2]),
             ("circle.fill", NSColor::systemBlueColor(), [2, 0]),
         ] {
-            let image = symbol(name, 16.0, Some(&color)).expect("colored icon");
+            let image = if name == "muxy" {
+                app_icon(Some(color.clone()))
+            } else {
+                symbol(name, 16.0, Some(&color)).expect("colored icon")
+            };
             assert!(!image.isTemplate());
             let pixels = crate::bitmap::render_rgba(&image, 32, 32).expect("native bitmap");
             assert!(
