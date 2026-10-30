@@ -342,14 +342,27 @@ fn move_button(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyEle
     .into_any_element()
 }
 
-/// Move, split, split, equalize and close buttons for one pane of a split
-/// tab; a tab's only pane gets just the split buttons.
+/// Terminal title and pane controls; a tab's only pane gets just the split buttons.
 pub(super) fn pane_controls(
     pane: PaneId,
     only: bool,
     model: &AppModel,
     cx: &Context<AppModel>,
 ) -> AnyElement {
+    let title = model
+        .state
+        .current_project()
+        .tabs
+        .iter()
+        .flat_map(|tab| &tab.panes)
+        .find(|candidate| {
+            candidate.id == pane
+                && matches!(
+                    candidate.content,
+                    muxy_app_core::PaneContent::Terminal { .. }
+                )
+        })
+        .map(|pane| pane.title.clone());
     let label = tr!("Close Pane");
     let tooltip = model
         .settings
@@ -392,6 +405,7 @@ pub(super) fn pane_controls(
         .debug_selector(|| "pane-controls".into())
         .flex()
         .flex_none()
+        .min_w(px(0.0))
         .items_center()
         .justify_end()
         .h(
@@ -401,6 +415,22 @@ pub(super) fn pane_controls(
         .bg(model.theme.bg)
         .border_b_1()
         .border_color(model.theme.border)
+        .when_some(title, |bar, title| {
+            bar.child(
+                div()
+                    .id(SharedString::from(format!("pane-title-{pane}")))
+                    .flex_1()
+                    .min_w(px(0.0))
+                    .truncate()
+                    .pl(model.metrics.spacing4())
+                    .pr(model.metrics.spacing2())
+                    .text_size(model.metrics.font_footnote())
+                    .text_color(model.theme.fg_muted)
+                    .tooltip(super::status_bar::tooltip(title.clone(), model))
+                    .child(title.clone())
+                    .debug_selector(move || format!("pane-title-{pane}-{title}")),
+            )
+        })
         .when(!only, |bar| bar.child(move_button(pane, model, cx)))
         .child(split_button(Some(pane), Direction::Right, model, cx))
         .child(split_button(Some(pane), Direction::Down, model, cx))
