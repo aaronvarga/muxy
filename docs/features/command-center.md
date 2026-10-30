@@ -9,7 +9,8 @@ On macOS, the menu bar Muxy icon lists running sessions across all projects on
 connected, confirmed servers, including projects outside the selected workspace.
 It turns red when a session needs input or has an unread update. Yellow dots mark
 **Needs input** and blue dots mark **Unread update**, using the same activity
-detection as the app. Each row includes its project and session title; remote
+detection as the app. Each row includes its project logo or icon and session title,
+with a separate attention dot; remote
 sessions also name their server. Selecting a row brings that terminal forward,
 reusing its project pane or opening the existing session when detached. Opening
 the menu does not mark sessions read or attach terminal views. The icon remains

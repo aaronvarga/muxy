@@ -46,7 +46,7 @@ impl AppModel {
             activity::{ActivityIndicator, indicator},
         };
         use muxy_ui::{
-            status_menu::{Attention, Entry},
+            status_menu::{Attention, Entry, ProjectIcon},
             tr,
         };
         use std::collections::{HashMap, HashSet};
@@ -125,6 +125,17 @@ impl AppModel {
                     id: format!("{server}:{}", id.get()),
                     label,
                     attention,
+                    icon: ProjectIcon {
+                        logo: project.logo.clone(),
+                        glyph: project.icon.clone().unwrap_or_else(|| {
+                            if project.home && server.is_local() {
+                                "sf:house.fill".into()
+                            } else {
+                                muxy_app_core::initial(&project.name).to_uppercase()
+                            }
+                        }),
+                        color: project.color.as_str().to_owned(),
+                    },
                 })
             })
             .collect()
