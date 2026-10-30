@@ -216,7 +216,7 @@ impl AppModel {
             })
             .collect();
         let mut tiles: Vec<_> = self
-            .command_center_sessions()
+            .running_sessions()
             .into_iter()
             .filter(|(server, session)| seen.insert((*server, session.info.id)))
             .map(|(server, session)| {

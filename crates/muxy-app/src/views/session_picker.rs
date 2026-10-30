@@ -84,12 +84,15 @@ impl AppModel {
         if let Some(Overlay::Sessions(picker)) = &self.overlay {
             self.request_sessions(picker.project, cx);
         }
-        if self.command_center.active {
+        if self.command_center.active || self.has_status_menu() {
             let projects: Vec<_> = self
                 .state
                 .projects()
                 .iter()
-                .filter(|project| self.project_shown(project) && self.confirmed(project.server_id))
+                .filter(|project| {
+                    (self.has_status_menu() || self.project_shown(project))
+                        && self.confirmed(project.server_id)
+                })
                 .map(|project| project.id)
                 .collect();
             for project in projects {
@@ -97,6 +100,7 @@ impl AppModel {
             }
         }
         self.update_session_picker(cx);
+        self.sync_status_menu();
     }
 
     /// Forgets what `server` listed, which a new connection lists again.
@@ -107,6 +111,7 @@ impl AppModel {
             .retain(|project, _| state.project_server(*project) != Some(server));
         self.update_session_picker(cx);
         self.sync_command_center(cx);
+        self.sync_status_menu();
     }
 
     pub(crate) fn refresh_session_picker(&mut self, cx: &mut Context<Self>) {
@@ -161,7 +166,7 @@ impl AppModel {
         cx.notify();
     }
 
-    pub(crate) fn command_center_sessions(&self) -> Vec<(ServerId, ProjectSession)> {
+    pub(crate) fn running_sessions(&self) -> Vec<(ServerId, ProjectSession)> {
         self.state
             .projects()
             .iter()
