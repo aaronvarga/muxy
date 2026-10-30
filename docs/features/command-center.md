@@ -36,6 +36,11 @@ Mixed rows keep their expanded terminals' height. Collapse choices follow their
 sessions through reordering and switching projects while the app is running;
 they reset when the app restarts.
 
+A thin animated top edge pulses while a session is working, using the same
+activity and terminal-progress detection as the sidebar. It remains visible on
+collapsed headers. Paused progress has a steady yellow top edge; errors use red.
+On macOS the pulse uses Core Animation and does not redraw terminal contents.
+
 A blue border marks the focused terminal. Amber borders and labels mark
 attention: **Needs input** when the agent is blocked, or **Unread update** for
 completed work or another unread notification. A focused terminal keeps its

@@ -2180,7 +2180,15 @@ impl AppModel {
         for server in self.servers.ids() {
             let sessions = self.state.session_references(server);
             if let Some(runtime) = self.servers.get_mut(server) {
-                runtime.progress.retain(|id, _| sessions.contains(id));
+                runtime.progress.retain(|id, _| {
+                    sessions.contains(id)
+                        || self.command_center.active
+                            && self
+                                .command_center
+                                .tiles
+                                .iter()
+                                .any(|tile| tile.server == server && tile.session.info.id == *id)
+                });
             }
             self.sync_activity_panes(server, sessions);
         }
@@ -3188,7 +3196,14 @@ impl AppModel {
         progress: muxy_protocol::SessionProgress,
         cx: &mut Context<Self>,
     ) {
-        if !self.state.session_references(server).contains(&session) {
+        if !(self.state.session_references(server).contains(&session)
+            || self.command_center.active
+                && self
+                    .command_center
+                    .tiles
+                    .iter()
+                    .any(|tile| tile.server == server && tile.session.info.id == session))
+        {
             return;
         }
         let Some(runtime) = self.servers.get_mut(server) else {
@@ -3460,6 +3475,7 @@ pub(crate) mod tests {
     mod capabilities;
     mod command_center;
     mod command_center_collapse;
+    mod command_center_progress;
     pub(super) mod extensions;
     mod status_menu;
     mod webviews;

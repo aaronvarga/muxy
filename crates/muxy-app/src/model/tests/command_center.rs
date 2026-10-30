@@ -1147,6 +1147,18 @@ fn attention_borders_follow_the_session_and_server_without_resizing_terminals(
         cx.debug_bounds("command-center-tile-1-Working-focused-true")
             .is_none()
     );
+    assert!(
+        cx.debug_bounds("command-center-progress-0-Indeterminate")
+            .is_some()
+    );
+    assert!(
+        cx.debug_bounds("command-center-progress-1-Indeterminate")
+            .is_none()
+    );
+    assert!(
+        cx.debug_bounds("command-center-progress-2-Indeterminate")
+            .is_none()
+    );
     let geometry = view.read_with(cx, |model, cx| {
         model
             .command_center
