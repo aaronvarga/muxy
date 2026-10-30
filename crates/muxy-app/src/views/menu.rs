@@ -44,6 +44,7 @@ pub(crate) enum Command {
     CenterColor(Option<usize>),
     CenterCustomLayout,
     CenterProject(muxy_app_core::PaneId),
+    CenterCollapse(muxy_app_core::PaneId),
     Tab(muxy_app_core::TabId, super::tab_menu::Action),
     Layout(muxy_app_core::settings::AppLayout),
     AgentsPanel(bool),
@@ -595,6 +596,7 @@ impl AppModel {
                 self.save_appearance(cx);
             }
             Command::CenterProject(pane) => self.open_command_center_project(pane, cx),
+            Command::CenterCollapse(pane) => self.toggle_command_center_terminal(pane, cx),
             Command::Tab(id, action) => {
                 use super::tab_menu::Action;
                 match action {

@@ -349,6 +349,7 @@
 "Codepoint fonts" = "Codepoint fonts";
 "Collapse Composer" = "Collapse Composer";
 "Collapse Project" = "Collapse Project";
+"Collapse Terminal" = "Collapse Terminal";
 "Collapse Worktrees" = "Collapse Worktrees";
 "Collapsed sidebar style" = "Collapsed sidebar style";
 "Color" = "Color";
@@ -626,6 +627,7 @@
 "Existing Terminals…" = "Existing Terminals…";
 "Expand Composer" = "Expand Composer";
 "Expand Project" = "Expand Project";
+"Expand Terminal" = "Expand Terminal";
 "Expand Worktrees" = "Expand Worktrees";
 "Expand sidebar" = "Expand sidebar";
 "Expand worktrees when switching projects" = "Expand worktrees when switching projects";

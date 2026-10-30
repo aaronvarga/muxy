@@ -23,6 +23,7 @@ pub(crate) struct CommandCenter {
     pub(crate) active: bool,
     pub(crate) tiles: Vec<Tile>,
     pub(crate) visible: Vec<PaneId>,
+    pub(crate) collapsed: HashSet<(ServerId, SessionId)>,
     pub(crate) focused: Option<PaneId>,
     pub(crate) columns: usize,
     pub(crate) scroll: ListState,
@@ -38,6 +39,7 @@ impl Default for CommandCenter {
             active: false,
             tiles: Vec::new(),
             visible: Vec::new(),
+            collapsed: HashSet::new(),
             focused: None,
             columns: 1,
             scroll: ListState::new(0, ListAlignment::Top, px(0.0)),
@@ -50,6 +52,11 @@ impl Default for CommandCenter {
 }
 
 impl CommandCenter {
+    pub(crate) fn is_collapsed(&self, tile: &Tile) -> bool {
+        self.collapsed
+            .contains(&(tile.server, tile.session.info.id))
+    }
+
     pub(crate) fn tile(&self, pane: PaneId) -> Option<&Tile> {
         self.tiles.iter().find(|tile| tile.pane == pane)
     }
@@ -90,6 +97,34 @@ impl AppModel {
         self.command_center.grid = None;
         self.command_center.scroll.scroll_to(ListOffset::default());
         self.save_appearance(cx);
+        cx.notify();
+    }
+
+    pub(crate) fn toggle_command_center_terminal(&mut self, pane: PaneId, cx: &mut Context<Self>) {
+        if !self.command_center.active
+            || self.quitting != Quitting::Idle
+            || self.close_prompt.is_some()
+            || self.close_request.is_some()
+        {
+            return;
+        }
+        let Some(tile) = self.command_center.tile(pane) else {
+            return;
+        };
+        let key = (tile.server, tile.session.info.id);
+        if self.command_center.collapsed.remove(&key) {
+            self.command_center.focused = Some(pane);
+        } else {
+            self.command_center.collapsed.insert(key);
+            self.command_center.visible.retain(|id| *id != pane);
+            if self.command_center.focused == Some(pane) {
+                self.command_center.focused = None;
+            }
+        }
+        self.command_center.grid = None;
+        self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
+        self.focus_requested = true;
+        self.sync_visible(cx);
         cx.notify();
     }
 
@@ -289,6 +324,7 @@ impl AppModel {
             .iter()
             .skip(rows.start.saturating_mul(columns))
             .take(rows.len().saturating_mul(columns))
+            .filter(|tile| !self.command_center.is_collapsed(tile))
             .map(|tile| tile.pane)
             .collect();
         if visible == self.command_center.visible {
@@ -316,7 +352,12 @@ impl AppModel {
     }
 
     pub(super) fn command_center_focus(&mut self, pane: PaneId, cx: &mut Context<Self>) {
-        if self.command_center.active && self.command_center.tile(pane).is_some() {
+        if self.command_center.active
+            && self
+                .command_center
+                .tile(pane)
+                .is_some_and(|tile| !self.command_center.is_collapsed(tile))
+        {
             self.command_center.focused = Some(pane);
             self.focus_requested = true;
             cx.notify();
@@ -329,7 +370,7 @@ impl AppModel {
         cx: &mut Context<Self>,
     ) {
         use muxy_app_core::Direction;
-        let Some(index) = self
+        let Some(mut index) = self
             .command_center
             .tiles
             .iter()
@@ -338,19 +379,26 @@ impl AppModel {
             return;
         };
         let columns = self.command_center.columns.max(1);
-        let target = match direction {
+        while let Some(next) = (match direction {
             Direction::Left if index % columns > 0 => index.checked_sub(1),
             Direction::Right if index % columns + 1 < columns => index.checked_add(1),
             Direction::Up => index.checked_sub(columns),
             Direction::Down => index.checked_add(columns),
             _ => None,
-        };
-        if let Some(index) = target.filter(|index| *index < self.command_center.tiles.len()) {
-            let pane = self.command_center.tiles[index].pane;
+        })
+        .filter(|index| *index < self.command_center.tiles.len())
+        {
+            index = next;
+            let tile = &self.command_center.tiles[index];
+            if self.command_center.is_collapsed(tile) {
+                continue;
+            }
+            let pane = tile.pane;
             self.command_center
                 .scroll
                 .scroll_to_reveal_item(index / columns);
             self.command_center_focus(pane, cx);
+            break;
         }
     }
 
@@ -492,7 +540,7 @@ impl AppModel {
         cx.notify();
     }
 
-    pub(super) fn command_center_menu(
+    pub(crate) fn command_center_menu(
         &self,
         pane: PaneId,
         position: gpui::Point<gpui::Pixels>,
@@ -500,6 +548,18 @@ impl AppModel {
     ) {
         use crate::views::menu::{Command, Item};
         let items = vec![
+            Item::action(
+                if self
+                    .command_center
+                    .tile(pane)
+                    .is_some_and(|tile| self.command_center.is_collapsed(tile))
+                {
+                    tr!("Expand Terminal")
+                } else {
+                    tr!("Collapse Terminal")
+                },
+                Command::CenterCollapse(pane),
+            ),
             Item::action(tr!("Copy"), Command::TerminalCopy(pane)),
             Item::action(tr!("Paste"), Command::TerminalPaste(pane)),
             Item::action(tr!("Select All"), Command::TerminalSelectAll(pane)),
@@ -515,7 +575,7 @@ impl AppModel {
         cx.defer(move |cx| {
             let _ = window.update(cx, |_, window, cx| {
                 let _ = model.update(cx, |model, cx| {
-                    if model.command_center.active && model.command_center.visible.contains(&pane) {
+                    if model.command_center.active && model.command_center.tile(pane).is_some() {
                         model.open_menu(items, position, window, cx);
                     }
                 });

@@ -195,6 +195,7 @@ impl AppModel {
     }
 
     pub(crate) fn forget_listed_session(&mut self, server: ServerId, session: SessionId) {
+        self.command_center.collapsed.remove(&(server, session));
         let state = &self.state;
         for (project, listing) in &mut self.existing_sessions.projects {
             if state.project_server(*project) == Some(server) {
