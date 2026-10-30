@@ -756,36 +756,6 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                     })
                 })
                 .child(
-                    super::titlebar::icon_button(
-                        SharedString::from(format!("command-center-collapse-{pane}")),
-                        if collapsed {
-                            Icon::ChevronRight
-                        } else {
-                            Icon::ChevronDown
-                        },
-                        if collapsed {
-                            tr!("Expand Terminal")
-                        } else {
-                            tr!("Collapse Terminal")
-                        },
-                        model,
-                    )
-                    .debug_selector(move || format!("command-center-collapse-{index}-{collapsed}"))
-                    .on_click(cx.listener(move |model, _, _, cx| {
-                        model.toggle_command_center_terminal(pane, cx);
-                        cx.stop_propagation();
-                    })),
-                )
-                .child(
-                    div()
-                        .debug_selector(move || format!("command-center-handle-{index}"))
-                        .flex()
-                        .flex_none()
-                        .items_center()
-                        .justify_center()
-                        .child(IconGlyph::new(Icon::Move, m.icon_sm(), model.theme.fg_dim)),
-                )
-                .child(
                     div()
                         .flex()
                         .flex_none()
@@ -835,6 +805,27 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                             .child(label),
                     )
                 })
+                .child(
+                    super::titlebar::icon_button(
+                        SharedString::from(format!("command-center-collapse-{pane}")),
+                        if collapsed {
+                            Icon::ChevronRight
+                        } else {
+                            Icon::ChevronDown
+                        },
+                        if collapsed {
+                            tr!("Expand Terminal")
+                        } else {
+                            tr!("Collapse Terminal")
+                        },
+                        model,
+                    )
+                    .debug_selector(move || format!("command-center-collapse-{index}-{collapsed}"))
+                    .on_click(cx.listener(move |model, _, _, cx| {
+                        model.toggle_command_center_terminal(pane, cx);
+                        cx.stop_propagation();
+                    })),
+                )
                 .child(
                     super::titlebar::icon_button(
                         SharedString::from(format!("command-center-project-{pane}")),
