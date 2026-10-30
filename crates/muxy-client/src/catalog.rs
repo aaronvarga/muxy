@@ -208,8 +208,18 @@ impl Client {
         &self,
         project: ProjectId,
     ) -> Result<ProjectSessions, ClientError> {
+        let mut sessions = self.running_project_sessions(project)?;
+        sessions.sessions.retain(|session| !session.attached);
+        Ok(sessions)
+    }
+
+    /// All live sessions, including terminals already displayed by this client.
+    pub fn running_project_sessions(
+        &self,
+        project: ProjectId,
+    ) -> Result<ProjectSessions, ClientError> {
         for _ in 0..8 {
-            match self.available_sessions_snapshot(project) {
+            match self.running_sessions_snapshot(project) {
                 Err(ClientError::Server(error)) if error.code == ErrorCode::CatalogChanged => {}
                 result => return result,
             }
@@ -217,17 +227,16 @@ impl Client {
         Err(ClientError::Timeout)
     }
 
-    fn available_sessions_snapshot(
+    fn running_sessions_snapshot(
         &self,
         project: ProjectId,
     ) -> Result<ProjectSessions, ClientError> {
         let mut result = self.project_sessions(project, None, None)?;
         let available = |session: &muxy_protocol::ProjectSession| {
-            !session.attached
-                && matches!(
-                    session.status,
-                    muxy_protocol::SessionStatus::Live | muxy_protocol::SessionStatus::Starting
-                )
+            matches!(
+                session.status,
+                muxy_protocol::SessionStatus::Live | muxy_protocol::SessionStatus::Starting
+            )
         };
         result.sessions.retain(available);
         while let Some(after) = result.next {
@@ -239,7 +248,7 @@ impl Client {
                 .sessions
                 .extend(page.sessions.into_iter().filter(available));
             if result.sessions.len() > 16_384 {
-                return Err(ClientError::Protocol("too many available terminals".into()));
+                return Err(ClientError::Protocol("too many live terminals".into()));
             }
             result.next = page.next;
         }
