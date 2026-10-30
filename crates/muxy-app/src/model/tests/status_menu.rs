@@ -17,6 +17,9 @@ fn menu_lists_background_and_detached_sessions_without_attaching_them(cx: &mut T
     state
         .set_pane_title(a, "Review the estimate")
         .expect("title");
+    state
+        .set_project_icon(second, Some("sf:terminal.fill".into()))
+        .expect("icon");
     state.select_project(first).expect("project");
     let (boot, requests) = stub_boot(state);
     let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
@@ -63,6 +66,11 @@ fn menu_lists_background_and_detached_sessions_without_attaching_them(cx: &mut T
         assert!(rows[0].label.contains("Review the estimate"));
         assert_eq!(rows[0].attention, None);
         assert_eq!(rows[1].attention, Some(Attention::Input));
+        assert_eq!(rows[1].icon.glyph, "sf:terminal.fill");
+        assert_eq!(
+            rows[2].icon, rows[1].icon,
+            "detached sessions keep their project icon"
+        );
         assert_eq!(rows[2].attention, Some(Attention::Unread));
         assert_eq!(model.state, before);
         assert!(!model.command_center.active);
