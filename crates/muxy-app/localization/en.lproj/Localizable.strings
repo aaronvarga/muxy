@@ -931,6 +931,8 @@
 "Muxy will stage all changes, ask %@ for a branch name, title, and summary, then create the branch, commit, push, and open the pull request on GitHub." = "Muxy will stage all changes, ask %@ for a branch name, title, and summary, then create the branch, commit, push, and open the pull request on GitHub.";
 "Muxy will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Muxy open to finish the update." = "Muxy will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Muxy open to finish the update.";
 "Muxy will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Muxy open to finish the update." = "Muxy will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Muxy open to finish the update.";
+"Muxy · All sessions" = "Muxy · All sessions";
+"Muxy · Needs your attention" = "Muxy · Needs your attention";
 "Name" = "Name";
 "Name (A–Z)" = "Name (A–Z)";
 "Name (Z–A)" = "Name (Z–A)";

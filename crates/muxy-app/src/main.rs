@@ -213,6 +213,8 @@ fn run() -> ExitCode {
             #[cfg(target_os = "linux")]
             window.set_window_title(app_name());
             let model = cx.new(|cx| AppModel::new(boot, window, cx));
+            #[cfg(target_os = "macos")]
+            model.update(cx, AppModel::start_status_menu);
             model.update(cx, |_, cx| AppModel::open_folders_from(opened_folders, cx));
             model.update(cx, |model, cx| model.start_app_socket(window, cx));
             let configuration = model.downgrade();

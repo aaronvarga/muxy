@@ -2,7 +2,7 @@ use super::*;
 use muxy_app_core::command_center::GridLayout;
 use muxy_protocol::{ChannelId, ProjectSession, ProjectSessions, ServerPath, SessionStatus};
 
-fn session(project: ProjectId, id: u64) -> ProjectSession {
+pub(super) fn session(project: ProjectId, id: u64) -> ProjectSession {
     ProjectSession {
         info: SessionInfo {
             project,
@@ -15,7 +15,7 @@ fn session(project: ProjectId, id: u64) -> ProjectSession {
     }
 }
 
-fn listing(sessions: Vec<ProjectSession>) -> ProjectSessions {
+pub(super) fn listing(sessions: Vec<ProjectSession>) -> ProjectSessions {
     ProjectSessions {
         revision: 1,
         sessions,
