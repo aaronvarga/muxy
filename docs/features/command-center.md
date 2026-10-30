@@ -32,8 +32,8 @@ title, attention indicator, and session controls stay available. The chevron is
 just before **Open in Project**, and the entire header remains draggable.
 Use the chevron again, or **Expand Terminal**, to restore the terminal. Collapsed
 sessions keep running, but their hidden views detach; keyboard pane navigation
-skips them. Entirely collapsed rows shrink and expanded rows use the freed space.
-Mixed rows keep their expanded terminals' height. Collapse choices follow their
+skips them. Tiles below a collapsed session move up within the same column.
+Other columns keep their positions and terminal sizes. Collapse choices follow their
 sessions through reordering and switching projects while the app is running;
 they reset when the app restarts.
 

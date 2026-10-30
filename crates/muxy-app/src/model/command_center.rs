@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::ops::Range;
 
 use gpui::{Context, ListAlignment, ListOffset, ListState, Window, px};
 use muxy_app_core::{PaneContent, PaneId, ProjectId, ServerId, command_center::GridLayout};
@@ -29,7 +28,8 @@ pub(crate) struct CommandCenter {
     pub(crate) scroll: ListState,
     pub(crate) scrollbar: muxy_ui::scrollbar::ListScrollbar,
     pub(crate) layout_anchor: muxy_ui::popover::PopoverAnchor,
-    pub(crate) grid: Option<([u8; 2], gpui::Size<gpui::Pixels>, usize)>,
+    pub(crate) grid: Option<([u8; 2], gpui::Size<gpui::Pixels>, usize, gpui::Pixels)>,
+    pub(crate) reveal: Option<PaneId>,
     render_epoch: u64,
 }
 
@@ -46,6 +46,7 @@ impl Default for CommandCenter {
             scrollbar: muxy_ui::scrollbar::ListScrollbar::default(),
             layout_anchor: muxy_ui::popover::PopoverAnchor::default(),
             grid: None,
+            reveal: None,
             render_epoch: 0,
         }
     }
@@ -65,6 +66,7 @@ impl CommandCenter {
         self.active = false;
         self.visible.clear();
         self.focused = None;
+        self.reveal = None;
         self.render_epoch = self.render_epoch.wrapping_add(1);
     }
 }
@@ -215,9 +217,7 @@ impl AppModel {
         self.command_center.grid = None;
         self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
         self.command_center.focused = Some(source);
-        self.command_center
-            .scroll
-            .scroll_to_reveal_item(to / self.command_center.columns.max(1));
+        self.command_center.reveal = Some(source);
         self.focus_requested = true;
         cx.notify();
     }
@@ -306,27 +306,16 @@ impl AppModel {
         cx.notify();
     }
 
-    /// Only rows intersecting the viewport may attach terminals. A deferred
+    /// Only tiles intersecting the viewport may attach terminals. A deferred
     /// callback from a previous layout must not resurrect hidden tiles.
-    pub(crate) fn command_center_rows(
+    pub(crate) fn command_center_visible(
         &mut self,
-        rows: Range<usize>,
-        columns: usize,
+        visible: Vec<PaneId>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.command_center.columns = columns;
         self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
         let epoch = self.command_center.render_epoch;
-        let visible: Vec<_> = self
-            .command_center
-            .tiles
-            .iter()
-            .skip(rows.start.saturating_mul(columns))
-            .take(rows.len().saturating_mul(columns))
-            .filter(|tile| !self.command_center.is_collapsed(tile))
-            .map(|tile| tile.pane)
-            .collect();
         if visible == self.command_center.visible {
             return;
         }
@@ -394,9 +383,7 @@ impl AppModel {
                 continue;
             }
             let pane = tile.pane;
-            self.command_center
-                .scroll
-                .scroll_to_reveal_item(index / columns);
+            self.command_center.reveal = Some(pane);
             self.command_center_focus(pane, cx);
             break;
         }
