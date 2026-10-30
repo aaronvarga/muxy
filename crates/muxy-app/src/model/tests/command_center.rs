@@ -634,9 +634,9 @@ fn dashboard_layout_menu_and_scrolling_only_attach_visible_tiles(cx: &mut TestAp
         .debug_bounds("command-center-project-name")
         .expect("project name");
     let header = cx.debug_bounds("command-center-drag-0").expect("header");
-    let handle = cx
-        .debug_bounds("command-center-handle-0")
-        .expect("drag handle");
+    let collapse = cx
+        .debug_bounds("command-center-collapse-0-false")
+        .expect("collapse button");
     let text = cx
         .debug_bounds("command-center-text-0")
         .expect("header text");
@@ -646,7 +646,10 @@ fn dashboard_layout_menu_and_scrolling_only_attach_visible_tiles(cx: &mut TestAp
     let close = cx
         .debug_bounds("command-center-close-0")
         .expect("close action");
-    for content in [artwork, handle, text, action, close] {
+    assert!(text.right() <= collapse.left());
+    assert!(collapse.right() <= action.left());
+    assert!(action.right() <= close.left());
+    for content in [artwork, collapse, text, action, close] {
         assert!(
             (content.center().y - header.center().y).abs() <= px(0.5),
             "header content must share one vertical center: {content:?} in {header:?}"
@@ -994,7 +997,7 @@ fn dragging_dashboard_headers_reorders_only_the_dashboard_and_survives_refresh_a
     requests.try_iter().for_each(drop);
     let source = cx
         .debug_bounds("command-center-drag-0")
-        .expect("drag handle")
+        .expect("draggable header")
         .center();
     drag_tile(cx, source, target);
     view.read_with(cx, |model, _| {
