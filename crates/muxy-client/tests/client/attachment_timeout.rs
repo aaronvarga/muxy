@@ -3,6 +3,37 @@ use muxy_protocol::{ClientKind, ReplyBody};
 use std::io::{self, Cursor, Read, Write};
 
 #[test]
+fn running_session_inventory_includes_attached_and_detached_terminals() -> TestResult {
+    let fixture = Fixture::new()?;
+    let desktop = fixture.connect()?;
+    desktop.client.identify(ClientKind::Desktop)?;
+    let first = fixture.create(&desktop.client)?;
+    let second = fixture.create(&desktop.client)?;
+    desktop.client.sync_session_references(vec![])?;
+    let attached = desktop.client.attach(first.id, SIZE)?;
+    let all = desktop.client.running_project_sessions(first.project)?;
+    assert_eq!(all.sessions.len(), 2);
+    assert!(
+        all.sessions
+            .iter()
+            .any(|session| session.info.id == first.id && session.attached)
+    );
+    let available = desktop.client.available_project_sessions(first.project)?;
+    assert_eq!(available.sessions.len(), 1);
+    assert_eq!(available.sessions[0].info.id, second.id);
+    desktop.client.detach(attached.channel)?;
+    assert_eq!(
+        desktop
+            .client
+            .available_project_sessions(first.project)?
+            .sessions
+            .len(),
+        2
+    );
+    Ok(())
+}
+
+#[test]
 fn lost_attach_reply_releases_ownership_and_preserves_the_session_for_reopening() -> TestResult {
     for shared in [false, true] {
         let fixture = Fixture::new()?;
