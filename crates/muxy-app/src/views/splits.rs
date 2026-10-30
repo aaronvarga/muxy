@@ -320,6 +320,7 @@ fn zoomed_frame(
         .child(
             div()
                 .flex()
+                .flex_col()
                 .size_full()
                 .min_w(px(0.0))
                 .min_h(px(0.0))

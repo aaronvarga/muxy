@@ -6,6 +6,11 @@ quit the app, and every app shows the same screen and history.
 
 ## Tabs and splits
 
+Each desktop terminal pane shows its live session title in the pane toolbar,
+including split and zoomed panes. This is the title supplied by the running
+program, also shown in Command Center. Long titles are shortened to fit; hover
+to read the full text. Renaming a tab does not replace its panes' session titles.
+
 | Action | Default shortcut |
 | --- | --- |
 | New tab | `Cmd+T` |
