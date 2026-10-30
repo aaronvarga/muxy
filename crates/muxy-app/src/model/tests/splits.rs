@@ -38,6 +38,120 @@ fn attach_panes(model: &mut AppModel, panes: &[PaneId], cx: &mut Context<AppMode
 }
 
 #[gpui::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Live title updates, split geometry and zoomed headers"
+)]
+fn project_pane_titles_follow_terminal_metadata_without_resizing_and_survive_zoom(
+    cx: &mut TestAppContext,
+) {
+    let (mut state, tab, panes) = split_state();
+    state
+        .set_tab_title(tab, Some("My fixed tab".into()))
+        .expect("tab title");
+    let (mut boot, requests) = stub_boot(state);
+    boot.settings.appearance.agents_panel_visible = false;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(800.0), px(450.0)));
+    let titles = [
+        "Investigate the first session",
+        "Review the second session",
+        "Third session",
+    ];
+    view.update(cx, |model, cx| {
+        attach_panes(model, &panes, cx);
+        for (index, title) in titles.iter().enumerate() {
+            model.receive_event(
+                ServerId::local(),
+                ClientEvent::Metadata {
+                    channel: ChannelId(u32::try_from(index + 1).expect("channel")),
+                    event: muxy_protocol::MetadataEvent::Title((*title).into()),
+                },
+                cx,
+            );
+        }
+    });
+    cx.run_until_parked();
+    for (pane, title) in panes.iter().zip(titles) {
+        assert!(
+            cx.debug_bounds(format!("pane-title-{pane}-{title}").leak())
+                .is_some()
+        );
+    }
+    let geometry = view.read_with(cx, |model, cx| {
+        panes.map(|pane| {
+            model.grids[&pane]
+                .view
+                .read(cx)
+                .geometry
+                .expect("terminal geometry")
+                .0
+        })
+    });
+    requests.try_iter().for_each(drop);
+    let long_title = "A long updated session description ".repeat(15);
+    view.update(cx, |model, cx| {
+        model.receive_event(
+            ServerId::local(),
+            ClientEvent::Metadata {
+                channel: ChannelId(1),
+                event: muxy_protocol::MetadataEvent::Title(long_title.clone()),
+            },
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    let title = cx
+        .debug_bounds(format!("pane-title-{}-{}", panes[0], long_title.trim()).leak())
+        .expect("updated title");
+    let content = cx
+        .debug_bounds("workspace-content")
+        .expect("project content");
+    assert!(
+        title.left() >= content.left() && title.right() < geometry[1].left(),
+        "long titles must stay inside their pane"
+    );
+    view.read_with(cx, |model, cx| {
+        assert_eq!(
+            model.tab(tab).expect("tab").custom_title.as_deref(),
+            Some("My fixed tab")
+        );
+        assert_eq!(
+            panes.map(|pane| model.grids[&pane]
+                .view
+                .read(cx)
+                .geometry
+                .expect("geometry")
+                .0),
+            geometry
+        );
+    });
+    assert!(
+        !requests
+            .try_iter()
+            .any(|(_, work)| matches!(work, Work::Resize(..)))
+    );
+    view.update(cx, |model, cx| {
+        model.focus_pane(panes[0], cx);
+        model.toggle_zoom_pane(cx);
+        model.receive_event(
+            ServerId::local(),
+            ClientEvent::Metadata {
+                channel: ChannelId(1),
+                event: muxy_protocol::MetadataEvent::Title("Updated while zoomed".into()),
+            },
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    let frame = cx.debug_bounds("zoomed-pane-frame").expect("zoomed frame");
+    let title = cx
+        .debug_bounds(format!("pane-title-{}-Updated while zoomed", panes[0]).leak())
+        .expect("zoomed title");
+    assert!(title.top() >= frame.top() && title.bottom() < frame.bottom());
+}
+
+#[gpui::test]
 fn zoom_and_tab_switch_detach_only_hidden_leaves_and_restore_all(cx: &mut TestAppContext) {
     let (state, first_tab, panes) = split_state();
     let (boot, requests) = stub_boot(state);

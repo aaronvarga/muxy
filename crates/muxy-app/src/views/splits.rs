@@ -302,6 +302,7 @@ fn zoomed_frame(
         .child(
             div()
                 .flex()
+                .flex_col()
                 .size_full()
                 .min_w(px(0.0))
                 .min_h(px(0.0))
@@ -310,7 +311,13 @@ fn zoomed_frame(
                 .border_color(model.theme.border_solid())
                 .shadow(muxy_ui::theme::Elevation::Elevated.shadow(model.theme.bg))
                 .overflow_hidden()
-                .child(pane_element(pane, model, cx)),
+                .child(super::tab_strip::pane_controls(pane, true, model, cx))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h(px(0.0))
+                        .child(pane_element(pane, model, cx)),
+                ),
         )
         .into_any_element()
 }
