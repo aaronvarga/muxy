@@ -3043,6 +3043,7 @@ impl Drop for AppModel {
 mod tests {
     mod capabilities;
     mod command_center;
+    mod command_center_collapse;
     pub(super) mod extensions;
     mod status_menu;
     mod webviews;

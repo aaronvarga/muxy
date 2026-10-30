@@ -25,6 +25,16 @@ as the sidebar. Click into a terminal to type,
 select text, or paste. Find and the pane-direction shortcuts act on the focused
 tile. Right-click for clipboard actions or **Open in Project**.
 
+Use the chevron in a tile's header to collapse its terminal to the header, or
+choose **Collapse Terminal** from its right-click menu. The project artwork,
+title, attention indicator, drag handle, and session controls stay available.
+Use the chevron again, or **Expand Terminal**, to restore the terminal. Collapsed
+sessions keep running, but their hidden views detach; keyboard pane navigation
+skips them. Entirely collapsed rows shrink and expanded rows use the freed space.
+Mixed rows keep their expanded terminals' height. Collapse choices follow their
+sessions through reordering and switching projects while the app is running;
+they reset when the app restarts.
+
 A blue border marks the focused terminal. Amber borders and labels mark
 attention: **Needs input** when the agent is blocked, or **Unread update** for
 completed work or another unread notification. A focused terminal keeps its

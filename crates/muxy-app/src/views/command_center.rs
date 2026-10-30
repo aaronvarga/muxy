@@ -569,11 +569,35 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
         f32::from(size.height) / f32::from(m.scaled(1.0)),
     );
     let gap = m.spacing4();
-    let height = ((size.height + gap) / f32::from(rows)).max(m.scaled(180.0));
     let dimensions = [columns, rows];
     let columns = usize::from(columns);
     let row_count = model.command_center.tiles.len().div_ceil(columns);
-    let scrolling = height * f32::from(u8::try_from(row_count).unwrap_or(u8::MAX)) - gap
+    let compact: Vec<_> = model
+        .command_center
+        .tiles
+        .chunks(columns)
+        .map(|tiles| {
+            tiles
+                .iter()
+                .all(|tile| model.command_center.is_collapsed(tile))
+        })
+        .collect();
+    let compact_count = compact.iter().filter(|compact| **compact).count();
+    let compact_rows = f32::from(u16::try_from(compact_count).unwrap_or(u16::MAX));
+    let expanded_slots = if model.appearance.command_center_layout == GridLayout::Auto {
+        usize::from(rows).min(row_count - compact_count)
+    } else {
+        usize::from(rows).saturating_sub(compact_count)
+    }
+    .max(1);
+    let compact_height = m.scaled(36.0) + px(4.0) + gap;
+    let height = ((size.height + gap - compact_height * compact_rows)
+        / f32::from(u16::try_from(expanded_slots).unwrap_or(u16::MAX)))
+    .max(m.scaled(180.0));
+    let scrolling = height
+        * f32::from(u16::try_from(row_count - compact_count).unwrap_or(u16::MAX))
+        + compact_height * compact_rows
+        - gap
         > size.height + px(0.5);
     model.command_center.columns = columns;
     let grid = (dimensions, size, row_count);
@@ -588,8 +612,11 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
     let list = gpui::list(model.command_center.scroll.clone(), move |row, _, cx| {
         owner
             .update(cx, |model, cx| {
+                let height = if compact[row] { compact_height } else { height };
                 let mut cells = div()
+                    .debug_selector(move || format!("command-center-row-{row}"))
                     .flex()
+                    .items_start()
                     .w_full()
                     .gap(m.spacing4())
                     .h(if row + 1 == row_count {
@@ -632,6 +659,7 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
 fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     let m = model.metrics;
     let pane = entry.pane;
+    let collapsed = model.command_center.is_collapsed(entry);
     let project = model.state.project(entry.session.info.project);
     let name = project.map_or_else(
         || tr!("Project").to_string(),
@@ -683,6 +711,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
         .flex_1()
         .min_w(px(0.0))
         .h_full()
+        .when(collapsed, Styled::h_auto)
         .rounded(m.radius_md())
         .border_2()
         .border_color(if selected {
@@ -710,6 +739,13 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                 .py(m.spacing2())
                 .bg(model.theme.surface)
                 .cursor_grab()
+                .on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(move |model, event: &gpui::MouseDownEvent, _, cx| {
+                        model.command_center_menu(pane, event.position, cx);
+                        cx.stop_propagation();
+                    }),
+                )
                 .on_drag(DraggedTerminal { pane }, move |_, cursor_offset, _, cx| {
                     cx.new(|_| TerminalDragPreview {
                         project: drag_project.clone(),
@@ -719,6 +755,27 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                         cursor_offset,
                     })
                 })
+                .child(
+                    super::titlebar::icon_button(
+                        SharedString::from(format!("command-center-collapse-{pane}")),
+                        if collapsed {
+                            Icon::ChevronRight
+                        } else {
+                            Icon::ChevronDown
+                        },
+                        if collapsed {
+                            tr!("Expand Terminal")
+                        } else {
+                            tr!("Collapse Terminal")
+                        },
+                        model,
+                    )
+                    .debug_selector(move || format!("command-center-collapse-{index}-{collapsed}"))
+                    .on_click(cx.listener(move |model, _, _, cx| {
+                        model.toggle_command_center_terminal(pane, cx);
+                        cx.stop_propagation();
+                    })),
+                )
                 .child(
                     div()
                         .debug_selector(move || format!("command-center-handle-{index}"))
@@ -805,43 +862,49 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                     })),
                 ),
         )
-        .child(
-            div()
-                .flex_1()
-                .min_h(px(0.0))
-                .child(model.terminal(&pane).map_or_else(
-                    || div().size_full().bg(model.theme.bg).into_any_element(),
-                    super::super::model::PaneView::element,
-                )),
-        )
-        .when_some(entry.error.as_ref(), |tile, error| {
+        .when(!collapsed, |tile| {
             tile.child(
                 div()
-                    .flex()
-                    .items_center()
-                    .gap(m.spacing2())
-                    .px(m.spacing3())
-                    .py(m.spacing2())
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w(px(0.0))
-                            .truncate()
-                            .text_size(m.font_footnote())
-                            .child(error.clone()),
-                    )
-                    .child(
-                        div()
-                            .id(SharedString::from(format!("command-center-retry-{pane}")))
-                            .cursor_pointer()
-                            .text_size(m.font_body())
-                            .child(tr!("Retry"))
-                            .on_click(cx.listener(move |model, _, _, cx| {
-                                model.retry_command_center(pane, cx);
-                            })),
-                    ),
+                    .debug_selector(move || format!("command-center-terminal-{index}"))
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .child(model.terminal(&pane).map_or_else(
+                        || div().size_full().bg(model.theme.bg).into_any_element(),
+                        super::super::model::PaneView::element,
+                    )),
             )
         })
+        .when_some(
+            entry.error.as_ref().filter(|_| !collapsed),
+            |tile, error| {
+                tile.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(m.spacing2())
+                        .px(m.spacing3())
+                        .py(m.spacing2())
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .truncate()
+                                .text_size(m.font_footnote())
+                                .child(error.clone()),
+                        )
+                        .child(
+                            div()
+                                .id(SharedString::from(format!("command-center-retry-{pane}")))
+                                .cursor_pointer()
+                                .text_size(m.font_body())
+                                .child(tr!("Retry"))
+                                .on_click(cx.listener(move |model, _, _, cx| {
+                                    model.retry_command_center(pane, cx);
+                                })),
+                        ),
+                )
+            },
+        )
         .child(
             div()
                 .id(SharedString::from(format!("command-center-drop-{pane}")))
