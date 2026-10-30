@@ -1,5 +1,4 @@
-//! Indeterminate progress drawn by Core Animation. The turning arc is a layer
-//! animation, so it costs the app no frames.
+//! Indeterminate progress drawn by Core Animation, without app redraws.
 
 use std::cell::Cell;
 use std::ptr;
@@ -29,6 +28,7 @@ pub struct NativeSpinner {
     color: Cell<Option<Rgba>>,
     scale_factor: Cell<Option<f32>>,
     visible: Cell<bool>,
+    top_border: bool,
 }
 
 impl std::fmt::Debug for NativeSpinner {
@@ -72,7 +72,14 @@ impl NativeSpinner {
             color: Cell::new(None),
             scale_factor: Cell::new(None),
             visible: Cell::new(false),
+            top_border: false,
         })
+    }
+
+    pub fn top_border(window: &Window) -> Result<Self, String> {
+        let mut spinner = Self::new(window)?;
+        spinner.top_border = true;
+        Ok(spinner)
     }
 
     pub fn show(&self, bounds: Bounds<Pixels>, color: Rgba, visible: bool, scale_factor: f32) {
@@ -100,8 +107,8 @@ impl NativeSpinner {
                 a: color.a * TRACK_ALPHA,
                 ..color
             };
-            stroke(&self.track, track);
-            stroke(&self.arc, color);
+            paint(&self.track, track, self.top_border);
+            paint(&self.arc, color, self.top_border);
             self.color.set(Some(color));
         }
         CATransaction::commit();
@@ -134,6 +141,15 @@ impl NativeSpinner {
     }
 
     fn layout(&self, size: NSSize) {
+        if self.top_border {
+            let rect = NSRect::new(NSPoint::ZERO, size);
+            let path = unsafe { CGPath::with_rect(rect, ptr::null()) };
+            for shape in [&self.track, &self.arc] {
+                shape.setFrame(rect);
+                shape.setPath(Some(&path));
+            }
+            return;
+        }
         let diameter = size.width.min(size.height);
         let line = (diameter * LINE_FRACTION).max(1.0);
         let inset = NSRect::new(
@@ -152,22 +168,32 @@ impl NativeSpinner {
     }
 
     fn turn(&self) {
-        let animation =
-            CABasicAnimation::animationWithKeyPath(Some(ns_string!("transform.rotation.z")));
-        let from = NSNumber::new_f64(0.0);
-        let to = NSNumber::new_f64(-std::f64::consts::TAU);
-        unsafe {
-            animation.setFromValue(Some(&from));
-            animation.setToValue(Some(&to));
-        }
-        let timing =
-            unsafe { CAMediaTimingFunction::functionWithName(kCAMediaTimingFunctionLinear) };
-        animation.setTimingFunction(Some(&timing));
-        animation.setDuration(0.8);
-        animation.setRepeatCount(f32::INFINITY);
         self.arc
-            .addAnimation_forKey(&animation, Some(ns_string!("turn")));
+            .addAnimation_forKey(&animation(self.top_border), Some(ns_string!("activity")));
     }
+}
+
+fn animation(top_border: bool) -> Retained<CABasicAnimation> {
+    let animation = CABasicAnimation::animationWithKeyPath(Some(if top_border {
+        ns_string!("opacity")
+    } else {
+        ns_string!("transform.rotation.z")
+    }));
+    let (from, to) = if top_border {
+        (0.2, 1.0)
+    } else {
+        (0.0, -std::f64::consts::TAU)
+    };
+    unsafe {
+        animation.setFromValue(Some(&NSNumber::new_f64(from)));
+        animation.setToValue(Some(&NSNumber::new_f64(to)));
+    }
+    let timing = unsafe { CAMediaTimingFunction::functionWithName(kCAMediaTimingFunctionLinear) };
+    animation.setTimingFunction(Some(&timing));
+    animation.setDuration(0.8);
+    animation.setAutoreverses(top_border);
+    animation.setRepeatCount(f32::INFINITY);
+    animation
 }
 
 impl Drop for NativeSpinner {
@@ -177,12 +203,35 @@ impl Drop for NativeSpinner {
     }
 }
 
-fn stroke(shape: &CAShapeLayer, color: Rgba) {
+fn paint(shape: &CAShapeLayer, color: Rgba, filled: bool) {
     let color = CGColor::new_srgb(
         f64::from(color.r),
         f64::from(color.g),
         f64::from(color.b),
         f64::from(color.a),
     );
-    shape.setStrokeColor(Some(&color));
+    if filled {
+        shape.setFillColor(Some(&color));
+    } else {
+        shape.setStrokeColor(Some(&color));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn top_border_pulses_without_rotating_the_strip_or_changing_spinner_motion() {
+        let pulse = animation(true);
+        assert_eq!(pulse.keyPath().as_deref(), Some(ns_string!("opacity")));
+        assert!(pulse.autoreverses());
+        assert!(pulse.repeatCount().is_infinite());
+        let spin = animation(false);
+        assert_eq!(
+            spin.keyPath().as_deref(),
+            Some(ns_string!("transform.rotation.z"))
+        );
+        assert!(!spin.autoreverses());
+    }
 }
