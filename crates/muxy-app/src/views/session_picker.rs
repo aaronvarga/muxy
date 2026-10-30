@@ -74,7 +74,7 @@ impl AppModel {
             .get(&project)
             .into_iter()
             .flat_map(|listing| &listing.entries)
-            .filter(|session| !references.contains(&session.info.id) && !session.attached)
+            .filter(|session| !session.attached && !references.contains(&session.info.id))
             .collect()
     }
 
@@ -83,6 +83,18 @@ impl AppModel {
         self.request_sessions(project, cx);
         if let Some(Overlay::Sessions(picker)) = &self.overlay {
             self.request_sessions(picker.project, cx);
+        }
+        if self.command_center.active {
+            let projects: Vec<_> = self
+                .state
+                .projects()
+                .iter()
+                .filter(|project| self.project_shown(project) && self.confirmed(project.server_id))
+                .map(|project| project.id)
+                .collect();
+            for project in projects {
+                self.request_sessions(project, cx);
+            }
         }
         self.update_session_picker(cx);
     }
@@ -94,6 +106,7 @@ impl AppModel {
             .projects
             .retain(|project, _| state.project_server(*project) != Some(server));
         self.update_session_picker(cx);
+        self.sync_command_center(cx);
     }
 
     pub(crate) fn refresh_session_picker(&mut self, cx: &mut Context<Self>) {
@@ -144,7 +157,69 @@ impl AppModel {
             }
         }
         self.refresh_existing_sessions(cx);
+        self.sync_command_center(cx);
         cx.notify();
+    }
+
+    pub(crate) fn command_center_sessions(&self) -> Vec<(ServerId, ProjectSession)> {
+        self.state
+            .projects()
+            .iter()
+            .filter(|project| {
+                self.project_shown(project)
+                    && self.server_ready(project.server_id)
+                    && self.confirmed(project.server_id)
+            })
+            .flat_map(|project| {
+                self.existing_sessions
+                    .projects
+                    .get(&project.id)
+                    .into_iter()
+                    .flat_map(|listing| &listing.entries)
+                    .filter(|session| {
+                        session.info.project == project.id
+                            && matches!(
+                                session.status,
+                                muxy_protocol::SessionStatus::Live
+                                    | muxy_protocol::SessionStatus::Starting
+                            )
+                    })
+                    .map(|session| (project.server_id, session.clone()))
+            })
+            .collect()
+    }
+
+    pub(crate) fn forget_listed_session(&mut self, server: ServerId, session: SessionId) {
+        let state = &self.state;
+        for (project, listing) in &mut self.existing_sessions.projects {
+            if state.project_server(*project) == Some(server) {
+                listing.entries.retain(|entry| entry.info.id != session);
+            }
+        }
+    }
+
+    pub(crate) fn command_center_listing_status(&self) -> (bool, usize) {
+        let mut loading = false;
+        let mut errors = 0;
+        for project in self
+            .state
+            .projects()
+            .iter()
+            .filter(|project| self.project_shown(project))
+        {
+            if !self.server_ready(project.server_id) || !self.confirmed(project.server_id) {
+                errors += 1;
+                continue;
+            }
+            match self.existing_sessions.projects.get(&project.id) {
+                Some(listing) => {
+                    loading |= listing.pending && listing.revision.is_none();
+                    errors += usize::from(listing.error.is_some());
+                }
+                None => loading = true,
+            }
+        }
+        (loading, errors)
     }
 
     pub(crate) fn update_session_picker(&self, cx: &mut Context<Self>) {

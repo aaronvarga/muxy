@@ -332,6 +332,8 @@
 "Close Tabs to the Left" = "Close Tabs to the Left";
 "Close Tabs to the Right" = "Close Tabs to the Right";
 "Close Tabs?" = "Close Tabs?";
+"Close Terminal Session?" = "Close Terminal Session?";
+"Close Terminal Session…" = "Close Terminal Session…";
 "Close Window" = "Close Window";
 "Close active terminal?" = "Close active terminal?";
 "Close pull request #%lld (%@) without merging?" = "Close pull request #%lld (%@) without merging?";
@@ -356,6 +358,8 @@
 "Colors for the interface and terminals when macOS uses light appearance." = "Colors for the interface and terminals when macOS uses light appearance.";
 "Combine programming symbols when the selected font supports ligatures." = "Combine programming symbols when the selected font supports ligatures.";
 "Command" = "Command";
+"Command Center" = "Command Center";
+"Command Center Layout…" = "Command Center Layout…";
 "Command Line Tool Installed" = "Command Line Tool Installed";
 "Command Palette…" = "Command Palette…";
 "Command-click a web link in a terminal to open it in a browser tab instead of your system browser." = "Command-click a web link in a terminal to open it in a browser tab instead of your system browser.";
@@ -399,6 +403,7 @@
 "Connect to the server so Muxy can check whether terminal sessions can be preserved." = "Connect to the server so Muxy can check whether terminal sessions can be preserved.";
 "Connect to the server to create." = "Connect to the server to create.";
 "Connect to the server to manage mobile access." = "Connect to the server to manage mobile access.";
+"Connect to your servers to see their terminals." = "Connect to your servers to see their terminals.";
 "Connected" = "Connected";
 "Connecting…" = "Connecting…";
 "Connection" = "Connection";
@@ -521,6 +526,7 @@
 "Cursor thickness" = "Cursor thickness";
 "Custom command" = "Custom command";
 "Custom commands shell terminal shortcuts" = "Custom commands shell terminal shortcuts";
+"Custom…" = "Custom…";
 "Cut" = "Cut";
 "Cyan" = "Cyan";
 "Dark theme" = "Dark theme";
@@ -593,6 +599,7 @@
 "Enable working-directory tracking and prompt navigation in new sessions." = "Enable working-directory tracking and prompt navigation in new sessions.";
 "Enabled" = "Enabled";
 "Enabling…" = "Enabling…";
+"End \"%@\"? Any running process will stop, and panes showing this terminal will close." = "End \"%@\"? Any running process will stop, and panes showing this terminal will close.";
 "End All Sessions and Quit" = "End All Sessions and Quit";
 "End all sessions and start the server again. Saved terminal records are preserved." = "End all sessions and start the server again. Saved terminal records are preserved.";
 "End all sessions on this device and stop the server. A confirmation is required." = "End all sessions on this device and stop the server. A confirmation is required.";
@@ -802,6 +809,8 @@
 "Last seen %lld h ago" = "Last seen %lld h ago";
 "Last seen %lld min ago" = "Last seen %lld min ago";
 "Last seen just now" = "Last seen just now";
+"Layout" = "Layout";
+"Layout · columns × rows" = "Layout · columns × rows";
 "Layouts" = "Layouts";
 "Left" = "Left";
 "Let paired phones reach this device's server over the local network or a VPN. A paired phone gets full terminal access." = "Let paired phones reach this device's server over the local network or a VPN. A paired phone gets full terminal access.";
@@ -888,6 +897,8 @@
 "Move Left" = "Move Left";
 "Move Pane" = "Move Pane";
 "Move Right" = "Move Right";
+"Move Terminal Earlier" = "Move Terminal Earlier";
+"Move Terminal Later" = "Move Terminal Later";
 "Move Up" = "Move Up";
 "Move to Bottom" = "Move to Bottom";
 "Move to Group" = "Move to Group";
@@ -989,6 +1000,7 @@
 "No proxy for" = "No proxy for";
 "No remote servers yet" = "No remote servers yet";
 "No remote servers yet." = "No remote servers yet.";
+"No running terminals" = "No running terminals";
 "No saved rules. When you choose to remember an answer to a permission request, it appears here." = "No saved rules. When you choose to remember an answer to a permission request, it appears here.";
 "No settings found. Try another search." = "No settings found. Try another search.";
 "No shortcut assigned" = "No shortcut assigned";
@@ -1032,6 +1044,7 @@
 "Open files with" = "Open files with";
 "Open in Default Browser" = "Open in Default Browser";
 "Open in External Browser" = "Open in External Browser";
+"Open in Project" = "Open in Project";
 "Open on GitHub" = "Open on GitHub";
 "Open terminal links in the browser" = "Open terminal links in the browser";
 "Open the packaged Muxy app to enable microphone and speech permissions." = "Open the packaged Muxy app to enable microphone and speech permissions.";
@@ -1229,10 +1242,12 @@
 "Resume Dictation" = "Resume Dictation";
 "Resume in a new terminal" = "Resume in a new terminal";
 "Retained terminal history, from 0 to 65536 MiB. Saved-history changes take effect at the next server start." = "Retained terminal history, from 0 to 65536 MiB. Saved-history changes take effect at the next server start.";
+"Retry" = "Retry";
 "Retry app update" = "Retry app update";
 "Retry connection" = "Retry connection";
 "Retry server update" = "Retry server update";
 "Return every setting on this page, including key bindings, to its default." = "Return every setting on this page, including key bindings, to its default.";
+"Return to Project" = "Return to Project";
 "Return to live output when sending a keystroke." = "Return to live output when sending a keystroke.";
 "Return to live output whenever the terminal receives new text." = "Return to live output whenever the terminal receives new text.";
 "Reveal audit log" = "Reveal audit log";
@@ -1377,6 +1392,7 @@
 "Size" = "Size";
 "Small" = "Small";
 "Some history exceeds the scan limit." = "Some history exceeds the scan limit.";
+"Some projects unavailable" = "Some projects unavailable";
 "Space" = "Space";
 "Speech permission request did not complete. Try again." = "Speech permission request did not complete. Try again.";
 "Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition." = "Speech recognition access is disabled. Enable Muxy in System Settings → Privacy & Security → Speech Recognition.";
@@ -1573,6 +1589,7 @@
 "Unloading…" = "Unloading…";
 "Unpacked" = "Unpacked";
 "Unpin Tab" = "Unpin Tab";
+"Unread update" = "Unread update";
 "Unstage" = "Unstage";
 "Unstage All" = "Unstage All";
 "Unstage Selected" = "Unstage Selected";

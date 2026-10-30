@@ -233,6 +233,9 @@ impl Item {
                     .child(shortcut),
             )
         })
+        .when_some(self.grid, |row, grid| {
+            row.child(super::super::command_center::grid_preview(grid, model))
+        })
         .when(self.submenu_items().is_some(), |row| {
             row.child(self.chevron(highlighted, model))
         })

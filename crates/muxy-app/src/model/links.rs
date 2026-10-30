@@ -16,7 +16,8 @@ use crate::views::{
 impl AppModel {
     pub(super) fn opener_context(&self, pane: PaneId) -> Option<OpenContext> {
         let project = self.state.projects().iter().find(|project| {
-            (self.is_quick_terminal(pane) && project.id == self.state.home().id)
+            self.command_center_project(pane) == Some(project.id)
+                || (self.is_quick_terminal(pane) && project.id == self.state.home().id)
                 || project
                     .tabs
                     .iter()
@@ -47,6 +48,9 @@ impl AppModel {
             && self.browser_enabled()
             && self.settings.browser.open_terminal_links
         {
+            if self.command_center.active {
+                self.select_project(context.project, cx);
+            }
             self.open_url_in_browser(url.clone(), cx);
             return;
         }
@@ -71,6 +75,9 @@ impl AppModel {
                 kind: opener.tab_type,
                 data,
             };
+            if self.command_center.active {
+                self.select_project(context.project, cx);
+            }
             if let Err(error) = self.open_webview_tab(descriptor, opener.singleton, cx) {
                 self.fail(tr!("Could not open file: %@", &error).to_string(), cx);
             }

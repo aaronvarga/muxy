@@ -989,7 +989,7 @@ fn perform(work: Work, client: &Client, target: &Target) -> Option<Update> {
         Work::ProjectSessions { project } => {
             return Some(Update::ProjectSessions {
                 project,
-                result: client.available_project_sessions(project),
+                result: client.running_project_sessions(project),
             });
         }
         Work::CancelCreation(operation) => {

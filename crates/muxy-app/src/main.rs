@@ -26,6 +26,7 @@ mod views {
     pub(crate) mod banners;
     pub(crate) mod browser;
     pub(crate) mod cached;
+    pub(crate) mod command_center;
     pub(crate) mod command_palette;
     pub(crate) mod commands_bar;
     pub(crate) mod composer;
@@ -263,7 +264,8 @@ fn app_actions(cx: &mut App) {
 }
 
 fn app_name() -> &'static str {
-    muxy_core::release::Channel::current().app_name()
+    muxy_core::release::Version::current()
+        .map_or("Muxy Local", |version| version.channel().app_name())
 }
 
 fn window_options() -> WindowOptions {

@@ -70,6 +70,12 @@ pub enum AgentSessionsPosition {
 )]
 pub struct Appearance {
     pub layout: AppLayout,
+    pub command_center_layout: crate::command_center::GridLayout,
+    /// Sidebar icon background; empty follows the theme accent.
+    pub command_center_color: String,
+    /// Terminal order in the dashboard, independent of project tabs and splits.
+    #[serde(with = "terminal_order")]
+    pub command_center_order: Vec<(crate::ServerId, muxy_protocol::SessionId)>,
     pub dark_theme: String,
     pub light_theme: String,
     pub sidebar_expanded: bool,
@@ -117,10 +123,55 @@ pub struct Appearance {
     pub agent_sessions_providers: Vec<muxy_protocol::AgentProvider>,
 }
 
+mod terminal_order {
+    use crate::ServerId;
+    use muxy_protocol::SessionId;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        order: &[(ServerId, SessionId)],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        // TOML integers cannot represent the upper half of the session ID range.
+        serializer.collect_seq(
+            order
+                .iter()
+                .map(|(server, id)| (server, id.get().to_string())),
+        )
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Vec<(ServerId, SessionId)>, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Id {
+            Text(String),
+            Number(SessionId),
+        }
+        Vec::<(ServerId, Id)>::deserialize(deserializer)?
+            .into_iter()
+            .map(|(server, id)| {
+                let id = match id {
+                    Id::Text(text) => text
+                        .parse::<std::num::NonZeroU64>()
+                        .map(SessionId::from)
+                        .map_err(serde::de::Error::custom)?,
+                    Id::Number(id) => id,
+                };
+                Ok((server, id))
+            })
+            .collect()
+    }
+}
+
 impl Default for Appearance {
     fn default() -> Self {
         Self {
             layout: AppLayout::default(),
+            command_center_layout: crate::command_center::GridLayout::Auto,
+            command_center_color: String::new(),
+            command_center_order: Vec::new(),
             dark_theme: "Muxy".into(),
             light_theme: "Muxy Light".into(),
             sidebar_expanded: false,
@@ -337,6 +388,41 @@ pub(super) fn read_document(path: &Path) -> Result<toml::Table> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terminal_order_saves_full_width_ids_and_accepts_earlier_numeric_entries() -> Result<()> {
+        let server = crate::ServerId::local();
+        let directory =
+            std::env::temp_dir().join(format!("muxy-terminal-order-{}", crate::ProjectId::new()));
+        let path = directory.join("settings.toml");
+        let initial = Appearance::default();
+        initial.save(&path)?;
+        let mut changed = initial.clone();
+        changed.command_center_order = vec![(
+            server,
+            muxy_protocol::SessionId::new(u64::MAX).expect("session"),
+        )];
+        let saved = changed.save_changes(&initial, &path)?;
+        assert_eq!(saved, changed);
+        assert_eq!(Appearance::load(&path)?, changed);
+        fs::write(
+            &path,
+            format!("[appearance]\ncommand_center_order = [[\"{server}\", 7]]\n"),
+        )?;
+        assert_eq!(
+            Appearance::load(&path)?.command_center_order,
+            [(server, muxy_protocol::SessionId::new(7).expect("session"))]
+        );
+        for invalid in ["0", "18446744073709551616", "invalid"] {
+            fs::write(
+                &path,
+                format!("[appearance]\ncommand_center_order = [[\"{server}\", \"{invalid}\"]]\n"),
+            )?;
+            assert!(Appearance::load(&path).is_err());
+        }
+        fs::remove_dir_all(directory)?;
+        Ok(())
+    }
 
     #[test]
     fn worktree_visibility_defaults_and_independent_saved_choices() -> Result<()> {

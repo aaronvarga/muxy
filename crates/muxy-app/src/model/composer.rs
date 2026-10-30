@@ -71,6 +71,11 @@ impl AppModel {
     }
 
     pub(crate) fn toggle_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.command_center.active
+            && let Some(pane) = self.active_pane()
+        {
+            self.open_command_center_project(pane, cx);
+        }
         if self.close_prompt.is_some() {
             return;
         }

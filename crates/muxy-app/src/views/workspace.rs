@@ -976,19 +976,27 @@ impl Render for AppModel {
             && !self.extension_sidebar_active();
         let sidebar_width = self.sidebar_width();
         // The tab strip draws its own bottom line, under its tabs.
-        let (header, header_line) =
-            if tab_focused || self.state.current_project().groups().is_some() {
-                (
-                    super::tab_sidebar::titlebar(self, sidebar_width, window, actions, cx),
-                    true,
-                )
-            } else {
-                (
-                    tab_strip::tab_strip(self, sidebar_width, window, (actions, actions_width), cx),
-                    false,
-                )
-            };
-        let content = super::splits::render(self, window, cx).unwrap_or_else(|| empty(self, cx));
+        let (header, header_line) = if self.command_center.active {
+            (
+                super::command_center::header(self, sidebar_width, actions, window, cx),
+                false,
+            )
+        } else if tab_focused || self.state.current_project().groups().is_some() {
+            (
+                super::tab_sidebar::titlebar(self, sidebar_width, window, actions, cx),
+                true,
+            )
+        } else {
+            (
+                tab_strip::tab_strip(self, sidebar_width, window, (actions, actions_width), cx),
+                false,
+            )
+        };
+        let content = if self.command_center.active {
+            super::command_center::render(self, cx)
+        } else {
+            super::splits::render(self, window, cx).unwrap_or_else(|| empty(self, cx))
+        };
         let content = self.webview_panel_content(content, window, cx);
         let content = super::agents_panel::right_panel_content(content, self, window, cx);
         let content = super::agent_sessions::panel_content(content, self, window, cx);
@@ -1035,7 +1043,9 @@ impl Render for AppModel {
                                 header.child(div().h(px(1.0)).flex_none().bg(theme.border))
                             }),
                     )
-                    .children(super::commands_bar::commands_bar(self, cx))
+                    .when(!self.command_center.active, |column| {
+                        column.children(super::commands_bar::commands_bar(self, cx))
+                    })
                     .child(
                         div()
                             .debug_selector(|| "workspace-content".into())
@@ -1044,9 +1054,10 @@ impl Render for AppModel {
                             .overflow_hidden()
                             .child(content),
                     )
-                    .when(self.appearance.status_bar_visible, |column| {
-                        column.child(status_bar::status_bar(self, cx))
-                    }),
+                    .when(
+                        self.appearance.status_bar_visible && !self.command_center.active,
+                        |column| column.child(status_bar::status_bar(self, cx)),
+                    ),
             )
             .child(sidebar_divider(self, sidebar_width, window))
             .child(titlebar::navigation(self, sidebar_width, window, cx))

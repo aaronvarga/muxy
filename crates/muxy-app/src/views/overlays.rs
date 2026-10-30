@@ -28,6 +28,7 @@ pub(crate) enum Overlay {
     Worktrees(super::worktree_picker::WorktreePicker),
     Layouts(crate::model::project_layouts::LayoutPicker),
     Menu(Menu),
+    CenterLayout([u8; 2]),
     ProjectEditor(super::project_editor::Editor),
     ProjectIcons(super::project_editor::icons::Icons),
     ProjectLogo(super::project_editor::logo::Cropper),
@@ -59,6 +60,7 @@ impl Overlay {
                 | Self::AiProvider(_)
                 | Self::PullRequest(_)
                 | Self::Menu(_)
+                | Self::CenterLayout(_)
                 | Self::ProjectEditor(_)
                 | Self::ProjectIcons(_)
                 | Self::ServerForm(_)
@@ -311,6 +313,9 @@ pub(crate) fn layer(model: &AppModel, window: &Window, cx: &mut Context<AppModel
             .child(menu::render(menu, model, window, cx))
             .into_any_element(),
         Some(Overlay::Menu(menu)) => menu::render(menu, model, window, cx),
+        Some(Overlay::CenterLayout(selection)) => {
+            super::command_center::custom_layout_picker(*selection, model, cx)
+        }
         Some(Overlay::ProjectEditor(editor)) => {
             super::project_editor::render(editor, model, window, cx)
         }

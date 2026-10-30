@@ -111,6 +111,25 @@ async fn prompt(
     })
 }
 
+/// Confirms ending one session, including its running process.
+pub(crate) async fn prompt_close_terminal(
+    window: AnyWindowHandle,
+    title: &str,
+    cx: &mut AsyncApp,
+) -> Result<bool, String> {
+    server_prompt(
+        window,
+        &tr!("Close Terminal Session?"),
+        &tr!("Close"),
+        &tr!(
+            "End \"%@\"? Any running process will stop, and panes showing this terminal will close.",
+            title
+        ),
+        cx,
+    )
+    .await
+}
+
 /// Stops or restarts a server; `name` is another computer's, `None` this one's.
 pub(crate) async fn prompt_server(
     window: AnyWindowHandle,

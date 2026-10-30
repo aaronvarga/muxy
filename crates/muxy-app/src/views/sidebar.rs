@@ -48,6 +48,7 @@ pub(crate) fn register_commands(
         tr_key!("Open Project…"),
         super::workspace::AddProject,
     ));
+    super::command_center::register_commands(registry, model);
     let has_workspaces = !model.state.workspaces().is_empty() || model.remote_servers_offered();
     let model = cx.weak_entity();
     registry.register(
@@ -152,15 +153,6 @@ pub(crate) fn sidebar(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             .into_any_element();
     }
     let header = header(model, cx);
-    // Collapsed project rows start flush with the content's top edge; any
-    // higher and the titlebar covers the selected project's ring.
-    let lift = if model.appearance.layout == AppLayout::ProjectFocused
-        && !model.appearance.sidebar_expanded
-    {
-        m.spacing2()
-    } else {
-        px(0.0)
-    };
     let contents = match model.appearance.layout {
         AppLayout::ProjectFocused => project_list(model, cx),
         AppLayout::TabFocused | AppLayout::AgentsFocused => {
@@ -183,8 +175,9 @@ pub(crate) fn sidebar(model: &AppModel, window: &Window, cx: &mut Context<AppMod
                 .min_h(px(0.0))
                 .bg(model.sidebar_background())
                 .map(|sidebar| super::titlebar::top_corners(sidebar, window, true, false))
-                .child(div().h(m.title_bar_height() - lift).flex_none())
+                .child(div().h(m.title_bar_height()).flex_none())
                 .child(header)
+                .child(super::command_center::sidebar_button(model, cx))
                 .child(contents)
                 .children(tips::footer(model, cx))
                 .children(super::agents_panel::collapsed_button(model, cx)),
@@ -936,7 +929,7 @@ fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
                 .flex_col()
                 .px(if wide { m.spacing3() } else { m.spacing4() })
                 .gap(m.spacing3())
-                .pt(if wide { m.spacing5() } else { m.spacing2() })
+                .pt(m.spacing1())
                 .pb(m.spacing3())
                 .when(!wide, Styled::items_center)
                 .children(rows)
@@ -970,8 +963,9 @@ fn project_row(
     let wide = model.appearance.sidebar_expanded;
     let id = project.id;
     let missing = project.status() == ProjectStatus::Missing;
-    let active = model.state.current_project().id == id
-        || model.state.current_project().parent_id == Some(id);
+    let active = !model.command_center.active
+        && (model.state.current_project().id == id
+            || model.state.current_project().parent_id == Some(id));
     let has_worktrees = model.has_worktrees(project) && !missing;
     let group = SharedString::from(format!("project-{id}"));
     let tile = shortcut
@@ -982,7 +976,7 @@ fn project_row(
             )
         })
         .map_or_else(
-            || project_tile(project, model, group.clone()),
+            || project_tile(project, model, group.clone(), model.sidebar_icon()),
             |label| {
                 div()
                     .debug_selector(move || format!("project-shortcut-{id}"))
@@ -1297,7 +1291,12 @@ pub(super) fn add_project_button(model: &AppModel, cx: &mut Context<AppModel>) -
         .into_any_element()
 }
 
-fn project_tile(project: &Project, model: &AppModel, group: SharedString) -> AnyElement {
+pub(super) fn project_tile(
+    project: &Project,
+    model: &AppModel,
+    group: SharedString,
+    size: Pixels,
+) -> AnyElement {
     let m = model.metrics;
     let color = if project.home && project.server_id.is_local() {
         model.theme.accent.to_rgb()
@@ -1305,7 +1304,6 @@ fn project_tile(project: &Project, model: &AppModel, group: SharedString) -> Any
         parse_hex(project.color.as_str()).unwrap_or(gpui::rgb(0x80_80_80))
     };
     let foreground = contrasting_foreground(color);
-    let size = model.sidebar_icon();
     let scale = f32::from(size) / f32::from(m.icon_xxl());
     let glyph = if let Some((_, logo)) = model.project_logos.get(&project.id) {
         gpui::img(logo.clone())

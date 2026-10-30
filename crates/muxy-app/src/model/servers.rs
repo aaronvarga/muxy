@@ -353,7 +353,7 @@ impl AppModel {
     }
 
     fn on_server(&self, pane: PaneId, server: ServerId) -> bool {
-        self.state.pane_server(pane) == Some(server)
+        self.pane_server(pane) == Some(server)
     }
 
     pub(super) fn pending_on(&self, server: ServerId) -> bool {

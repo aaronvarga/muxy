@@ -40,6 +40,10 @@ const SUBMENU_GRACE: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Command {
+    CenterLayout(muxy_app_core::command_center::GridLayout),
+    CenterColor(Option<usize>),
+    CenterCustomLayout,
+    CenterProject(muxy_app_core::PaneId),
     Tab(muxy_app_core::TabId, super::tab_menu::Action),
     Layout(muxy_app_core::settings::AppLayout),
     AgentsPanel(bool),
@@ -127,6 +131,7 @@ pub(crate) struct Item {
     checked: Option<bool>,
     swatch: Option<Hsla>,
     separator_before: bool,
+    grid: Option<[u8; 2]>,
 }
 
 #[derive(Clone, Debug)]
@@ -152,11 +157,17 @@ impl Item {
             checked: None,
             swatch: None,
             separator_before: false,
+            grid: None,
         }
     }
 
     pub(crate) fn checked_if(mut self, checked: bool) -> Self {
         self.checked = Some(checked);
+        self
+    }
+
+    pub(crate) fn grid(mut self, grid: Option<[u8; 2]>) -> Self {
+        self.grid = grid;
         self
     }
 
@@ -558,6 +569,32 @@ impl AppModel {
         };
         self.dismiss_overlay(cx);
         match command {
+            Command::CenterLayout(layout) => self.set_command_center_layout(layout, cx),
+            Command::CenterCustomLayout => {
+                self.overlay = Some(Overlay::CenterLayout(
+                    self.appearance
+                        .command_center_layout
+                        .dimensions()
+                        .unwrap_or([1, 1]),
+                ));
+                self.overlay_focus.focus(window);
+                cx.notify();
+                return;
+            }
+            Command::CenterColor(index) => {
+                let color = match index {
+                    Some(index) => {
+                        let Some(color) = palette_color(index) else {
+                            return;
+                        };
+                        String::from(color)
+                    }
+                    None => String::new(),
+                };
+                self.appearance.command_center_color = color;
+                self.save_appearance(cx);
+            }
+            Command::CenterProject(pane) => self.open_command_center_project(pane, cx),
             Command::Tab(id, action) => {
                 use super::tab_menu::Action;
                 match action {

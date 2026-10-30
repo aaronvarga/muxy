@@ -21,6 +21,10 @@ can't be removed. `Cmd+N` opens a tab in Home.
 
 ## Sidebar
 
+**Command Center**, above Home, shows running terminals across projects in a
+live grid while keeping each project's tabs and splits. Its **Layout** menu
+offers Auto and fixed grids. See [Command Center](command-center.md).
+
 - `Cmd+B` shows or hides the sidebar.
 - Pick a layout from the sidebar header:
   - **Project Focused** (default): projects, with worktrees under them.

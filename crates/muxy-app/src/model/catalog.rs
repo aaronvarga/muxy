@@ -324,8 +324,9 @@ impl AppModel {
     ) {
         let shown = self.state.project_server(project).is_some_and(|server| {
             self.state
-                .session_references(server)
-                .contains(&session.info.id)
+                .projects().iter().filter(|project| project.server_id == server)
+                .flat_map(|project| &project.tabs).flat_map(|tab| &tab.panes)
+                .any(|pane| matches!(pane.content, muxy_app_core::PaneContent::Terminal { session: Some(id) } if id == session.info.id))
         });
         if shown || session.attached {
             return;

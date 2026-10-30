@@ -56,6 +56,11 @@ impl AppModel {
     }
 
     pub(crate) fn run_custom_command(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.command_center.active
+            && let Some(pane) = self.active_pane()
+        {
+            self.open_command_center_project(pane, cx);
+        }
         if !self.can_run_custom_command() || self.overlay.is_some() {
             return;
         }
