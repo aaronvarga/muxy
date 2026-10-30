@@ -280,6 +280,7 @@ impl AppModel {
             }
         }
         self.sync_extension_events(cx);
+        self.sync_status_menu();
         cx.notify();
     }
 
@@ -401,6 +402,7 @@ impl AppModel {
                 );
             }
         }
+        self.sync_status_menu();
         cx.notify();
     }
 

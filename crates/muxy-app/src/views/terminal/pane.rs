@@ -321,6 +321,7 @@ impl TerminalPane {
             native_scroll: None,
             #[cfg(target_os = "macos")]
             native_scroll_window: None,
+            #[cfg(target_os = "macos")]
             native_scroll_enabled: true,
             #[cfg(target_os = "macos")]
             native_sequence: 0,

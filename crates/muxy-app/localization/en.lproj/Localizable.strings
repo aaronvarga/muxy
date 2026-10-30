@@ -1268,6 +1268,8 @@
 "Muxy will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Muxy open to finish the update." = "Muxy will update and restart when all %lld terminal session end, including idle and detached sessions. Keep Muxy open to finish the update.";
 "Muxy will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Muxy open to finish the update." = "Muxy will update and restart when all %lld terminal sessions end, including idle and detached sessions. Keep Muxy open to finish the update.";
 "Muxy's logo above terminals running side by side." = "Muxy's logo above terminals running side by side.";
+"Muxy · All sessions" = "Muxy · All sessions";
+"Muxy · Needs your attention" = "Muxy · Needs your attention";
 "Name" = "Name";
 "Name (A–Z)" = "Name (A–Z)";
 "Name (Z–A)" = "Name (Z–A)";

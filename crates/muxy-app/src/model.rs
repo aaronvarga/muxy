@@ -35,6 +35,7 @@ mod quick_terminal;
 mod reconnect;
 pub(crate) mod remote_files;
 mod remote_servers;
+mod status_menu;
 pub(crate) use remote_servers::{
     ConnectionTest, Install, PendingRemote, RemoteIntent, RemoteServer, ServerFields, by_group,
     join_destination, released_version, split_destination,
@@ -154,6 +155,8 @@ pub(crate) struct AppModel {
     pub(crate) state: AppState,
     pub(crate) grids: HashMap<PaneId, PaneView>,
     pub(crate) command_center: command_center::CommandCenter,
+    #[cfg(target_os = "macos")]
+    status_menu: Option<muxy_ui::status_menu::StatusMenu>,
     pub(crate) error: Option<String>,
     error_detail: Option<String>,
     problem_serial: u64,
@@ -626,6 +629,8 @@ impl AppModel {
             proxy: proxy::ProxyState::load(boot.state_path.with_file_name("proxy.toml")),
             existing_sessions: crate::views::session_picker::ExistingSessions::default(),
             command_center: command_center::CommandCenter::default(),
+            #[cfg(target_os = "macos")]
+            status_menu: None,
             quick: quick_terminal::QuickTerminalRuntime::new(&boot.settings.quick_terminal, cx),
             window: window.window_handle(),
             state: boot.state,
@@ -2239,6 +2244,7 @@ impl AppModel {
                     tile.title.clone_from(title);
                 }
                 let _ = model.state.set_pane_title(id, title.clone());
+                model.sync_status_menu();
                 model.sync_extension_events(cx);
                 cx.notify();
             }
@@ -3347,6 +3353,7 @@ impl AppModel {
         cx: &mut Context<Self>,
     ) {
         self.forget_listed_session(server, session);
+        self.sync_status_menu();
         self.sync_command_center(cx);
         self.forget_session_activity(server, session, cx);
         if !self.state.session_references(server).contains(&session) {
@@ -3453,6 +3460,7 @@ pub(crate) mod tests {
     mod capabilities;
     mod command_center;
     pub(super) mod extensions;
+    mod status_menu;
     mod webviews;
     use muxy_protocol::ExitReason;
     mod active;

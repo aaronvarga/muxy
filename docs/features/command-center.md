@@ -5,6 +5,16 @@ palette, to see running terminals across projects and worktrees. It includes
 background tabs and detached sessions on connected servers. A server that is
 disconnected or waiting for its identity to be confirmed is not read.
 
+On macOS, the menu bar grid icon lists running sessions across all projects on
+connected, confirmed servers, including projects outside the selected workspace.
+It turns red when a session needs input or has an unread update. Yellow dots mark
+**Needs input** and blue dots mark **Unread update**, using the same activity
+detection as the app. Each row includes its project and session title; remote
+sessions also name their server. Selecting a row brings that terminal forward,
+reusing its project pane or opening the existing session when detached. Opening
+the menu does not mark sessions read or attach terminal views. The icon remains
+available while Muxy is hidden or minimized, and disappears when the app quits.
+
 Right-click the Command Center sidebar icon and choose **Color** to change its
 background. **Default** follows the theme accent. The selected color is remembered
 across restarts, while the selection outline keeps the theme accent.
