@@ -376,7 +376,7 @@ impl Spinners {
         self.glyph_with_shape(id, size, color, owner, false)
     }
 
-    pub(super) fn top_border(&self, id: String, height: Pixels, color: Hsla) -> AnyElement {
+    pub(super) fn activity_border(&self, id: String, height: Pixels, color: Hsla) -> AnyElement {
         self.glyph_with_shape(id, height, color, None, true)
     }
 
@@ -386,7 +386,7 @@ impl Spinners {
         size: Pixels,
         color: Hsla,
         owner: Option<gpui::EntityId>,
-        top_border: bool,
+        activity_border: bool,
     ) -> AnyElement {
         let registry = self.0.clone();
         let zone = zone.cloned();
@@ -400,8 +400,8 @@ impl Spinners {
                             let native = Rc::new(Native {
                                 spinner: if cfg!(test) {
                                     None
-                                } else if top_border {
-                                    NativeSpinner::top_border(window).ok()
+                                } else if activity_border {
+                                    NativeSpinner::activity_border(window).ok()
                                 } else {
                                     NativeSpinner::new(window).ok()
                                 },
@@ -437,7 +437,7 @@ impl Spinners {
             },
         )
         .map(|canvas| {
-            if top_border {
+            if activity_border {
                 canvas.w_full().h(size)
             } else {
                 canvas.size(size)
@@ -481,9 +481,20 @@ impl Spinners {
         clippy::unused_self,
         reason = "Portable progress uses GPUI's animation state"
     )]
-    pub(super) fn top_border(&self, id: String, height: Pixels, color: Hsla) -> AnyElement {
+    pub(super) fn activity_border(&self, id: String, height: Pixels, _color: Hsla) -> AnyElement {
         use gpui::{Animation, AnimationExt as _};
-        let bar = div().w_full().h(height).bg(color);
+        let bar = div().w_full().h(height).flex().children([
+            div().flex_1().h_full().bg(gpui::linear_gradient(
+                90.0,
+                gpui::rgb(0x00a8_54f7),
+                gpui::rgb(0x00ff_9433),
+            )),
+            div().flex_1().h_full().bg(gpui::linear_gradient(
+                90.0,
+                gpui::rgb(0x00ff_9433),
+                gpui::rgb(0x0021_d4ed),
+            )),
+        ]);
         if cfg!(test) {
             bar.into_any_element()
         } else {
