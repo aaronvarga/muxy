@@ -194,7 +194,7 @@ impl AppModel {
             return None;
         }
         let pane = self.active_pane()?;
-        self.state.pane_session(pane)
+        self.pane_session(pane)
     }
 
     pub(super) fn receive_activity(

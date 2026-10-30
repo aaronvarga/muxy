@@ -533,6 +533,7 @@ impl AppModel {
                 cx,
             )?
             .ok_or("could not save webview tab")?;
+        self.command_center.leave();
         self.sync_visible(cx);
         if !self.raise_pane_window(pane, cx) {
             self.show_main_window(cx);

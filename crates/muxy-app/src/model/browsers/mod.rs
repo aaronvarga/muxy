@@ -495,6 +495,7 @@ impl AppModel {
             self.browsers.focus_address.insert(pane);
         }
         if select {
+            self.command_center.leave();
             self.dismiss_overlay(cx);
             self.focus_owner.request_active_pane();
         }

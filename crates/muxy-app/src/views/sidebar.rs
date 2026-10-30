@@ -48,6 +48,7 @@ pub(crate) fn register_commands(
 
     register_placed(registry, model, ShortcutId::AddProject, cx);
     register_placed(registry, model, ShortcutId::NewTabInProject, cx);
+    super::command_center::register_commands(registry, model);
     let has_workspaces = !model.state.workspaces().is_empty();
     let app = model;
     let model = cx.weak_entity();
@@ -167,15 +168,6 @@ pub(crate) fn sidebar(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             .into_any_element();
     }
     let header = header(model, cx);
-    // Collapsed project rows start flush with the content's top edge; any
-    // higher and the titlebar covers the selected project's ring.
-    let lift = if model.appearance.layout == AppLayout::ProjectFocused
-        && !model.appearance.sidebar_expanded
-    {
-        m.spacing2()
-    } else {
-        px(0.0)
-    };
     let contents = match model.appearance.layout {
         AppLayout::ProjectFocused => project_list(model, cx),
         AppLayout::TabFocused | AppLayout::AgentsFocused => {
@@ -198,8 +190,9 @@ pub(crate) fn sidebar(model: &AppModel, window: &Window, cx: &mut Context<AppMod
                 .min_h(px(0.0))
                 .bg(model.sidebar_background())
                 .map(|sidebar| super::titlebar::top_corners(sidebar, window, true, false))
-                .child(div().h(m.title_bar_height() - lift).flex_none())
+                .child(div().h(m.title_bar_height()).flex_none())
                 .child(header)
+                .child(super::command_center::sidebar_button(model, cx))
                 .child(contents)
                 .children(super::agents_panel::collapsed_button(model, cx)),
         )
@@ -1447,8 +1440,8 @@ fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
                 .flex()
                 .flex_col()
                 .px(if wide { m.spacing3() } else { m.spacing4() })
-                .gap(if wide { m.spacing2() } else { m.spacing3() })
-                .pt(if wide { m.spacing5() } else { m.spacing2() })
+                .gap(m.spacing3())
+                .pt(m.spacing1())
                 .pb(m.spacing3())
                 .when(!wide, Styled::items_center)
                 .children(rows)
@@ -1547,8 +1540,9 @@ fn project_row(
     let wide = model.appearance.sidebar_expanded;
     let id = project.id;
     let missing = project.status() == ProjectStatus::Missing;
-    let active = model.state.current_project().id == id
-        || model.state.current_project().parent_id == Some(id);
+    let active = !model.command_center.active
+        && (model.state.current_project().id == id
+            || model.state.current_project().parent_id == Some(id));
     let has_worktrees = model.has_worktrees(project) && !missing;
     let group = SharedString::from(format!("project-{id}"));
     let hint = shortcut.and_then(|index| {

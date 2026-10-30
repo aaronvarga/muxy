@@ -7,6 +7,7 @@ pub mod agent_sessions;
 pub mod backup;
 pub mod browser;
 pub mod closing;
+pub mod command_center;
 pub mod composer;
 mod divider;
 mod error;

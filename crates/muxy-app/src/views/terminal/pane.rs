@@ -172,6 +172,8 @@ pub(crate) struct TerminalPane {
     #[cfg(target_os = "macos")]
     native_scroll_window: Option<gpui::WindowId>,
     #[cfg(target_os = "macos")]
+    pub(crate) native_scroll_enabled: bool,
+    #[cfg(target_os = "macos")]
     native_sequence: u64,
     pub(super) scrollbar: Scrollbar,
     saved_history: Option<HistoryRequest>,
@@ -319,6 +321,7 @@ impl TerminalPane {
             native_scroll: None,
             #[cfg(target_os = "macos")]
             native_scroll_window: None,
+            native_scroll_enabled: true,
             #[cfg(target_os = "macos")]
             native_sequence: 0,
             scrollbar: Scrollbar::new(cx.background_executor().now()),
@@ -687,6 +690,10 @@ impl TerminalPane {
 
     #[cfg(target_os = "macos")]
     fn setup_native_scroll(&mut self, window: &Window, cx: &mut Context<Self>) {
+        // Native scroll views cannot be clipped by a scrolling dashboard row.
+        if !self.native_scroll_enabled {
+            return;
+        }
         let here = window.window_handle().window_id();
         if self.native_scroll_window != Some(here)
             && let Some(scroll) = &mut self.native_scroll
