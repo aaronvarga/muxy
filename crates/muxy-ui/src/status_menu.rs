@@ -23,6 +23,14 @@ pub struct Entry {
     pub icon: ProjectIcon,
 }
 
+/// Sessions with unread updates or waiting for input, counted once per entry.
+pub fn attention_count(entries: &[Entry]) -> usize {
+    entries
+        .iter()
+        .filter(|entry| entry.attention.is_some())
+        .count()
+}
+
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]

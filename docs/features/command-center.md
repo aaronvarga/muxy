@@ -15,6 +15,9 @@ sessions also name their server. Selecting a row brings that terminal forward,
 reusing its project pane or opening the existing session when detached. Opening
 the menu does not mark sessions read or attach terminal views. The icon remains
 available while Muxy is hidden or minimized, and disappears when the app quits.
+The Dock icon shows a badge counting sessions with either attention status. Each
+session counts once even if it has several unread updates. The badge clears when
+no sessions need attention; a session waiting for input stays counted until it resumes.
 
 Right-click the Command Center sidebar icon and choose **Color** to change its
 background. **Default** follows the theme accent. The selected color is remembered

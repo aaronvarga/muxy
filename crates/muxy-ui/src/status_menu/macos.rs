@@ -7,15 +7,15 @@ use objc2::{
     rc::Retained, sel,
 };
 use objc2_app_kit::{
-    NSAccessibility, NSBezierPath, NSColor, NSCompositingOperation, NSFont, NSFontAttributeName,
-    NSForegroundColorAttributeName, NSImage, NSImageSymbolConfiguration, NSMenu, NSMenuItem,
-    NSSquareStatusItemLength, NSStatusBar, NSStatusItem, NSStringDrawing,
+    NSAccessibility, NSApplication, NSBezierPath, NSColor, NSCompositingOperation, NSFont,
+    NSFontAttributeName, NSForegroundColorAttributeName, NSImage, NSImageSymbolConfiguration,
+    NSMenu, NSMenuItem, NSSquareStatusItemLength, NSStatusBar, NSStatusItem, NSStringDrawing,
 };
 use objc2_foundation::{
     NSData, NSDictionary, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
 };
 
-use super::{Attention, Entry, ProjectIcon};
+use super::{Attention, Entry, ProjectIcon, attention_count};
 use crate::tr;
 
 define_class!(
@@ -84,7 +84,19 @@ impl StatusMenu {
         if self.entries.as_ref() == Some(&entries) {
             return;
         }
-        let attention = entries.iter().any(|entry| entry.attention.is_some());
+        let count = attention_count(&entries);
+        if self
+            .entries
+            .as_ref()
+            .map(|previous| attention_count(previous))
+            != Some(count)
+        {
+            let label = (count > 0).then(|| NSString::from_str(&count.to_string()));
+            NSApplication::sharedApplication(self.mtm)
+                .dockTile()
+                .setBadgeLabel(label.as_deref());
+        }
+        let attention = count > 0;
         if let Some(button) = self.item.button(self.mtm) {
             button.setImage(Some(if attention { &self.red } else { &self.normal }));
             let description = NSString::from_str(&if attention {
@@ -157,6 +169,9 @@ impl StatusMenu {
 
 impl Drop for StatusMenu {
     fn drop(&mut self) {
+        NSApplication::sharedApplication(self.mtm)
+            .dockTile()
+            .setBadgeLabel(None);
         if let Some(menu) = self.item.menu(self.mtm) {
             menu.cancelTracking();
         }
