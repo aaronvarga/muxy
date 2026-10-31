@@ -3,7 +3,7 @@ use super::*;
 use muxy_protocol::{
     ActivityEvent, ActivityKind, ActivitySnapshot, AgentActivity, AgentProvider, AgentState,
 };
-use muxy_ui::status_menu::Attention;
+use muxy_ui::status_menu::{Attention, attention_count};
 
 #[gpui::test]
 fn menu_lists_background_and_detached_sessions_without_attaching_them(cx: &mut TestAppContext) {
@@ -60,11 +60,18 @@ fn menu_lists_background_and_detached_sessions_without_attaching_them(cx: &mut T
                 read: false,
             }],
         };
+        let mut second_update = snapshot.events[0].clone();
+        second_update.id = 2;
+        snapshot.events.push(second_update);
         model.receive_activity(ServerId::local(), Ok(snapshot.clone()), cx);
         let rows = model.status_menu_entries();
         assert_eq!(rows.len(), 3);
+        assert_eq!(
+            attention_count(&rows),
+            2,
+            "count sessions, not unread events"
+        );
         assert!(rows[0].label.contains("Review the estimate"));
-        assert_eq!(rows[0].attention, None);
         assert_eq!(rows[1].attention, Some(Attention::Input));
         assert_eq!(rows[1].icon.glyph, "sf:terminal.fill");
         assert_eq!(
@@ -78,23 +85,26 @@ fn menu_lists_background_and_detached_sessions_without_attaching_them(cx: &mut T
             work,
             Work::Attach { .. } | Work::Detach(_) | Work::Resize(..) | Work::Discard(..)
         )));
-        model.activity_acknowledged(ServerId::local(), &[1], Ok(()), cx);
+        model.activity_acknowledged(ServerId::local(), &[1, 2], Ok(()), cx);
         let rows = model.status_menu_entries();
         assert_eq!(
             rows[1].attention,
             Some(Attention::Input),
             "reading must not clear blocked agents"
         );
-        assert_eq!(rows[2].attention, None);
+        assert_eq!(
+            attention_count(&rows),
+            1,
+            "blocked sessions remain badged after reading"
+        );
         snapshot.revision = 2;
         snapshot.agents[0].state = AgentState::Working;
         snapshot.events.clear();
         model.receive_activity(ServerId::local(), Ok(snapshot), cx);
-        assert!(
-            model
-                .status_menu_entries()
-                .iter()
-                .all(|row| row.attention.is_none())
+        assert_eq!(
+            attention_count(&model.status_menu_entries()),
+            0,
+            "clear the badge once attention is resolved"
         );
     });
 }
@@ -193,8 +203,14 @@ fn menu_keeps_remote_session_ids_separate_and_drops_disconnected_servers(cx: &mu
         assert_eq!(rows[0].attention, None);
         assert_eq!(rows[1].attention, Some(Attention::Input));
         assert!(rows[1].label.contains("box"));
+        assert_eq!(attention_count(&rows), 1);
         model.receive((remote, 1, Update::Event(ClientEvent::Disconnected)), cx);
         assert_eq!(model.status_menu_entries().len(), 1);
+        assert_eq!(
+            attention_count(&model.status_menu_entries()),
+            0,
+            "disconnected sessions must leave the badge count"
+        );
         let before = model.state.clone();
         model.choose_status_session(&rows[1].id, cx);
         assert_eq!(model.state, before);
