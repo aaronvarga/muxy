@@ -433,7 +433,9 @@ pub(super) fn pane_controls(
                     .id(SharedString::from(format!("pane-title-{pane}")))
                     .flex_1()
                     .min_w(px(0.0))
-                    .truncate()
+                    // shortcut: clip long titles; restore ellipsis when GPUI preserves runs across measurements.
+                    .overflow_hidden()
+                    .whitespace_nowrap()
                     .pl(model.metrics.spacing4())
                     .pr(model.metrics.spacing2())
                     .text_size(model.metrics.font_footnote())
