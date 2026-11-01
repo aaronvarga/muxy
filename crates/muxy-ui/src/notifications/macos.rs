@@ -157,6 +157,11 @@ impl Service {
         let delegate: Retained<Delegate> = unsafe { msg_send![super(delegate), init] };
         let center = UNUserNotificationCenter::currentNotificationCenter();
         center.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+        // Dock badges need authorization even before the first notification is delivered.
+        center.requestAuthorizationWithOptions_completionHandler(
+            UNAuthorizationOptions::Badge,
+            &RcBlock::new(|_: Bool, _: *mut NSError| {}),
+        );
         let service = Self {
             center,
             _delegate: delegate,
@@ -195,7 +200,9 @@ impl Service {
         });
         self.center
             .requestAuthorizationWithOptions_completionHandler(
-                UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound,
+                UNAuthorizationOptions::Alert
+                    | UNAuthorizationOptions::Sound
+                    | UNAuthorizationOptions::Badge,
                 &completion,
             );
     }
