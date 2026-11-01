@@ -42,6 +42,10 @@ pub(super) fn top_corners<T: Styled>(element: T, window: &Window, left: bool, ri
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Upstream project launchers and configurable fork titlebar actions"
+)]
 pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppModel>) -> (Div, f32) {
     let project = model.state.current_project();
     let available =
@@ -61,7 +65,7 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             && Some(tab.id) == model.active_tab()
             && (tab.zoomed.is_some() || tab.panes.len() > 1)
     });
-    let split = available && model.active_pane().is_some() && shown(SPLIT);
+    let mut split = available && model.active_pane().is_some() && shown(SPLIT);
     let sessions = !model.command_center.active && shown(SESSIONS);
     let controls = 1
         + u8::from(sessions)
@@ -81,11 +85,20 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         - navigation_width(model, window).max(model.sidebar_width())
         - width
         - window_controls;
-    let project_apps =
-        super::project_apps::control(model, room, window, cx).map(|(control, used)| {
-            width += used;
-            control
-        });
+    let mut project_apps = super::project_apps::control(model, room, window, cx);
+    let minimum_tabs =
+        44.0 + f32::from(model.metrics.control_medium() + model.metrics.spacing2() * 2.0);
+    if split && room - project_apps.as_ref().map_or(0.0, |(_, used)| *used) < minimum_tabs {
+        // Pane split controls remain available when the titlebar needs room for a tab.
+        split = false;
+        let recovered = 2.0 * f32::from(model.metrics.control_medium() + model.metrics.spacing2());
+        width -= recovered;
+        project_apps = super::project_apps::control(model, room + recovered, window, cx);
+    }
+    let project_apps = project_apps.map(|(control, used)| {
+        width += used;
+        control
+    });
     let bar = div()
         .debug_selector(|| "titlebar-actions".into())
         .flex()

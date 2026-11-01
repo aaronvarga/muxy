@@ -661,7 +661,9 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, mpsc};
+    use std::thread;
+    use std::time::Duration;
 
     use muxy_protocol::{Cursor, Modes, Row};
 
@@ -673,7 +675,7 @@ mod tests {
             background: [shade; 3],
             ..TerminalColors::default()
         };
-        let sent = |commands: &std::sync::mpsc::Receiver<crate::session::OwnerEvent>| {
+        let sent = |commands: &mpsc::Receiver<crate::session::OwnerEvent>| {
             commands
                 .try_iter()
                 .filter_map(|event| match event {

@@ -465,6 +465,7 @@ impl AppModel {
                 session: Some(tile.session.info.id),
                 directory,
                 size,
+                colors: None,
                 environment: BTreeMap::new(),
             },
             cx,

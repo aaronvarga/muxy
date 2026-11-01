@@ -759,7 +759,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
     let group = SharedString::from(format!("command-center-tile-{pane}"));
     let artwork = project.map_or_else(
         || IconGlyph::new(Icon::Terminal, m.icon_md(), model.theme.fg_muted).into_any_element(),
-        |project| super::sidebar::project_tile(project, model, group.clone(), m.scaled(26.0)),
+        |project| super::sidebar::project_tile(project, model, m.scaled(26.0), Some(group.clone())),
     );
     div()
         .id(group.clone())

@@ -1008,7 +1008,7 @@ fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
                 .pt(m.spacing1())
                 .pb(m.spacing3())
                 .when(!wide, Styled::items_center)
-.children(rows)
+                .children(rows)
                 .on_children_prepainted(move |bounds, _, _| {
                     measured.borrow_mut().0 = ids
                         .iter()

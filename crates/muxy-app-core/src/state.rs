@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::servers::ServerState;
 use crate::{
-    AppError, Branch, Color, Direction, Divider, Pane, PaneContent, PaneId, Project, ProjectId, ProjectKind,
-    ProjectStatus, RemovedProject, ServerId, Tab, TabId, WindowBounds, WindowState, Workspace,
+    AppError, Branch, Color, Direction, Divider, Pane, PaneContent, PaneId, Project, ProjectId,
+    ProjectKind, ProjectStatus, RemovedProject, ServerId, Tab, TabId, WindowBounds, WindowState,
+    Workspace,
 };
 
 /// The layout this build writes. Versions 1 and 2 kept one server's catalog

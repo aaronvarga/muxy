@@ -36,6 +36,7 @@ impl Feature {
     /// Another computer can pair as `DeviceKind::Computer`, with desktop rights.
     pub const PAIRED_COMPUTERS: Self = Self(3);
     /// Fork capability: projects carry extra folders, and file requests can name one.
+    /// The high range avoids upstream capability IDs, including computer pairing at 3.
     pub const PROJECT_FOLDERS: Self = Self(0x8001);
 }
 

@@ -294,6 +294,48 @@ fn batch_validation_precedes_mutation_and_rejects_overlaps() {
         "original"
     );
 }
+struct Folder(PathBuf);
+
+impl Folder {
+    fn new() -> Self {
+        let path = std::env::temp_dir().join(format!("muxy-folder-{}", OperationId::new()));
+        std::fs::create_dir(&path).unwrap();
+        Self(path.canonicalize().unwrap())
+    }
+}
+
+impl Drop for Folder {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+impl Workspace {
+    fn mutate(&self, mutation: ProjectMutation) -> Result<u64> {
+        self.registry.mutate_project(&ProjectIntent {
+            operation: OperationId::new(),
+            mutation,
+        })
+    }
+
+    fn set_folders(&self, folders: &[&Path]) -> Result<u64> {
+        self.mutate(ProjectMutation::Patch {
+            project: self.project,
+            patch: muxy_protocol::ProjectPatch::Folders(
+                folders.iter().map(|folder| wire_path(folder)).collect(),
+            ),
+        })
+    }
+
+    fn files_in(&self, project: ProjectId, root: &Path, action: FilesAction) -> Result<FilesReply> {
+        self.registry.files(&FilesRequest {
+            project,
+            action,
+            root: Some(wire_path(root)),
+        })
+    }
+}
+
 #[test]
 fn requests_reach_only_listed_folders_and_never_cross_between_them() {
     let workspace = Workspace::new();

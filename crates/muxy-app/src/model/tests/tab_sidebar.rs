@@ -267,7 +267,7 @@ fn the_shown_choice_lasts_the_session_unless_remembered(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
-fn project_rows_are_tab_sized_with_one_line_and_worktrees_line_up(cx: &mut TestAppContext) {
+fn project_rows_follow_icon_size_with_one_line_and_worktrees_line_up(cx: &mut TestAppContext) {
     let (state, root, [worktree, ..], _directory) = pruning_fixture();
     let (view, cx) = open(state, AppLayout::ProjectFocused, cx);
     view.update(cx, |model, cx| {
@@ -276,7 +276,10 @@ fn project_rows_are_tab_sized_with_one_line_and_worktrees_line_up(cx: &mut TestA
     });
     cx.run_until_parked();
     let metrics = view.read_with(cx, |model, _| model.metrics);
-    let row_height = metrics.control_small() + metrics.spacing2() * 2.0;
+    let row_height = view
+        .read_with(cx, |model, _| model.sidebar_icon())
+        .max(metrics.control_small())
+        + metrics.spacing2() * 2.0;
     let index = view.read_with(cx, |model, _| {
         model
             .sidebar_projects()

@@ -337,7 +337,9 @@ fn node(
             second,
         } => (axis, ratio, first, second),
         Layout::Leaf(id) => {
+            let pane = *id;
             return div()
+                .debug_selector(move || format!("pane-frame-{pane}"))
                 .flex()
                 .flex_col()
                 .size_full()

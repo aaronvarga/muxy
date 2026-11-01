@@ -1187,3 +1187,59 @@ fn add_project_lists_only_folders_and_opens_a_tab_in_a_saved_one(cx: &mut TestAp
         assert_eq!(model.state.current_project().tabs.len(), 1);
     });
 }
+
+#[gpui::test]
+fn extra_folder_selection_is_scoped_to_its_picker_and_cannot_leak_into_new_tabs(
+    cx: &mut TestAppContext,
+) {
+    let server = ServerId::new();
+    let project = ProjectId::new();
+    let (boot, requests, _remotes) = remote_boot(
+        AppState::bootstrap().expect("state"),
+        vec![servers::entry(server, "buildbox")],
+    );
+    cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1200.0), px(800.0)));
+    view.update(cx, |model, cx| {
+        model.receive(local(1, Update::Connected(vec![])), cx);
+        acknowledge_catalog(model, cx);
+        servers::connect_remote(model, server, vec![], &[(project, "api")], cx);
+    });
+    let created = Arc::new(Mutex::new(Vec::new()));
+    show_remote_folder_picker(
+        &view,
+        server,
+        Purpose::AddFolder(project),
+        created.clone(),
+        cx,
+    );
+    replace_query(cx, "/srv/Workspace");
+    load_folders(cx);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let before = view.read_with(cx, |model, _| {
+        assert_eq!(
+            model.state.project(project).expect("project").folders,
+            [PathBuf::from("/srv/Workspace")]
+        );
+        assert_eq!(
+            model.state.projects().len(),
+            3,
+            "adding a folder must not add a project"
+        );
+        model.state.clone()
+    });
+    assert!(created.lock().expect("created paths").is_empty());
+    show_remote_folder_picker(&view, server, Purpose::AddFolder(project), created, cx);
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    open_new_tab(cx);
+    assert_eq!(picker_purpose(&view, cx), Some(Purpose::NewTab));
+    view.read_with(cx, |model, _| assert_eq!(model.state, before));
+    assert!(
+        !requests
+            .try_iter()
+            .any(|(_, work)| matches!(work, Work::Attach { session: None, .. }))
+    );
+}

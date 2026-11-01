@@ -414,7 +414,6 @@
 "Connect to the server to create." = "Connect to the server to create.";
 "Connect to this computer's server to copy its pairing link." = "Connect to this computer's server to copy its pairing link.";
 "Connect to this computer's server to manage device access." = "Connect to this computer's server to manage device access.";
-"Connect to the server to manage mobile access." = "Connect to the server to manage mobile access.";
 "Connect to your servers to see their terminals." = "Connect to your servers to see their terminals.";
 "Connected" = "Connected";
 "Connecting…" = "Connecting…";
@@ -604,8 +603,8 @@
 "Draw terminal text with a heavier stroke." = "Draw terminal text with a heavier stroke.";
 "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar." = "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar.";
 "Edit" = "Edit";
-"Edit Paired Server" = "Edit Paired Server";
 "Edit Label…" = "Edit Label…";
+"Edit Paired Server" = "Edit Paired Server";
 "Edit Project Prompt…" = "Edit Project Prompt…";
 "Edit Remote Server" = "Edit Remote Server";
 "Edit in %@" = "Edit in %@";
@@ -875,8 +874,8 @@
 "Looking for the newest release on your update channel." = "Looking for the newest release on your update channel.";
 "MUXY TIP" = "MUXY TIP";
 "Make Default" = "Make Default";
-"Manage Devices…" = "Manage Devices…";
 "Manage Commands…" = "Manage Commands…";
+"Manage Devices…" = "Manage Devices…";
 "Manage Extensions" = "Manage Extensions";
 "Manage Profiles…" = "Manage Profiles…";
 "Manage extension" = "Manage extension";
@@ -960,6 +959,7 @@
 "Name" = "Name";
 "Name (A–Z)" = "Name (A–Z)";
 "Name (Z–A)" = "Name (Z–A)";
+"Needs input" = "Needs input";
 "Needs your attention" = "Needs your attention";
 "Neither" = "Neither";
 "Never connected" = "Never connected";
@@ -1404,9 +1404,8 @@
 "Show Muxy tips at the bottom of the built-in sidebar." = "Show Muxy tips at the bottom of the built-in sidebar.";
 "Show Pairing Code" = "Show Pairing Code";
 "Show Worktrees" = "Show Worktrees";
-"Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer." = "Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer.";
 "Show a button for each custom command below the tabs. Hide single commands from its menu." = "Show a button for each custom command below the tabs. Hide single commands from its menu.";
-"Show a one-time code to scan with the Muxy app." = "Show a one-time code to scan with the Muxy app.";
+"Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer." = "Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer.";
 "Show a persistent home-directory shell with a shortcut." = "Show a persistent home-directory shell with a shortcut.";
 "Show agents panel" = "Show agents panel";
 "Show all" = "Show all";
@@ -1417,9 +1416,9 @@
 "Show how long ago each completed or idle agent finished working." = "Show how long ago each completed or idle agent finished working.";
 "Show idle time" = "Show idle time";
 "Show in File Manager" = "Show in File Manager";
-"Show project colors" = "Show project colors";
 "Show in commands bar" = "Show in commands bar";
 "Show in status bar" = "Show in status bar";
+"Show project colors" = "Show project colors";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
 "Show project names alongside their icons in the workspace sidebar." = "Show project names alongside their icons in the workspace sidebar.";
 "Show status bar" = "Show status bar";

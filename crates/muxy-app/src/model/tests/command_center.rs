@@ -91,9 +91,9 @@ fn command_center_color_menu_saves_and_resets_without_changing_projects(cx: &mut
         (
             "menu-label-Violet",
             muxy_app_core::PROJECT_COLORS[10].1,
-            "✓Default",
+            "Default",
         ),
-        ("menu-label-Default", "", "✓Violet"),
+        ("menu-label-Default", "", "Violet"),
     ] {
         let at = cx
             .debug_bounds("command-center-button")
@@ -104,13 +104,10 @@ fn command_center_color_menu_saves_and_resets_without_changing_projects(cx: &mut
         cx.simulate_mouse_up(at, gpui::MouseButton::Right, Modifiers::default());
         cx.run_until_parked();
         preferences::click_preference(cx, "menu-label-Color");
-        view.read_with(cx, |model, _| {
-            assert!(
-                model.menu_outline()[1]
-                    .iter()
-                    .any(|row| row.trim_start_matches('>') == checked)
-            );
-        });
+        assert!(
+            cx.debug_bounds(format!("menu-checked-{checked}").leak())
+                .is_some()
+        );
         preferences::click_preference(cx, label);
         view.read_with(cx, |model, _| {
             assert!(

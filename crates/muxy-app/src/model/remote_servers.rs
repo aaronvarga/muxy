@@ -41,8 +41,6 @@ pub(crate) enum RemoteIntent {
     Folders(crate::views::project_picker::Purpose),
     /// A terminal tab opens in its Home.
     HomeTab,
-    /// The folder picker adds an extra folder to this project.
-    AddFolder(muxy_app_core::ProjectId),
 }
 
 impl PendingRemote {
@@ -939,7 +937,6 @@ impl AppModel {
         }
         match pending.intent {
             RemoteIntent::Folders(purpose) => self.open_remote_folders(server, purpose, cx),
-            RemoteIntent::AddFolder(project) => self.open_remote_picker(server, Some(project), cx),
             RemoteIntent::HomeTab if self.state.server_home(server).is_some() => {
                 self.new_remote_home_tab(server, cx);
             }
