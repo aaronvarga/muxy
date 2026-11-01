@@ -80,6 +80,9 @@ pre-existing failures from new ones rather than declaring the workspace green.
 - Leave the running app, server, terminals, and installed bundle untouched unless
   the user authorized a local update. If installation is requested, discover live
   identities afresh; never reuse old hardcoded PIDs or overwrite mapped binaries.
+- Launch from a clean environment: automation can inject `NO_COLOR=1`, which
+  propagates through the app and server into every terminal. Remove `NO_COLOR`
+  when launching and verify it is absent from the new server's environment.
 - Report the release/commit, preserved commit count, backup ref, checks and remaining
   limitations. Keep source validation, signed installation, app restart, server
   compatibility, and live visual acceptance as separate claims.
