@@ -284,3 +284,13 @@ fn invalid_values_in_known_requests_stay_fatal() -> Result<(), Box<dyn Error>> {
     }
     Ok(())
 }
+
+#[test]
+fn fork_folder_capability_cannot_alias_upstream_computer_pairing() {
+    assert_ne!(
+        muxy_protocol::Feature::PROJECT_FOLDERS,
+        muxy_protocol::Feature::PAIRED_COMPUTERS
+    );
+    let unique: std::collections::BTreeSet<_> = muxy_protocol::FEATURES.iter().collect();
+    assert_eq!(unique.len(), muxy_protocol::FEATURES.len());
+}

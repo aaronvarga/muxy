@@ -38,6 +38,7 @@ const DIRECTORY_CACHE_ITEMS: usize = 50_000;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Purpose {
     AddProject,
+    AddFolder(muxy_app_core::ProjectId),
     NewTab,
 }
 
@@ -516,6 +517,7 @@ impl ProjectPicker {
             }
             (_, Some(Target::Project(_))) => vec![tr_key!("New Tab")],
             (Purpose::AddProject, None) => vec![add],
+            (Purpose::AddFolder(_), None) => vec![tr_key!("Add Folder")],
             (Purpose::NewTab, None) if self.session.is_existing_project() => {
                 vec![tr_key!("New Tab")]
             }
@@ -642,11 +644,12 @@ impl ProjectPicker {
             return;
         };
         let home_terminal = match self.purpose {
-            Purpose::AddProject if secondary => return,
-            Purpose::AddProject => false,
+            Purpose::AddProject | Purpose::AddFolder(_) if secondary => return,
+            Purpose::AddProject | Purpose::AddFolder(_) => false,
             Purpose::NewTab => !secondary,
         };
-        let create_if_missing = !home_terminal
+        let create_if_missing = !matches!(self.purpose, Purpose::AddFolder(_))
+            && !home_terminal
             && self.session.input_mode() == InputMode::Path
             && (self.remote.is_some()
                 || self.session.typed_path_state() == TypedPathState::Missing);
@@ -768,7 +771,7 @@ impl AppModel {
             .set_skipped_paths(&self.settings.projects.search_skip);
         let paths = self.project_paths(ServerId::local());
         let targets = match purpose {
-            Purpose::AddProject => Registry::default(),
+            Purpose::AddProject | Purpose::AddFolder(_) => Registry::default(),
             Purpose::NewTab => targets::registry(self),
         };
         let picker = cx.new(|cx| {
@@ -794,9 +797,17 @@ impl AppModel {
         self.show_project_picker(ServerId::local(), picker, cx);
     }
 
-    pub(crate) fn open_remote_picker(&mut self, server: ServerId, folder_for: Option<muxy_app_core::ProjectId>, cx: &mut Context<Self>) {
-        self.folder_for = folder_for;
-        self.open_remote_folders(server, Purpose::AddProject, cx);
+    pub(crate) fn open_remote_picker(
+        &mut self,
+        server: ServerId,
+        folder_for: Option<muxy_app_core::ProjectId>,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_remote_folders(
+            server,
+            folder_for.map_or(Purpose::AddProject, Purpose::AddFolder),
+            cx,
+        );
     }
 
     pub(crate) fn open_remote_project_picker(&mut self, server: ServerId, cx: &mut Context<Self>) {
@@ -821,7 +832,7 @@ impl AppModel {
         let (Some((project, home)), true, true, Some(client)) =
             (home, ready, self.confirmed(server), client)
         else {
-            self.pending_remote = Some(PendingRemote::new(server, self.folder_for.map_or(RemoteIntent::Folders(purpose), RemoteIntent::AddFolder)));
+            self.pending_remote = Some(PendingRemote::new(server, RemoteIntent::Folders(purpose)));
             if ready && self.extensions.client(server).is_none() {
                 self.extension_client(server, cx);
             } else {
@@ -1047,7 +1058,16 @@ impl AppModel {
                         );
                     }
                     Ok(Some(TypedPathState::Directory)) => {
-                        model.open_remote_project_path(server, &path, cx);
+                        if let Purpose::AddFolder(project) = picker.read(cx).purpose {
+                            model.push_project_folder(
+                                project,
+                                PathBuf::from(path_service::standardize(&path)),
+                                cx,
+                            );
+                            model.dismiss_overlay(cx);
+                        } else {
+                            model.open_remote_project_path(server, &path, cx);
+                        }
                     }
                     Ok(Some(TypedPathState::Missing | TypedPathState::NotDirectory))
                         if home_terminal =>
@@ -1076,11 +1096,6 @@ impl AppModel {
     /// Adds a folder on another computer; its server checks that it exists.
     fn open_remote_project_path(&mut self, server: ServerId, path: &str, cx: &mut Context<Self>) {
         let path = path_service::standardize(path);
-        if let Some(project) = self.folder_for.take() {
-            self.push_project_folder(project, PathBuf::from(path), cx);
-            self.dismiss_overlay(cx);
-            return;
-        }
         let existing = self.project_at(server, &path);
         if self
             .state

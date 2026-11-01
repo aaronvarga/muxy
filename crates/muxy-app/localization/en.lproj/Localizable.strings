@@ -580,7 +580,6 @@
 "Connect to this computer's server to copy its pairing link." = "Connect to this computer's server to copy its pairing link.";
 "Connect to this computer's server to manage its clients." = "Connect to this computer's server to manage its clients.";
 "Connect to this computer's server to manage device access." = "Connect to this computer's server to manage device access.";
-"Connect to the server to manage mobile access." = "Connect to the server to manage mobile access.";
 "Connect to your servers to see their terminals." = "Connect to your servers to see their terminals.";
 "Connected" = "Connected";
 "Connecting to %@…" = "Connecting to %@…";
@@ -800,6 +799,7 @@
 "Edit %@ with…" = "Edit %@ with…";
 "Edit Paired Server" = "Edit Paired Server";
 "Edit Label…" = "Edit Label…";
+"Edit Paired Server" = "Edit Paired Server";
 "Edit Project Prompt…" = "Edit Project Prompt…";
 "Edit Remote Server" = "Edit Remote Server";
 "Edit in %@" = "Edit in %@";
@@ -1171,6 +1171,7 @@
 "Manage" = "Manage";
 "Manage Devices…" = "Manage Devices…";
 "Manage Commands…" = "Manage Commands…";
+"Manage Devices…" = "Manage Devices…";
 "Manage Extensions" = "Manage Extensions";
 "Manage Profiles…" = "Manage Profiles…";
 "Manage Servers" = "Manage Servers";
@@ -1854,7 +1855,7 @@
 "Show a Muxy tip from time to time in the bottom-right corner of the window." = "Show a Muxy tip from time to time in the bottom-right corner of the window.";
 "Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer." = "Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer.";
 "Show a button for each custom command below the tabs. Hide single commands from its menu." = "Show a button for each custom command below the tabs. Hide single commands from its menu.";
-"Show a one-time code to scan with the Muxy app." = "Show a one-time code to scan with the Muxy app.";
+"Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer." = "Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer.";
 "Show a persistent home-directory shell with a shortcut." = "Show a persistent home-directory shell with a shortcut.";
 "Show agents panel" = "Show agents panel";
 "Show an enabled extension's sidebar in place of the built-in one." = "Show an enabled extension's sidebar in place of the built-in one.";
@@ -1873,6 +1874,7 @@
 "Show project colors" = "Show project colors";
 "Show in commands bar" = "Show in commands bar";
 "Show in status bar" = "Show in status bar";
+"Show project colors" = "Show project colors";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
 "Show project names alongside their icons in the workspace sidebar." = "Show project names alongside their icons in the workspace sidebar.";
 "Show status bar" = "Show status bar";

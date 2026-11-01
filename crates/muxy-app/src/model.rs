@@ -183,7 +183,6 @@ pub(crate) struct AppModel {
     pub(crate) servers_page: crate::views::servers_page::ServersPage,
     pub(crate) pending_remote: Option<PendingRemote>,
     /// The project the open remote picker adds a folder to, if not a project.
-    pub(crate) folder_for: Option<ProjectId>,
     pub(crate) pending_folders: Vec<PathBuf>,
     pub(crate) remote_links: remote_files::RemoteLinks,
     pub(crate) tips: tips::Tips,
@@ -665,7 +664,6 @@ impl AppModel {
             remote_selection_anchor: None,
             servers_page: crate::views::servers_page::ServersPage::new(metrics),
             pending_remote: None,
-            folder_for: None,
             pending_folders: Vec::new(),
             remote_links: remote_files::RemoteLinks::default(),
             tips: tips::Tips::default(),
@@ -3476,7 +3474,6 @@ pub(crate) mod tests {
     mod command_center;
     mod command_center_collapse;
     mod command_center_progress;
-    pub(super) mod extensions;
     mod status_menu;
     mod webviews;
     use muxy_protocol::ExitReason;

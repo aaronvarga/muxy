@@ -293,11 +293,15 @@ impl Item {
                     .justify_center()
                     .w(m.scaled(CHECKMARK))
                     .when(self.checked == Some(true), |mark| {
-                        mark.child(self.part("check").flex().child(SymbolGlyph::new(
-                            "checkmark",
-                            m.font_caption(),
-                            theme.fg,
-                        )))
+                        mark.child(
+                            self.part("check")
+                                .debug_selector({
+                                    let label = self.label.clone();
+                                    move || format!("menu-checked-{label}")
+                                })
+                                .flex()
+                                .child(SymbolGlyph::new("checkmark", m.font_caption(), theme.fg)),
+                        )
                     }),
             )
         })

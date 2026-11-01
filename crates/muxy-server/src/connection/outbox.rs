@@ -170,6 +170,10 @@ impl Outbox {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, mpsc};
+    use std::thread;
+    use std::time::Duration;
+
     use muxy_protocol::{
         Cursor, FileChanges, Modes, ProgressState, ProjectId, Row, ServerPath, SessionId,
         SessionProgress, Size, TerminalProgress, Topic,

@@ -41,6 +41,7 @@ impl Feature {
     /// has a switch for them.
     pub const PUSH_NOTIFICATIONS: Self = Self(5);
     /// Fork capability: projects carry extra folders, and file requests can name one.
+    /// The high range avoids upstream capability IDs, including computer pairing at 3.
     pub const PROJECT_FOLDERS: Self = Self(0x8001);
 }
 
