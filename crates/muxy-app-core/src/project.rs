@@ -143,21 +143,39 @@ pub enum ProjectStatus {
     Missing,
 }
 
-/// The shared palette, by name. Names are English keys, translated where
-/// shown.
-pub const PROJECT_COLORS: [(&str, &str); 12] = [
+/// The palette offered in menus, by name, in hue order. Names are English keys,
+/// translated where shown. New projects draw only from the shared `PALETTE`.
+pub const PROJECT_COLORS: [(&str, &str); 30] = [
     (tr_key!("Red"), PALETTE[0]),
+    (tr_key!("Crimson"), "#e93d82"),
+    (tr_key!("Maroon"), "#9b2335"),
+    (tr_key!("Tomato"), "#e54d2e"),
+    (tr_key!("Coral"), "#ff7f6e"),
     (tr_key!("Orange"), PALETTE[1]),
+    (tr_key!("Brown"), "#ad7f58"),
     (tr_key!("Amber"), PALETTE[2]),
+    (tr_key!("Gold"), "#c9a227"),
     (tr_key!("Yellow"), PALETTE[3]),
+    (tr_key!("Olive"), "#8a8f3a"),
     (tr_key!("Lime"), PALETTE[4]),
+    (tr_key!("Grass"), "#46a758"),
     (tr_key!("Green"), PALETTE[5]),
+    (tr_key!("Jade"), "#29a383"),
+    (tr_key!("Mint"), "#3dd6b0"),
     (tr_key!("Teal"), PALETTE[6]),
     (tr_key!("Cyan"), PALETTE[7]),
+    (tr_key!("Sky"), "#4cc3ff"),
+    (tr_key!("Steel"), "#5b7a99"),
     (tr_key!("Blue"), PALETTE[8]),
+    (tr_key!("Navy"), "#2c3e8f"),
     (tr_key!("Indigo"), PALETTE[9]),
+    (tr_key!("Lavender"), "#9d8cf0"),
     (tr_key!("Violet"), PALETTE[10]),
+    (tr_key!("Plum"), "#ab4aba"),
+    (tr_key!("Magenta"), "#d23ad6"),
     (tr_key!("Pink"), PALETTE[11]),
+    (tr_key!("Slate"), "#64748b"),
+    (tr_key!("Gray"), "#808080"),
 ];
 
 impl Project {

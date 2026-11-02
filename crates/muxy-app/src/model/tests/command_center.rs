@@ -130,7 +130,11 @@ fn command_center_color_menu_saves_and_resets_without_changing_projects(cx: &mut
     for (label, expected, checked) in [
         (
             "menu-label-Violet",
-            muxy_app_core::PROJECT_COLORS[10].1,
+            muxy_app_core::PROJECT_COLORS
+                .iter()
+                .find(|(name, _)| *name == "Violet")
+                .expect("violet")
+                .1,
             "Default",
         ),
         ("menu-label-Default", "", "Violet"),

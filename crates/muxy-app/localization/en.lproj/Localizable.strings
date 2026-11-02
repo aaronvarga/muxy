@@ -355,6 +355,7 @@
 "Bring history, bookmarks, or sign-ins from a browser on this computer." = "Bring history, bookmarks, or sign-ins from a browser on this computer.";
 "Bring your servers in" = "Bring your servers in";
 "Broadcast to Split Panes" = "Broadcast to Split Panes";
+"Brown" = "Brown";
 "Browse" = "Browse";
 "Browse Folders…" = "Browse Folders…";
 "Browse and open your project's files beside your terminals." = "Browse and open your project's files beside your terminals.";
@@ -613,6 +614,7 @@
 "Copy Update Command" = "Copy Update Command";
 "Copy on select" = "Copy on select";
 "Copy selected terminal text to the clipboard as soon as you finish selecting." = "Copy selected terminal text to the clipboard as soon as you finish selecting.";
+"Coral" = "Coral";
 "Could Not Install Command Line Tool" = "Could Not Install Command Line Tool";
 "Could not check for or download the latest app update: %@" = "Could not check for or download the latest app update: %@";
 "Could not check the running process: %@" = "Could not check the running process: %@";
@@ -716,6 +718,7 @@
 "Creating…" = "Creating…";
 "Creditcard" = "Creditcard";
 "Creditcard Fill" = "Creditcard Fill";
+"Crimson" = "Crimson";
 "Crop Logo" = "Crop Logo";
 "Cube" = "Cube";
 "Cube Fill" = "Cube Fill";
@@ -974,6 +977,9 @@
 "Go to step %lld of %lld" = "Go to step %lld of %lld";
 "Google Play" = "Google Play";
 "Got It" = "Got It";
+"Gold" = "Gold";
+"Grass" = "Grass";
+"Gray" = "Gray";
 "Green" = "Green";
 "Grid" = "Grid";
 "Group" = "Group";
@@ -1101,6 +1107,7 @@
 "Its package name changed to %@. Unload it and load the folder again." = "Its package name changed to %@. Unload it and load the folder again.";
 "Its projects and layouts leave this app; nothing on the server changes." = "Its projects and layouts leave this app; nothing on the server changes.";
 "Its saved certificate fingerprint is invalid." = "Its saved certificate fingerprint is invalid.";
+"Jade" = "Jade";
 "Just now" = "Just now";
 "Keep Quick Terminal open and above other windows when it loses focus. Same as its pin button." = "Keep Quick Terminal open and above other windows when it loses focus. Same as its pin button.";
 "Keep Waiting" = "Keep Waiting";
@@ -1128,6 +1135,7 @@
 "Last seen just now" = "Last seen just now";
 "Layout" = "Layout";
 "Layouts you can share" = "Layouts you can share";
+"Lavender" = "Lavender";
 "Layout · columns × rows" = "Layout · columns × rows";
 "Layouts" = "Layouts";
 "Leave the command blank for a terminal, or run a command such as claude \"Review this client\"." = "Leave the command blank for a terminal, or run a command such as claude \"Review this client\".";
@@ -1181,6 +1189,7 @@
 "Made for AI coding agents" = "Made for AI coding agents";
 "Magnifying Glass" = "Magnifying Glass";
 "Make %@ Default" = "Make %@ Default";
+"Magenta" = "Magenta";
 "Make Default" = "Make Default";
 "Make it yours" = "Make it yours";
 "Manage" = "Manage";
@@ -1198,6 +1207,7 @@
 "Manage servers clients remote ssh pairing paired mobile phones computers port qr" = "Manage servers clients remote ssh pairing paired mobile phones computers port qr";
 "Manual Order" = "Manual Order";
 "Mark each agent with the color of the project it runs in." = "Mark each agent with the color of the project it runs in.";
+"Maroon" = "Maroon";
 "Maximize" = "Maximize";
 "Maximize Pane" = "Maximize Pane";
 "Menu" = "Menu";
@@ -1217,6 +1227,8 @@
 "Message Fill" = "Message Fill";
 "Migration" = "Migration";
 "Minimize" = "Minimize";
+"Minimize Window" = "Minimize Window";
+"Mint" = "Mint";
 "Missing application directory" = "Missing application directory";
 "Missing desktop update checksum" = "Missing desktop update checksum";
 "Missing installation directory" = "Missing installation directory";
@@ -1293,6 +1305,7 @@
 "Name" = "Name";
 "Name (A–Z)" = "Name (A–Z)";
 "Name (Z–A)" = "Name (Z–A)";
+"Navy" = "Navy";
 "Needs input" = "Needs input";
 "Needs your attention" = "Needs your attention";
 "Neither" = "Neither";
@@ -1398,6 +1411,7 @@
 "Off. Nothing is sent to muxy.app. Paused phones resume when you turn this on, for %lld more days." = "Off. Nothing is sent to muxy.app. Paused phones resume when you turn this on, for %lld more days.";
 "Official" = "Official";
 "Older sessions" = "Older sessions";
+"Olive" = "Olive";
 "On" = "On";
 "On the other computer, open Settings → Servers, turn on Allow clients, and copy its pairing link. Both computers must reach each other on the network or through a VPN." = "On the other computer, open Settings → Servers, turn on Allow clients, and copy its pairing link. Both computers must reach each other on the network or through a VPN.";
 "Once a day, tells muxy.app the app version, operating system, and processor type, so we can count active installs per version. Nothing identifies you or this computer. Starting Muxy with DO_NOT_TRACK=1 also turns it off." = "Once a day, tells muxy.app the app version, operating system, and processor type, so we can count active installs per version. Nothing identifies you or this computer. Starting Muxy with DO_NOT_TRACK=1 also turns it off.";
@@ -1526,6 +1540,7 @@
 "Play Fill" = "Play Fill";
 "Play Rectangle" = "Play Rectangle";
 "Play Rectangle Fill" = "Play Rectangle Fill";
+"Plum" = "Plum";
 "Points to change the font size by, such as 1." = "Points to change the font size by, such as 1.";
 "Pop Out Panel" = "Pop Out Panel";
 "Popular" = "Popular";
@@ -1919,6 +1934,8 @@
 "Size" = "Size";
 "Skip Tour" = "Skip Tour";
 "Skip whenever you like. You can replay it from the command palette." = "Skip whenever you like. You can replay it from the command palette.";
+"Sky" = "Sky";
+"Slate" = "Slate";
 "Small" = "Small";
 "Snooze Muxy notifications" = "Snooze Muxy notifications";
 "Snooze for 1 hour" = "Snooze for 1 hour";
@@ -1969,6 +1986,7 @@
 "Status" = "Status";
 "Status Bar" = "Status Bar";
 "Stays open when it loses focus" = "Stays open when it loses focus";
+"Steel" = "Steel";
 "Still connecting to %@. Try again in a moment." = "Still connecting to %@. Try again in a moment.";
 "Stop" = "Stop";
 "Stop Always Allowing" = "Stop Always Allowing";
@@ -2162,6 +2180,8 @@
 "Toggle Status Bar" = "Toggle Status Bar";
 "Toggle Tab Pin" = "Toggle Tab Pin";
 "Toggle Worktrees" = "Toggle Worktrees";
+"Toggle Voice Recording" = "Toggle Voice Recording";
+"Tomato" = "Tomato";
 "Top" = "Top";
 "Top padding" = "Top padding";
 "Trackpad scroll speed" = "Trackpad scroll speed";
