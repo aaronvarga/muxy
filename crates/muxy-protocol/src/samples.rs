@@ -495,6 +495,8 @@ fn project_samples() -> Vec<Message> {
         kind: None,
         parent_id: None,
         folders: vec![ServerPath(b"/srv/shared".to_vec())],
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     let operation = OperationId::from_u128(2);
     let mut samples = vec![
@@ -544,6 +546,8 @@ fn project_samples() -> Vec<Message> {
                 projects: vec![ProjectDescriptor {
                     home: true,
                     folders: Vec::new(),
+                    folder_entries: Vec::new(),
+                    auto_subfolders: false,
                     ..project.clone()
                 }],
                 next: None,
@@ -581,7 +585,47 @@ fn project_samples() -> Vec<Message> {
     ];
     samples.extend(changed_samples());
     samples.push(prune_worktree_sample());
+    samples.extend(folder_group_samples());
     samples
+}
+
+fn folder_group_samples() -> Vec<Message> {
+    let entry = crate::FolderEntry {
+        id: crate::FolderEntryId::from_u128(3),
+        name: "Client".into(),
+        directory: ServerPath(b"/tmp/client".to_vec()),
+        command: "claude \"Review this client\"".into(),
+    };
+    let mut group = crate::ProjectDescriptor::new(ServerPath(b"/tmp".to_vec()), []);
+    group.id = crate::ProjectId::from_u128(1);
+    group.name = "Clients".into();
+    group.color = "#808080".into();
+    group.kind = Some(crate::ProjectKind::FolderGroup);
+    group.auto_subfolders = true;
+    group.folder_entries = vec![entry.clone()];
+    [
+        crate::ProjectMutation::Create(group),
+        crate::ProjectMutation::Patch {
+            project: crate::ProjectId::from_u128(1),
+            patch: crate::ProjectPatch::FolderEntries(vec![entry]),
+        },
+        crate::ProjectMutation::Patch {
+            project: crate::ProjectId::from_u128(1),
+            patch: crate::ProjectPatch::FolderSource {
+                directory: ServerPath(b"/tmp/clients".to_vec()),
+                auto_subfolders: true,
+            },
+        },
+    ]
+    .into_iter()
+    .map(|mutation| Message::Request {
+        id: RequestId(7),
+        body: RequestBody::MutateProject(crate::ProjectIntent {
+            operation: crate::OperationId::from_u128(2),
+            mutation,
+        }),
+    })
+    .collect()
 }
 
 fn prune_worktree_sample() -> Message {

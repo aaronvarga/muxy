@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum GridLayout {
     #[default]
     Auto,
+    AutoColumns,
     OneByOne,
     TwoByOne,
     ThreeByOne,
@@ -25,8 +26,9 @@ pub enum GridLayout {
 }
 
 impl GridLayout {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::Auto,
+        Self::AutoColumns,
         Self::OneByOne,
         Self::TwoByOne,
         Self::ThreeByOne,
@@ -45,7 +47,7 @@ impl GridLayout {
 
     pub fn dimensions(self) -> Option<[u8; 2]> {
         Some(match self {
-            Self::Auto => return None,
+            Self::Auto | Self::AutoColumns => return None,
             Self::Custom([columns, rows]) => [columns.clamp(1, 10), rows.clamp(1, 8)],
             Self::OneByOne => [1, 1],
             Self::TwoByOne => [2, 1],
@@ -69,7 +71,8 @@ impl GridLayout {
             Self::Custom([columns, rows]) => {
                 return format!("{} × {}", columns.clamp(1, 10), rows.clamp(1, 8));
             }
-            Self::Auto => "Auto",
+            Self::Auto => "Auto Grid",
+            Self::AutoColumns => "Auto Columns",
             Self::OneByOne => "1 × 1",
             Self::TwoByOne => "2 × 1",
             Self::ThreeByOne => "3 × 1",
@@ -90,10 +93,13 @@ impl GridLayout {
 
     /// `width` and `height` are in unscaled points. Auto favors readable
     /// terminals; excess sessions occupy further scrollable rows.
-    pub fn grid(self, count: usize, width: f32, height: f32) -> [u8; 2] {
+    pub fn grid(self, count: usize, width: f32, height: f32) -> [usize; 2] {
+        if self == Self::AutoColumns {
+            return [count.max(1), 1];
+        }
         if let Some([columns, rows]) = self.dimensions() {
             let needed = count.div_ceil(usize::from(columns));
-            return [columns, rows.max(u8::try_from(needed).unwrap_or(u8::MAX))];
+            return [columns, rows.max(u8::try_from(needed).unwrap_or(u8::MAX))].map(usize::from);
         }
         let mut fallback = [1, 1];
         let mut best = None;
@@ -122,13 +128,25 @@ impl GridLayout {
                 }
             }
         }
-        best.unwrap_or(fallback)
+        best.unwrap_or(fallback).map(usize::from)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auto_columns_keeps_every_session_in_one_row_regardless_of_window_size() {
+        for count in [0, 1, 2, 6, 300] {
+            for (width, height) in [(1200.0, 600.0), (300.0, 900.0)] {
+                assert_eq!(
+                    GridLayout::AutoColumns.grid(count, width, height),
+                    [count.max(1), 1]
+                );
+            }
+        }
+    }
 
     #[test]
     fn grids_preserve_manual_choices_and_keep_large_or_narrow_dashboards_readable() {
@@ -142,7 +160,7 @@ mod tests {
         assert_eq!(GridLayout::FiveByTwo.grid(11, 1600.0, 900.0), [5, 3]);
         assert_eq!(
             GridLayout::FourByTwo.grid(usize::MAX, 1600.0, 900.0),
-            [4, u8::MAX]
+            [4, usize::from(u8::MAX)]
         );
         assert_eq!(GridLayout::Auto.grid(4, 1200.0, 600.0), [2, 2]);
         assert_eq!(GridLayout::Auto.grid(6, 1200.0, 600.0), [3, 2]);

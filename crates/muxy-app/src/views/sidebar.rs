@@ -276,6 +276,7 @@ impl AppModel {
         let mut items = vec![
             Item::action(tr!("Local"), Command::AddProject),
             Item::submenu(tr!("Remote"), devices),
+            Item::action(tr!("Folder Group…"), Command::NewFolderGroup),
         ];
         let removed = self.restorable_projects();
         if !removed.is_empty() {
@@ -294,6 +295,11 @@ impl AppModel {
                     && !self.state.projects().iter().any(|project| {
                         project.server_id == removed.server_id
                             && project.directory == removed.directory
+                            && project.kind == removed.kind
+                            && (!project.is_folder_group()
+                                || (project.name == removed.name
+                                    && project.auto_subfolders == removed.auto_subfolders
+                                    && project.folder_entries == removed.folder_entries))
                     })
             })
             .map(|(index, removed)| {
@@ -1040,6 +1046,7 @@ fn project_row(
         && (model.state.current_project().id == id
             || model.state.current_project().parent_id == Some(id));
     let has_worktrees = model.has_worktrees(project) && !missing;
+    let folder_group = project.is_folder_group();
     let group = SharedString::from(format!("project-{id}"));
     let tile = shortcut
         .and_then(|index| {
@@ -1085,10 +1092,16 @@ fn project_row(
             row.justify_center().size(collapsed_item_size(model))
         })
         .when(missing, |row| row.opacity(0.5))
+        .when(project.is_folder_group() && !missing, |row| {
+            super::project_menu::hover_opens_menu(row, id, cx)
+        })
         .when(!missing, |row| {
             row.cursor_pointer()
                 .on_click(cx.listener(move |model, _, window, cx| {
-                    if active && has_worktrees && wide {
+                    if folder_group {
+                        model.select_project(id, cx);
+                        model.open_folder_group_menu(id, None, window, cx);
+                    } else if active && has_worktrees && wide {
                         model.toggle_worktree_list(id, cx);
                     } else if active && has_worktrees {
                         model.expanded_worktrees.insert(id);
@@ -1112,7 +1125,19 @@ fn project_row(
                 && project.parent_id.is_none()
                 && !missing
                 && model.appearance.sidebar_project_order == ProjectOrder::Manual,
-            |row| row.on_drag(drag, |_, _, _, cx| cx.new(|_| Empty)),
+            |row| {
+                let model = cx.weak_entity();
+                row.on_drag(drag, move |_, _, _, cx| {
+                    // A folder group's hover menu stays open over its row; close it
+                    // so the rows below take the drag.
+                    let _ = model.update(cx, |model, cx| {
+                        if matches!(model.overlay, Some(super::overlays::Overlay::Menu(_))) {
+                            model.dismiss_overlay(cx);
+                        }
+                    });
+                    cx.new(|_| Empty)
+                })
+            },
         )
         .child(tile)
         .when(wide, |row| {

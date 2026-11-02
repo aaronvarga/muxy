@@ -69,6 +69,7 @@ id!(OperationId);
 id!(ClientId);
 id!(ServerIdentity);
 id!(DeviceId);
+id!(FolderEntryId);
 
 use crate::{ErrorCode, ServerPath, SessionId, SessionInfo};
 use unicode_segmentation::UnicodeSegmentation;
@@ -81,7 +82,45 @@ open_enum! {
     #[serde(rename_all = "snake_case")]
     pub enum ProjectKind {
         Worktree = 0,
+        FolderGroup = 0x8001,
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
+pub struct FolderEntry {
+    #[n(0)]
+    pub id: FolderEntryId,
+    #[n(1)]
+    pub name: String,
+    #[n(2)]
+    pub directory: ServerPath,
+    #[n(3)]
+    pub command: String,
+}
+
+impl FolderEntry {
+    pub fn validate(&self) -> Result<(), ErrorCode> {
+        validate_name(&self.name)?;
+        crate::validate_folder_path(&self.directory)?;
+        if self.command.len() > 8192 || self.command.chars().any(char::is_control) {
+            return Err(ErrorCode::BadRequest);
+        }
+        Ok(())
+    }
+}
+
+fn validate_folder_entries(entries: &[FolderEntry]) -> Result<(), ErrorCode> {
+    if entries.len() > 128
+        || entries.iter().enumerate().any(|(index, entry)| {
+            entry.validate().is_err()
+                || entries[index + 1..]
+                    .iter()
+                    .any(|other| other.id == entry.id)
+        })
+    {
+        return Err(ErrorCode::BadRequest);
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -112,6 +151,15 @@ pub struct ProjectDescriptor {
     #[cbor(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub folders: Vec<ServerPath>,
+    /// Saved terminal launchers. Needs `Feature::FOLDER_GROUPS`.
+    #[n(10)]
+    #[cbor(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folder_entries: Vec<FolderEntry>,
+    #[n(11)]
+    #[cbor(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_subfolders: bool,
 }
 
 /// The colors a new project picks from.
@@ -166,6 +214,8 @@ impl ProjectDescriptor {
             kind: None,
             parent_id: None,
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
         }
     }
 
@@ -174,6 +224,16 @@ impl ProjectDescriptor {
         validate_icon(self.icon.as_deref())?;
         validate_color(&self.color)?;
         validate_logo(self.logo.as_deref())?;
+        validate_folder_entries(&self.folder_entries)?;
+        if self.auto_subfolders && self.kind != Some(ProjectKind::FolderGroup) {
+            return Err(ErrorCode::BadRequest);
+        }
+        if (self.kind == Some(ProjectKind::FolderGroup)
+            && (self.parent_id.is_some() || !self.folders.is_empty()))
+            || (!self.folder_entries.is_empty() && self.kind != Some(ProjectKind::FolderGroup))
+        {
+            return Err(ErrorCode::BadRequest);
+        }
         if !self.directory.0.starts_with(b"/")
             || self.directory.0.len() > 4096
             || self.directory.0.contains(&0)
@@ -323,6 +383,15 @@ pub enum ProjectPatch {
     /// Needs `Feature::PROJECT_FOLDERS`.
     #[n(4)]
     Folders(#[n(0)] Vec<ServerPath>),
+    #[n(5)]
+    FolderEntries(#[n(0)] Vec<FolderEntry>),
+    #[n(6)]
+    FolderSource {
+        #[n(0)]
+        directory: ServerPath,
+        #[n(1)]
+        auto_subfolders: bool,
+    },
 }
 
 impl ProjectPatch {
@@ -333,6 +402,8 @@ impl ProjectPatch {
             Self::Color(color) => validate_color(color),
             Self::Logo(logo) => validate_logo(logo.as_deref()),
             Self::Folders(folders) => validate_folders(folders),
+            Self::FolderEntries(entries) => validate_folder_entries(entries),
+            Self::FolderSource { directory, .. } => crate::validate_folder_path(directory),
         }
     }
     pub fn apply(&self, project: &mut ProjectDescriptor) {
@@ -342,6 +413,14 @@ impl ProjectPatch {
             Self::Color(color) => project.color = color.to_ascii_lowercase(),
             Self::Logo(logo) => project.logo.clone_from(logo),
             Self::Folders(folders) => project.folders.clone_from(folders),
+            Self::FolderEntries(entries) => project.folder_entries.clone_from(entries),
+            Self::FolderSource {
+                directory,
+                auto_subfolders,
+            } => {
+                project.directory.clone_from(directory);
+                project.auto_subfolders = *auto_subfolders;
+            }
         }
     }
 }
@@ -479,5 +558,39 @@ impl ProjectSessions {
             crate::validate_path(&session.info.directory)?;
         }
         Ok(())
+    }
+}
+
+/// Whether `folder` lies below an automatic folder group's `root`: at any
+/// depth, but never the root itself or anywhere a `..` step could reach.
+pub fn is_inside_folder_group(folder: &std::path::Path, root: &std::path::Path) -> bool {
+    folder.strip_prefix(root).is_ok_and(|rest| {
+        rest.components().next().is_some()
+            && rest
+                .components()
+                .all(|part| matches!(part, std::path::Component::Normal(_)))
+    })
+}
+
+#[cfg(test)]
+mod folder_group_tests {
+    use super::is_inside_folder_group;
+    use std::path::Path;
+
+    #[test]
+    fn folder_group_access_reaches_any_depth_but_never_escapes_its_root() {
+        let root = Path::new("/clients");
+        assert!(is_inside_folder_group(Path::new("/clients/acme"), root));
+        assert!(is_inside_folder_group(
+            Path::new("/clients/acme/web/src"),
+            root
+        ));
+        assert!(!is_inside_folder_group(root, root));
+        assert!(!is_inside_folder_group(Path::new("/clientsx/acme"), root));
+        assert!(!is_inside_folder_group(
+            Path::new("/clients/acme/../../etc"),
+            root
+        ));
+        assert!(!is_inside_folder_group(Path::new("/etc"), root));
     }
 }

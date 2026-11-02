@@ -91,6 +91,10 @@ pub struct Project {
         with = "crate::catalog::directories"
     )]
     pub folders: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folder_entries: Vec<muxy_protocol::FolderEntry>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_subfolders: bool,
     pub tabs: Vec<Tab>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) groups: Option<crate::TabGroups>,
@@ -108,6 +112,12 @@ pub struct RemovedProject {
     #[serde(default)]
     pub logo: Option<std::sync::Arc<[u8]>>,
     pub color: Color,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<ProjectKind>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folder_entries: Vec<muxy_protocol::FolderEntry>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_subfolders: bool,
 }
 
 impl From<&Project> for RemovedProject {
@@ -119,6 +129,9 @@ impl From<&Project> for RemovedProject {
             icon: project.icon.clone(),
             logo: project.logo.clone(),
             color: project.color.clone(),
+            kind: project.kind,
+            folder_entries: project.folder_entries.clone(),
+            auto_subfolders: project.auto_subfolders,
         }
     }
 }
@@ -148,6 +161,10 @@ pub const PROJECT_COLORS: [(&str, &str); 12] = [
 ];
 
 impl Project {
+    pub fn is_folder_group(&self) -> bool {
+        self.kind == Some(ProjectKind::FolderGroup)
+    }
+
     pub fn status(&self) -> ProjectStatus {
         self.status
     }
@@ -160,6 +177,10 @@ impl Project {
     /// Only this computer's folders can be checked here. Another computer's
     /// projects keep what their server last said.
     pub(crate) fn refresh_status(&mut self) {
+        if self.is_folder_group() {
+            self.status = ProjectStatus::Available;
+            return;
+        }
         if !self.server_id.is_local() {
             return;
         }

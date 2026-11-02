@@ -78,6 +78,7 @@ pub enum AgentSessionsPosition {
 )]
 pub struct Appearance {
     pub layout: AppLayout,
+    pub command_center_group_by_project: bool,
     pub command_center_layout: crate::command_center::GridLayout,
     /// Sidebar icon background; empty follows the theme accent.
     pub command_center_color: String,
@@ -102,6 +103,8 @@ pub struct Appearance {
     pub worktree_recent: Vec<crate::ProjectId>,
     pub project_recent: Vec<crate::ProjectId>,
     pub hidden_worktrees: std::collections::BTreeSet<crate::ProjectId>,
+    /// Folder groups whose automatic subfolders include hidden (dot) folders.
+    pub hidden_subfolders_shown: std::collections::BTreeSet<crate::ProjectId>,
     /// Titlebar buttons the user hid, by key; extension buttons use
     /// `top:<extension>:<item>`.
     pub hidden_titlebar_buttons: std::collections::BTreeSet<String>,
@@ -183,6 +186,7 @@ impl Default for Appearance {
     fn default() -> Self {
         Self {
             layout: AppLayout::default(),
+            command_center_group_by_project: false,
             command_center_layout: crate::command_center::GridLayout::Auto,
             command_center_color: String::new(),
             command_center_order: Vec::new(),
@@ -203,6 +207,7 @@ impl Default for Appearance {
             worktree_recent: Vec::new(),
             project_recent: Vec::new(),
             hidden_worktrees: std::collections::BTreeSet::new(),
+            hidden_subfolders_shown: std::collections::BTreeSet::new(),
             hidden_titlebar_buttons: std::collections::BTreeSet::new(),
             hidden_status_bar_items: std::collections::BTreeSet::new(),
             tab_focused_expanded: std::collections::BTreeMap::new(),

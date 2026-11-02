@@ -39,6 +39,93 @@ fn claims(requests: &std::sync::mpsc::Receiver<(u64, Work)>) -> Vec<Vec<u64>> {
 }
 
 #[gpui::test]
+fn notification_snooze_suppresses_both_delivery_paths_and_replaces_its_timer(
+    cx: &mut TestAppContext,
+) {
+    let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    let simulated = view.update(cx, |model, cx| {
+        let simulated = simulate_notifications(model, cx);
+        model.notifications.inform("before", "Title", "Body");
+        model.snooze_notifications(Some(Duration::from_secs(30 * 60)), cx);
+        model
+            .notifications
+            .deliver("muted-agent", "Title", "Body", None);
+        model
+            .notifications
+            .inform("muted-extension", "Title", "Body");
+        assert_eq!(model.notifications.capability(), Capability::Supported);
+        assert_eq!(simulated.visible(), vec!["before"]);
+        model.notifications.clear(&["before".into()]);
+        assert!(simulated.visible().is_empty());
+        simulated
+    });
+    cx.run_until_parked();
+    cx.executor().advance_clock(Duration::from_secs(10 * 60));
+    view.update(cx, |model, cx| {
+        model.snooze_notifications(Some(Duration::from_secs(60 * 60)), cx);
+    });
+    cx.run_until_parked();
+    cx.executor().advance_clock(Duration::from_secs(20 * 60));
+    cx.run_until_parked();
+    view.update(cx, |model, _| {
+        assert!(model.notifications_snoozed(), "the old timer was cancelled");
+    });
+    cx.executor().advance_clock(Duration::from_secs(40 * 60));
+    cx.run_until_parked();
+    view.update(cx, |model, cx| {
+        assert!(!model.notifications_snoozed());
+        assert!(simulated.visible().is_empty(), "no replay after snoozing");
+        model
+            .notifications
+            .deliver("resumed-agent", "Title", "Body", None);
+        model
+            .notifications
+            .inform("resumed-extension", "Title", "Body");
+        assert_eq!(
+            simulated.visible(),
+            vec!["resumed-agent", "resumed-extension"]
+        );
+        model.snooze_notifications(Some(Duration::from_secs(30 * 60)), cx);
+        model.snooze_notifications(None, cx);
+        assert!(!model.notifications_snoozed());
+        model.notifications.inform("manual-resume", "Title", "Body");
+        assert_eq!(simulated.visible().last().unwrap(), "manual-resume");
+    });
+}
+
+#[gpui::test]
+fn notification_snooze_toolbar_menu_snoozes_and_resumes(cx: &mut TestAppContext) {
+    let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
+    cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        cx.debug_bounds("snooze-notifications")
+            .expect("snooze button")
+            .left(),
+        cx.debug_bounds("titlebar-actions").expect("toolbar").left(),
+        "notifications lead the toolbar"
+    );
+    let click = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        let button = cx
+            .debug_bounds("snooze-notifications")
+            .expect("snooze button")
+            .center();
+        cx.simulate_mouse_down(button, gpui::MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_up(button, gpui::MouseButton::Left, Modifiers::none());
+        cx.run_until_parked();
+    };
+    click(cx);
+    cx.simulate_keystrokes("down enter");
+    view.read_with(cx, |model, _| assert!(model.notifications_snoozed()));
+    click(cx);
+    cx.simulate_keystrokes("down down down enter");
+    view.read_with(cx, |model, _| assert!(!model.notifications_snoozed()));
+}
+
+#[gpui::test]
 fn activity_notifications_identify_the_project_session_and_artwork(cx: &mut TestAppContext) {
     let mut state = AppState::bootstrap().expect("state");
     let home = state.home().id;

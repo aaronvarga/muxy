@@ -1,5 +1,153 @@
 use super::*;
+use gpui::point;
 use muxy_protocol::ErrorCode;
+
+#[gpui::test]
+fn automatic_folder_group_hover_launches_children_and_toggle_off_restores_manual_entries(
+    cx: &mut TestAppContext,
+) {
+    use muxy_protocol::{FolderEntry, FolderEntryId, ServerPath};
+    use std::os::unix::ffi::OsStrExt;
+    let root = tempfile::tempdir().expect("parent");
+    let child = root.path().join("Acme");
+    std::fs::create_dir(&child).expect("child");
+    std::fs::write(root.path().join("notes.txt"), "notes").expect("file");
+    let mut state = AppState::bootstrap().expect("state");
+    let group = state.add_folder_group("Clients").expect("group");
+    state
+        .set_folder_entries(
+            group,
+            vec![FolderEntry {
+                id: FolderEntryId::new(),
+                name: "Manual review".into(),
+                directory: ServerPath(child.as_os_str().as_bytes().to_vec()),
+                command: "claude \"Review this client\"".into(),
+            }],
+        )
+        .expect("manual entry");
+    state
+        .set_folder_group_source(group, root.path().to_owned(), true)
+        .expect("automatic source");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.sidebar_expanded = true;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.run_until_parked();
+    let row = cx.debug_bounds("project-row-1").expect("group row");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("menu-label-Manual review").is_none());
+    assert!(cx.debug_bounds("menu-label-notes.txt").is_none());
+    let folder = cx.debug_bounds("menu-label-Acme").expect("automatic child");
+    cx.simulate_mouse_move(folder.center(), None, Modifiers::none());
+    cx.simulate_click(folder.center(), Modifiers::none());
+    cx.run_until_parked();
+    view.update(cx, |model, _| {
+        let pane = model.state.window().active_pane.expect("pane");
+        assert_eq!(
+            model.state.prepare_creation(pane, root.path()),
+            ServerPath(child.as_os_str().as_bytes().to_vec())
+        );
+        assert_eq!(model.state.startup_command(pane), None);
+    });
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    let toggle = cx
+        .debug_bounds("menu-label-Automatically Show Subfolders")
+        .expect("automatic toggle");
+    cx.simulate_mouse_move(toggle.center(), None, Modifiers::none());
+    cx.simulate_click(toggle.center(), Modifiers::none());
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert!(!model.state.project(group).expect("group").auto_subfolders);
+        assert_eq!(
+            model.state.project(group).expect("group").folder_entries[0].command,
+            "claude \"Review this client\""
+        );
+    });
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    view.update(cx, |model, cx| {
+        model.receive_folder_group_listing(group, root.path(), Ok(vec![child]), cx);
+    });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("menu-label-Manual review").is_some());
+    view.read_with(cx, |model, _| {
+        let Some(Overlay::Menu(menu)) = &model.overlay else {
+            panic!("manual menu");
+        };
+        assert!(menu.folder_group.is_none());
+        assert!(
+            menu.items
+                .iter()
+                .filter_map(crate::views::menu::Item::command)
+                .all(|command| !matches!(command, crate::views::menu::Command::OpenSubfolder(..)))
+        );
+    });
+}
+
+#[gpui::test]
+fn folder_group_hover_launches_the_saved_folder_and_keeps_artwork_controls(
+    cx: &mut TestAppContext,
+) {
+    use muxy_protocol::{FolderEntry, FolderEntryId, ServerPath};
+    use std::os::unix::ffi::OsStrExt;
+    let directory = std::env::temp_dir();
+    let mut state = AppState::bootstrap().expect("state");
+    let group = state.add_folder_group("Clients").expect("group");
+    let entry = FolderEntry {
+        id: FolderEntryId::new(),
+        name: "Review client".into(),
+        directory: ServerPath(directory.as_os_str().as_bytes().to_vec()),
+        command: "claude \"Review this client\"".into(),
+    };
+    state
+        .set_folder_entries(group, vec![entry.clone()])
+        .expect("entry");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.sidebar_expanded = true;
+    cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.run_until_parked();
+    let row = cx.debug_bounds("project-row-1").expect("folder group row");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    let launch = cx
+        .debug_bounds("menu-label-Review client")
+        .expect("saved folder");
+    cx.simulate_mouse_move(launch.center(), None, Modifiers::none());
+    cx.simulate_click(launch.center(), Modifiers::none());
+    cx.run_until_parked();
+    view.update(cx, |model, _| {
+        assert_eq!(model.state.current_project().id, group);
+        assert_eq!(model.state.current_project().tabs.len(), 1);
+        let pane = model.state.window().active_pane.expect("pane");
+        assert_eq!(
+            model.state.prepare_creation(pane, &directory),
+            entry.directory
+        );
+        assert_eq!(
+            model.state.startup_command(pane),
+            Some(entry.command.as_str())
+        );
+    });
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    let project = cx
+        .debug_bounds("menu-label-Project")
+        .expect("project settings");
+    cx.simulate_mouse_move(project.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    let menu = view.read_with(cx, |model, _| match &model.overlay {
+        Some(Overlay::Menu(menu)) => format!("{menu:?}"),
+        _ => "no menu".to_owned(),
+    });
+    assert!(cx.debug_bounds("menu-label-Icon").is_some(), "{menu}");
+    assert!(cx.debug_bounds("menu-label-Color").is_some());
+    let icon = cx.debug_bounds("menu-label-Icon").expect("icon menu");
+    cx.simulate_mouse_move(icon.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("menu-label-Set Logo…").is_some());
+}
 
 #[gpui::test]
 fn logo_picker_uses_the_target_project_directory_and_cancel_keeps_its_logo(
@@ -757,7 +905,7 @@ fn add_project_restores_a_recently_removed_project_with_a_terminal(cx: &mut Test
         let Some(Overlay::Menu(menu)) = &model.overlay else {
             panic!("Add Project menu");
         };
-        assert_eq!(menu.items.len(), 2);
+        assert_eq!(menu.items.len(), 3);
         acknowledge_catalog(model, cx);
         assert!(model.state.removed_projects().is_empty());
     });
@@ -825,6 +973,154 @@ fn restoration_acknowledgements_dismiss_stale_recovery_menus(cx: &mut TestAppCon
         assert_eq!(
             model.state.current_project().directory,
             root.path().join("B")
+        );
+    });
+}
+
+#[gpui::test]
+fn automatic_folder_group_hides_dot_folders_until_shown(cx: &mut TestAppContext) {
+    let root = tempfile::tempdir().expect("parent");
+    let (visible, hidden) = (root.path().join("Acme"), root.path().join(".git"));
+    let mut state = AppState::bootstrap().expect("state");
+    let group = state.add_folder_group("Clients").expect("group");
+    state
+        .set_folder_group_source(group, root.path().to_owned(), true)
+        .expect("automatic source");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.sidebar_expanded = true;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.run_until_parked();
+    let row = cx.debug_bounds("project-row-1").expect("group row");
+    let list = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+        cx.run_until_parked();
+        view.update(cx, |model, cx| {
+            let folders = vec![hidden.clone(), visible.clone()];
+            model.receive_folder_group_listing(group, root.path(), Ok(folders), cx);
+        });
+        cx.run_until_parked();
+    };
+    list(&view, cx);
+    assert!(cx.debug_bounds("menu-label-Acme").is_some());
+    assert!(cx.debug_bounds("menu-label-.git").is_none());
+    let toggle = cx
+        .debug_bounds("menu-label-Show Hidden Folders")
+        .expect("hidden toggle");
+    cx.simulate_mouse_move(toggle.center(), None, Modifiers::none());
+    cx.simulate_click(toggle.center(), Modifiers::none());
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert!(model.appearance.hidden_subfolders_shown.contains(&group));
+    });
+    cx.simulate_mouse_move(point(px(600.0), px(400.0)), None, Modifiers::none());
+    cx.run_until_parked();
+    list(&view, cx);
+    assert!(cx.debug_bounds("menu-label-.git").is_some());
+}
+
+#[gpui::test]
+fn folder_group_with_its_hover_menu_open_can_still_be_dragged(cx: &mut TestAppContext) {
+    let mut state = AppState::bootstrap().expect("state");
+    let group = state.add_folder_group("Clients").expect("group");
+    let other = state
+        .add_project(ServerId::local(), std::env::temp_dir())
+        .expect("project");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.sidebar_expanded = true;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.run_until_parked();
+    let order = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |model, _| {
+            model
+                .listed_parents()
+                .iter()
+                .map(|project| project.id)
+                .filter(|id| [group, other].contains(id))
+                .collect::<Vec<_>>()
+        })
+    };
+    assert_eq!(order(&view, cx), [group, other]);
+    let from = cx
+        .debug_bounds("project-row-1")
+        .expect("group row")
+        .center();
+    let to = cx
+        .debug_bounds("project-row-2")
+        .expect("other row")
+        .center();
+    cx.simulate_mouse_move(from, None, Modifiers::none());
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |model, _| matches!(
+        model.overlay,
+        Some(Overlay::Menu(_))
+    )));
+    cx.simulate_event(gpui::MouseDownEvent {
+        position: from,
+        button: gpui::MouseButton::Left,
+        click_count: 1,
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    for position in [from + point(px(0.0), px(6.0)), to] {
+        cx.simulate_event(gpui::MouseMoveEvent {
+            position,
+            pressed_button: Some(gpui::MouseButton::Left),
+            ..Default::default()
+        });
+        cx.run_until_parked();
+    }
+    cx.simulate_event(gpui::MouseUpEvent {
+        position: to,
+        button: gpui::MouseButton::Left,
+        click_count: 1,
+        ..Default::default()
+    });
+    cx.run_until_parked();
+    assert_eq!(order(&view, cx), [other, group]);
+    assert!(view.read_with(cx, |model, _| model.overlay.is_none()));
+}
+
+#[gpui::test]
+fn hovering_folder_group_subfolders_drills_down_and_clicking_opens_that_folder(
+    cx: &mut TestAppContext,
+) {
+    use muxy_protocol::ServerPath;
+    use std::os::unix::ffi::OsStrExt;
+    let root = tempfile::tempdir().expect("parent");
+    let web = root.path().join("Acme").join("Web");
+    std::fs::create_dir_all(web.join("Src")).expect("nested folders");
+    let mut state = AppState::bootstrap().expect("state");
+    let group = state.add_folder_group("Clients").expect("group");
+    state
+        .set_folder_group_source(group, root.path().to_owned(), true)
+        .expect("automatic source");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.sidebar_expanded = true;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.run_until_parked();
+    let row = cx.debug_bounds("project-row-1").expect("group row");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    let hover = |label: &str, cx: &mut VisualTestContext| {
+        let bounds = cx
+            .debug_bounds(format!("menu-label-{label}").leak())
+            .unwrap_or_else(|| panic!("{label} row"));
+        cx.simulate_mouse_move(bounds.center(), None, Modifiers::none());
+        cx.run_until_parked();
+        bounds
+    };
+    hover("Acme", cx);
+    hover("Web", cx);
+    assert!(cx.debug_bounds("menu-label-Src").is_some());
+    let web_row = hover("Web", cx);
+    cx.simulate_click(web_row.center(), Modifiers::none());
+    cx.run_until_parked();
+    view.update(cx, |model, _| {
+        assert!(model.overlay.is_none());
+        let pane = model.state.window().active_pane.expect("pane");
+        assert_eq!(
+            model.state.prepare_creation(pane, root.path()),
+            ServerPath(web.as_os_str().as_bytes().to_vec())
         );
     });
 }

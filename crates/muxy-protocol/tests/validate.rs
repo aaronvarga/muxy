@@ -221,6 +221,40 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                 ..
             } => ("PruneWorktree", ChannelKind::Control),
             Message::Request {
+                body:
+                    RequestBody::MutateProject(muxy_protocol::ProjectIntent {
+                        mutation: muxy_protocol::ProjectMutation::Create(project),
+                        ..
+                    }),
+                ..
+            } if project.kind == Some(muxy_protocol::ProjectKind::FolderGroup) => {
+                ("CreateFolderGroup", ChannelKind::Control)
+            }
+            Message::Request {
+                body:
+                    RequestBody::MutateProject(muxy_protocol::ProjectIntent {
+                        mutation:
+                            muxy_protocol::ProjectMutation::Patch {
+                                patch: muxy_protocol::ProjectPatch::FolderEntries(_),
+                                ..
+                            },
+                        ..
+                    }),
+                ..
+            } => ("FolderEntries", ChannelKind::Control),
+            Message::Request {
+                body:
+                    RequestBody::MutateProject(muxy_protocol::ProjectIntent {
+                        mutation:
+                            muxy_protocol::ProjectMutation::Patch {
+                                patch: muxy_protocol::ProjectPatch::FolderSource { .. },
+                                ..
+                            },
+                        ..
+                    }),
+                ..
+            } => ("FolderSource", ChannelKind::Control),
+            Message::Request {
                 body: RequestBody::MutateProject(_),
                 ..
             } => ("MutateProject", ChannelKind::Control),
@@ -519,6 +553,9 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "SessionClosed",
             "ReadCatalog",
             "MutateProject",
+            "CreateFolderGroup",
+            "FolderEntries",
+            "FolderSource",
             "PruneWorktree",
             "ListProjectSessions",
             "CancelCreation",

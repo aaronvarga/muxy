@@ -109,7 +109,9 @@ impl AppModel {
 
     pub(crate) fn tab_sidebar_projects(&self) -> (Vec<&Project>, usize) {
         let listed = |project: &&Project| {
-            self.appearance.sidebar_focus || self.sidebar_tabs(project).next().is_some()
+            self.appearance.sidebar_focus
+                || project.is_folder_group()
+                || self.sidebar_tabs(project).next().is_some()
         };
         let mut projects = self.sidebar_projects();
         let without_tabs = projects.iter().filter(|project| !listed(project)).count();
@@ -298,6 +300,9 @@ fn project_header(project: &Project, model: &AppModel, cx: &mut Context<AppModel
         .items_center()
         .gap(m.spacing3())
         .when(missing, |row| row.opacity(0.5))
+        .when(project.is_folder_group() && !missing, |row| {
+            super::project_menu::hover_opens_menu(row, id, cx)
+        })
         .on_mouse_down(
             MouseButton::Right,
             cx.listener(move |model, event: &gpui::MouseDownEvent, window, cx| {

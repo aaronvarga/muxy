@@ -46,7 +46,11 @@ impl AppState {
     pub fn check_restore_directories(&self, current: &Self) -> Result<()> {
         let matched = self.match_restore_projects(current);
         for project in self.local_projects() {
-            if !project.home && !matched.contains_key(&project.id) && !project.directory.is_dir() {
+            if !project.home
+                && !project.is_folder_group()
+                && !matched.contains_key(&project.id)
+                && !project.directory.is_dir()
+            {
                 return Err(format!("Project folder unavailable: {} ({}). Make this folder available before importing the backup.", project.name, project.directory.display()).into());
             }
         }
@@ -81,6 +85,8 @@ impl AppState {
             }
             if let Some(existing) = current.local_projects().find(|candidate| {
                 !candidate.home
+                    && !candidate.is_folder_group()
+                    && !project.is_folder_group()
                     && candidate.directory == project.directory
                     && !claimed.contains(&candidate.id)
             }) {
@@ -113,7 +119,9 @@ impl AppState {
             project.id = ids[&project.id];
             project.parent_id = project.parent_id.map(|id| ids[&id]);
             if let Some(existing) = current.project(project.id) {
-                project.directory.clone_from(&existing.directory);
+                if !project.is_folder_group() {
+                    project.directory.clone_from(&existing.directory);
+                }
                 project.kind = existing.kind;
                 project.parent_id = existing.parent_id;
             }
@@ -241,6 +249,24 @@ impl AppState {
                             ProjectPatch::Folders(project.descriptor().folders),
                         )
                     }),
+                    (project.folder_entries != previous.folder_entries).then(|| {
+                        (
+                            project.id,
+                            ProjectPatch::FolderEntries(project.folder_entries.clone()),
+                        )
+                    }),
+                    (project.is_folder_group()
+                        && (project.directory != previous.directory
+                            || project.auto_subfolders != previous.auto_subfolders))
+                        .then(|| {
+                            (
+                                project.id,
+                                ProjectPatch::FolderSource {
+                                    directory: project.descriptor().directory,
+                                    auto_subfolders: project.auto_subfolders,
+                                },
+                            )
+                        }),
                 ]
                 .into_iter()
                 .flatten()
@@ -272,7 +298,7 @@ impl AppState {
                 }
                 continue;
             }
-            if !project.directory.is_dir() {
+            if !project.is_folder_group() && !project.directory.is_dir() {
                 continue;
             }
             let parent = match project.parent_id {
@@ -537,6 +563,8 @@ fn legacy_project(
         kind: None,
         parent_id: None,
         folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
         tabs: Vec::new(),
         groups: None,
         status: ProjectStatus::Available,
@@ -694,6 +722,8 @@ fn legacy_worktree(id: ProjectId, value: &Value, parent: &Project) -> Result<Pro
         kind: Some(crate::ProjectKind::Worktree),
         parent_id: Some(parent.id),
         folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
         tabs: Vec::new(),
         groups: None,
         status: ProjectStatus::Available,

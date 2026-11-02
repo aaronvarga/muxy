@@ -101,6 +101,17 @@ impl Registry {
             return self.git_worktree(request.project, intent);
         }
         let project = self.catalog.project(request.project)?;
+        if project.kind == Some(ProjectKind::FolderGroup) {
+            return if matches!(request.action, GitAction::Summary | GitAction::Watch) {
+                if request.action == GitAction::Summary {
+                    Ok(GitReply::Summary(None))
+                } else {
+                    Ok(GitReply::Done)
+                }
+            } else {
+                Err(error("Folder groups do not have a Git repository"))
+            };
+        }
         let directory = path(&project.directory);
         if !directory.is_dir() {
             return Err(error("Project directory is missing"));

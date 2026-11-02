@@ -1,4 +1,4 @@
-//! Native delivery only; notification history and policy belong to callers.
+//! Native delivery and temporary snoozing; notification history belongs to callers.
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -40,16 +40,16 @@ enum Backend {
 }
 
 #[derive(Debug)]
-pub struct Notifications(Backend);
+pub struct Notifications(Backend, bool);
 
 impl Notifications {
     /// Starts the platform's notification service, and the events it reports.
     pub fn start() -> (Self, Receiver<Event>) {
         match Service::start() {
-            Ok((service, events)) => (Self(Backend::Native(service)), events),
+            Ok((service, events)) => (Self(Backend::Native(service), false), events),
             Err(capability) => {
                 let (_, events) = async_channel::bounded(1);
-                (Self(Backend::Absent(capability)), events)
+                (Self(Backend::Absent(capability), false), events)
             }
         }
     }
@@ -58,10 +58,22 @@ impl Notifications {
     #[cfg(any(test, feature = "test-support"))]
     pub fn absent() -> (Self, Receiver<Event>) {
         let (_, events) = async_channel::bounded(1);
-        (Self(Backend::Absent(Capability::Unsupported)), events)
+        (
+            Self(Backend::Absent(Capability::Unsupported), false),
+            events,
+        )
     }
 
-    /// Whether a notification delivered now would reach the user.
+    /// Suppresses new desktop notifications without changing system permissions.
+    pub fn set_snoozed(&mut self, snoozed: bool) {
+        self.1 = snoozed;
+    }
+
+    pub fn is_snoozed(&self) -> bool {
+        self.1
+    }
+
+    /// System delivery capability, independent of temporary snoozing.
     pub fn capability(&self) -> Capability {
         match &self.0 {
             Backend::Native(service) => service.capability(),
@@ -88,6 +100,9 @@ impl Notifications {
         body: &str,
         icon: Option<&crate::status_menu::ProjectIcon>,
     ) {
+        if self.is_snoozed() {
+            return;
+        }
         match &self.0 {
             Backend::Native(service) => {
                 #[cfg(target_os = "macos")]
@@ -106,6 +121,9 @@ impl Notifications {
 
     /// Shows a notification that only informs, with nothing for the user to open.
     pub fn inform(&self, id: &str, title: &str, body: &str) {
+        if self.is_snoozed() {
+            return;
+        }
         match &self.0 {
             Backend::Native(service) => service.inform(id, title, body),
             #[cfg(any(test, feature = "test-support"))]
@@ -140,7 +158,7 @@ impl SimulatedNotifications {
             events: sender,
         };
         (
-            Notifications(Backend::Simulated(simulated.clone())),
+            Notifications(Backend::Simulated(simulated.clone()), false),
             events,
             simulated,
         )

@@ -27,6 +27,8 @@ pub(super) fn descriptor(id: ProjectId, home: bool, name: &str) -> ProjectDescri
         kind: None,
         parent_id: None,
         folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     }
 }
 

@@ -169,7 +169,7 @@ fn collapsing_tiles_keeps_sessions_and_attention_without_live_hidden_views(
         assert_eq!(model.state, before);
     });
     view.update(cx, |model, cx| {
-        model.close_command_center(cx);
+        model.select_project(model.state.current_project().id, cx);
         model.open_command_center(cx);
         model.sync_command_center(cx);
         model.set_command_center_layout(GridLayout::Auto, cx);

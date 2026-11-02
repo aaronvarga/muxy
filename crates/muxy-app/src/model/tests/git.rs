@@ -222,6 +222,8 @@ fn worktree_form_reviews_hooks_validates_templates_and_saves_the_submitted_locat
         kind: Some(muxy_protocol::ProjectKind::Worktree),
         parent_id: Some(project),
         folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     view.update(cx, |model, cx| {
         assert!(

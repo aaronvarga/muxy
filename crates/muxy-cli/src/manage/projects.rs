@@ -493,6 +493,8 @@ mod tests {
             kind: None,
             parent_id: None,
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
         }
     }
 

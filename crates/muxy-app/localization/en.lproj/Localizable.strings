@@ -103,6 +103,7 @@
 "AI worker stopped" = "AI worker stopped";
 "ANSI colors" = "ANSI colors";
 "Action" = "Action";
+"Active" = "Active";
 "Active pane" = "Active pane";
 "Active sidebar" = "Active sidebar";
 "Active system-wide" = "Active system-wide";
@@ -184,6 +185,8 @@
 "Attachment paths must be absolute UTF-8 paths" = "Attachment paths must be absolute UTF-8 paths";
 "Audio capture is unavailable" = "Audio capture is unavailable";
 "Auto" = "Auto";
+"Auto Columns" = "Auto Columns";
+"Auto Grid" = "Auto Grid";
 "Auto · %@" = "Auto · %@";
 "Auto · None installed" = "Auto · None installed";
 "Automatic updates are available in installed releases of %@" = "Automatic updates are available in installed releases of %@";
@@ -192,6 +195,7 @@
 "Automatic updates require a user-installed Linux desktop release" = "Automatic updates require a user-installed Linux desktop release";
 "Automatic updates require an installed %@.app" = "Automatic updates require an installed %@.app";
 "Automatic updates require an installed release of %@" = "Automatic updates require an installed release of %@";
+"Automatically Show Subfolders" = "Automatically Show Subfolders";
 "Back" = "Back";
 "Background" = "Background";
 "Background color" = "Background color";
@@ -283,6 +287,8 @@
 "Choose Icon…" = "Choose Icon…";
 "Choose Logo" = "Choose Logo";
 "Choose Muxy backup or 1.x settings.json" = "Choose Muxy backup or 1.x settings.json";
+"Choose Parent Folder" = "Choose Parent Folder";
+"Choose Parent Folder…" = "Choose Parent Folder…";
 "Choose Tab Focused from the layout menu at the top of the expanded sidebar to list every project's tabs there. By default, ⌘1–⌘9 then select tabs across projects." = "Choose Tab Focused from the layout menu at the top of the expanded sidebar to list every project's tabs there. By default, ⌘1–⌘9 then select tabs across projects.";
 "Choose a .muxy backup or a 1.x settings.json file. Review the import before applying it on the next launch." = "Choose a .muxy backup or a 1.x settings.json file. Review the import before applying it on the next launch.";
 "Choose a PNG, JPEG, GIF, or WebP image up to 8192 pixels and 64 MB decoded." = "Choose a PNG, JPEG, GIF, or WebP image up to 8192 pixels and 64 MB decoded.";
@@ -294,6 +300,7 @@
 "Choose a readable multilingual GGML voice model in Settings → Composer." = "Choose a readable multilingual GGML voice model in Settings → Composer.";
 "Choose a supported dictation language in Settings → Composer." = "Choose a supported dictation language in Settings → Composer.";
 "Choose a target branch that exists on the remote" = "Choose a target branch that exists on the remote";
+"Choose an existing absolute folder path." = "Choose an existing absolute folder path.";
 "Choose an existing folder for the terminal." = "Choose an existing folder for the terminal.";
 "Choose an existing folder, or use Create & Add Project." = "Choose an existing folder, or use Create & Add Project.";
 "Choose an extension folder containing package.json or a built dist folder" = "Choose an extension folder containing package.json or a built dist folder";
@@ -412,6 +419,7 @@
 "Connect to the server first" = "Connect to the server first";
 "Connect to the server so Muxy can check whether terminal sessions can be preserved." = "Connect to the server so Muxy can check whether terminal sessions can be preserved.";
 "Connect to the server to create." = "Connect to the server to create.";
+"Connect to the server to list folders." = "Connect to the server to list folders.";
 "Connect to this computer's server to copy its pairing link." = "Connect to this computer's server to copy its pairing link.";
 "Connect to this computer's server to manage device access." = "Connect to this computer's server to manage device access.";
 "Connect to your servers to see their terminals." = "Connect to your servers to see their terminals.";
@@ -446,6 +454,7 @@
 "Could not install the update: %@" = "Could not install the update: %@";
 "Could not install update (%@) or restore the previous app (%@). The previous app is at %@" = "Could not install update (%@) or restore the previous app (%@). The previous app is at %@";
 "Could not install update; the previous app was restored: %@" = "Could not install update; the previous app was restored: %@";
+"Could not list folders: %@" = "Could not list folders: %@";
 "Could not load .muxy/layouts: %@" = "Could not load .muxy/layouts: %@";
 "Could not load layout “%@”: %@" = "Could not load layout “%@”: %@";
 "Could not load logo: %@" = "Could not load logo: %@";
@@ -603,6 +612,7 @@
 "Draw terminal text with a heavier stroke." = "Draw terminal text with a heavier stroke.";
 "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar." = "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar.";
 "Edit" = "Edit";
+"Edit Folder" = "Edit Folder";
 "Edit Label…" = "Edit Label…";
 "Edit Paired Server" = "Edit Paired Server";
 "Edit Project Prompt…" = "Edit Project Prompt…";
@@ -690,6 +700,9 @@
 "Focus Project" = "Focus Project";
 "Focused Project" = "Focused Project";
 "Folder" = "Folder";
+"Folder Group…" = "Folder Group…";
+"Folder Path" = "Folder Path";
+"Folder groups require an updated, connected local server." = "Folder groups require an updated, connected local server.";
 "Folder is empty" = "Folder is empty";
 "Folder is required." = "Folder is required.";
 "Folders" = "Folders";
@@ -716,6 +729,7 @@
 "Green" = "Green";
 "Group" = "Group";
 "Group Actions" = "Group Actions";
+"Group by Project" = "Group by Project";
 "Has an update" = "Has an update";
 "Height" = "Height";
 "Height in pixels for a new workspace window when no saved bounds exist." = "Height in pixels for a new workspace window when no saved bounds exist.";
@@ -835,9 +849,9 @@
 "Last seen %lld h ago" = "Last seen %lld h ago";
 "Last seen %lld min ago" = "Last seen %lld min ago";
 "Last seen just now" = "Last seen just now";
-"Layout" = "Layout";
 "Layout · columns × rows" = "Layout · columns × rows";
 "Layouts" = "Layouts";
+"Leave the command blank for a terminal, or run a command such as claude \"Review this client\"." = "Leave the command blank for a terminal, or run a command such as claude \"Review this client\".";
 "Left" = "Left";
 "Let paired phones and computers reach this computer's server over the local network or a VPN. A paired phone gets full terminal access; a paired computer can also run commands and change or stop this server." = "Let paired phones and computers reach this computer's server over the local network or a VPN. A paired phone gets full terminal access; a paired computer can also run commands and change or stop this server.";
 "Let the desktop show through the terminal background." = "Let the desktop show through the terminal background.";
@@ -876,6 +890,7 @@
 "Make Default" = "Make Default";
 "Manage Commands…" = "Manage Commands…";
 "Manage Devices…" = "Manage Devices…";
+"Manage Entries" = "Manage Entries";
 "Manage Extensions" = "Manage Extensions";
 "Manage Profiles…" = "Manage Profiles…";
 "Manage extension" = "Manage extension";
@@ -940,6 +955,7 @@
 "Muxy can open copies only of files in %@'s projects and Home." = "Muxy can open copies only of files in %@'s projects and Home.";
 "Muxy is already running but did not answer: %@" = "Muxy is already running but did not answer: %@";
 "Muxy is quitting" = "Muxy is quitting";
+"Muxy notifications snoozed" = "Muxy notifications snoozed";
 "Muxy on %@ can't receive files. Update Muxy there." = "Muxy on %@ can't receive files. Update Muxy there.";
 "Muxy on %@ is %@" = "Muxy on %@ is %@";
 "Muxy on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x muxy-server" = "Muxy on %@ is %@, but its running server is another version. Restart it there, which ends its terminals: pkill -x muxy-server";
@@ -966,6 +982,7 @@
 "New Branch" = "New Branch";
 "New Branch…" = "New Branch…";
 "New Browser Tab" = "New Browser Tab";
+"New Folder Group" = "New Folder Group";
 "New Group" = "New Group";
 "New Group…" = "New Group…";
 "New Home Tab" = "New Home Tab";
@@ -1030,6 +1047,7 @@
 "No shortcut assigned" = "No shortcut assigned";
 "No speech detected. Try again or press Esc to close." = "No speech detected. Try again or press Esc to close.";
 "No speech detected. Try dictation again." = "No speech detected. Try dictation again.";
+"No subfolders found" = "No subfolders found";
 "No symbols found" = "No symbols found";
 "No tabs in %@" = "No tabs in %@";
 "No update for this platform" = "No update for this platform";
@@ -1042,6 +1060,7 @@
 "Not supported" = "Not supported";
 "Notes about imported terminal settings. Your original configuration is preserved." = "Notes about imported terminal settings. Your original configuration is preserved.";
 "Nothing is staged. Stage changes first or include unstaged changes." = "Nothing is staged. Stage changes first or include unstaged changes.";
+"Notifications" = "Notifications";
 "Notifications are turned off for Muxy in System Settings." = "Notifications are turned off for Muxy in System Settings.";
 "OK" = "OK";
 "Off" = "Off";
@@ -1062,6 +1081,7 @@
 "Open Quick Terminal" = "Open Quick Terminal";
 "Open Quick Terminal settings" = "Open Quick Terminal settings";
 "Open Settings" = "Open Settings";
+"Open Subfolders…" = "Open Subfolders…";
 "Open a Copy" = "Open a Copy";
 "Open a live terminal before sending." = "Open a live terminal before sending.";
 "Open a live terminal before starting dictation." = "Open a live terminal before starting dictation.";
@@ -1108,6 +1128,7 @@
 "Pairing link copied" = "Pairing link copied";
 "Pairing… It is saved when it finishes, even if you close this form." = "Pairing… It is saved when it finishes, even if you close this form.";
 "Parent Directory" = "Parent Directory";
+"Parent Folder" = "Parent Folder";
 "Password" = "Password";
 "Password for %@" = "Password for %@";
 "Password needed" = "Password needed";
@@ -1281,13 +1302,13 @@
 "Resume" = "Resume";
 "Resume Dictation" = "Resume Dictation";
 "Resume in a new terminal" = "Resume in a new terminal";
+"Resume notifications" = "Resume notifications";
 "Retained terminal history, from 0 to 65536 MiB. Saved-history changes take effect at the next server start." = "Retained terminal history, from 0 to 65536 MiB. Saved-history changes take effect at the next server start.";
 "Retry" = "Retry";
 "Retry app update" = "Retry app update";
 "Retry connection" = "Retry connection";
 "Retry server update" = "Retry server update";
 "Return every setting on this page, including key bindings, to its default." = "Return every setting on this page, including key bindings, to its default.";
-"Return to Project" = "Return to Project";
 "Return to live output when sending a keystroke." = "Return to live output when sending a keystroke.";
 "Return to live output whenever the terminal receives new text." = "Return to live output whenever the terminal receives new text.";
 "Reveal audit log" = "Reveal audit log";
@@ -1317,6 +1338,7 @@
 "Same as App" = "Same as App";
 "Save" = "Save";
 "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file.";
+"Saved Folders" = "Saved Folders";
 "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes." = "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes.";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
@@ -1399,6 +1421,7 @@
 "Show All" = "Show All";
 "Show All Projects" = "Show All Projects";
 "Show Commands Bar" = "Show Commands Bar";
+"Show Hidden Folders" = "Show Hidden Folders";
 "Show Hidden Project" = "Show Hidden Project";
 "Show Muxy Tip" = "Show Muxy Tip";
 "Show Muxy tips at the bottom of the built-in sidebar." = "Show Muxy tips at the bottom of the built-in sidebar.";
@@ -1434,6 +1457,10 @@
 "Sidebar vibrancy level" = "Sidebar vibrancy level";
 "Size" = "Size";
 "Small" = "Small";
+"Snooze Muxy notifications" = "Snooze Muxy notifications";
+"Snooze for 1 hour" = "Snooze for 1 hour";
+"Snooze for 30 minutes" = "Snooze for 30 minutes";
+"Snoozed" = "Snoozed";
 "Some history exceeds the scan limit." = "Some history exceeds the scan limit.";
 "Some projects unavailable" = "Some projects unavailable";
 "Space" = "Space";
@@ -1453,6 +1480,7 @@
 "Start new splits in the project folder or the current pane's working directory." = "Start new splits in the project folder or the current pane's working directory.";
 "Starting" = "Starting";
 "Starting the server and reconnecting to Muxy." = "Starting the server and reconnecting to Muxy.";
+"Startup Command (optional)" = "Startup Command (optional)";
 "Status" = "Status";
 "Stays open when it loses focus" = "Stays open when it loses focus";
 "Still connecting to %@. Try again in a moment." = "Still connecting to %@. Try again in a moment.";
@@ -1580,6 +1608,7 @@
 "This computer's server is from an older Muxy and starts terminals without the proxy. Restart the server to update it." = "This computer's server is from an older Muxy and starts terminals without the proxy. Restart the server to update it.";
 "This desktop has no file chooser service. Install xdg-desktop-portal and its backend for your desktop." = "This desktop has no file chooser service. Install xdg-desktop-portal and its backend for your desktop.";
 "This extension is up to date." = "This extension is up to date.";
+"This folder entry was removed." = "This folder entry was removed.";
 "This is not a released version" = "This is not a released version";
 "This language is unavailable for speech recognition" = "This language is unavailable for speech recognition";
 "This link has expired or was already used. Copy a new one from the other computer." = "This link has expired or was already used. Copy a new one from the other computer.";
@@ -1686,6 +1715,7 @@
 "Use SSH config or agent" = "Use SSH config or agent";
 "Use Save to keep command edits. Shortcut changes apply immediately." = "Use Save to keep command edits. Shortcut changes apply immediately.";
 "Use Theme" = "Use Theme";
+"Use a name and a single-line startup command." = "Use a name and a single-line startup command.";
 "Use a port from 1 to 65535" = "Use a port from 1 to 65535";
 "Use a port from 1024 to 65535" = "Use a port from 1024 to 65535";
 "Use a specific font for a Unicode range, such as U+E000-U+F8FF for icons." = "Use a specific font for a Unicode range, such as U+E000-U+F8FF for icons.";

@@ -61,6 +61,9 @@ impl Registry {
         invalidated: impl Fn() + Send + 'static,
     ) -> Result<Option<RepositoryWatch>> {
         let project = self.catalog.project(project)?;
+        if project.kind == Some(muxy_protocol::ProjectKind::FolderGroup) {
+            return Ok(None);
+        }
         let directory = path(&project.directory);
         if !directory.is_dir() || !is_repository(directory)? {
             return Ok(None);

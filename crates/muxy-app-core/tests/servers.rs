@@ -54,6 +54,8 @@ fn remote_catalog(identity: u128, home: ProjectId, projects: &[(ProjectId, &str)
         kind: None,
         parent_id: None,
         folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     CatalogPage {
         server: ServerIdentity::from_u128(identity),

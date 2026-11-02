@@ -1,8 +1,8 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    AnyElement, App, AppContext, Context, Div, ElementId, InteractiveElement, IntoElement,
-    MouseButton, ParentElement, SharedString, Stateful, StatefulInteractiveElement, Styled, Window,
-    div, px,
+    AnyElement, App, AppContext, Context, Div, ElementId, FontWeight, InteractiveElement,
+    IntoElement, MouseButton, ParentElement, SharedString, Stateful, StatefulInteractiveElement,
+    Styled, Window, div, px,
 };
 use muxy_ui::components::{IconGlyph, Tooltip};
 use muxy_ui::icon::Icon;
@@ -67,6 +67,7 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
     });
     let mut split = available && model.active_pane().is_some() && shown(SPLIT);
     let sessions = !model.command_center.active && shown(SESSIONS);
+    let notifications = shown(NOTIFICATIONS);
     let controls = 1
         + u8::from(sessions)
         + 2 * u8::from(split)
@@ -81,6 +82,20 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
     let window_controls = linux::controls_width(window);
     #[cfg(not(target_os = "linux"))]
     let window_controls = 0.0;
+    let notification_named = f32::from(content_size(window).width)
+        - navigation_width(model, window).max(model.sidebar_width())
+        - width
+        - window_controls
+        >= f32::from(model.metrics.scaled(NOTIFICATIONS_WIDTH + 160.0));
+    if notifications {
+        width += f32::from(
+            if notification_named {
+                model.metrics.scaled(NOTIFICATIONS_WIDTH)
+            } else {
+                model.metrics.control_medium()
+            } + model.metrics.spacing2(),
+        );
+    }
     let room = f32::from(content_size(window).width)
         - navigation_width(model, window).max(model.sidebar_width())
         - width
@@ -105,6 +120,9 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         .flex_none()
         .items_center()
         .when(cfg!(target_os = "linux"), Styled::h_full)
+        .when(notifications, |bar| {
+            bar.child(notifications_button(model, notification_named, cx))
+        })
         .children(project_apps)
         .on_mouse_down(
             MouseButton::Right,
@@ -175,6 +193,100 @@ const SPLIT: &str = "split";
 const ZOOM: &str = "zoom";
 const LAYOUTS: &str = "layouts";
 const SESSIONS: &str = "agent_sessions";
+const NOTIFICATIONS: &str = "notifications";
+const NOTIFICATIONS_WIDTH: f32 = 112.0;
+
+fn notifications_button(
+    model: &AppModel,
+    named: bool,
+    cx: &mut Context<AppModel>,
+) -> Stateful<Div> {
+    let snoozed = model.notifications_snoozed();
+    let m = model.metrics;
+    let color = if snoozed {
+        model.theme.warning
+    } else {
+        model.theme.diff_add
+    };
+    with_tooltip(
+        div()
+            .id("snooze-notifications")
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(m.spacing3())
+            .w(if named {
+                m.scaled(NOTIFICATIONS_WIDTH)
+            } else {
+                m.control_medium()
+            })
+            .h(m.control_medium())
+            .px(if named { m.spacing4() } else { px(0.0) })
+            .justify_center()
+            .mr(m.spacing2())
+            .rounded(m.radius_md())
+            .border_1()
+            .border_color(color.opacity(0.3))
+            .bg(color.opacity(0.1))
+            .text_size(m.font_body())
+            .text_color(color)
+            .font_weight(FontWeight::SEMIBOLD)
+            .cursor_pointer()
+            .hover(move |style| style.bg(color.opacity(0.18)))
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(IconGlyph::new(
+                if snoozed { Icon::Pause } else { Icon::Bell },
+                m.icon_md(),
+                color,
+            ))
+            .when(named, |button| {
+                button
+                    .child(div().flex_1().truncate().child(if snoozed {
+                        tr!("Snoozed")
+                    } else {
+                        tr!("Active")
+                    }))
+                    .child(
+                        div()
+                            .flex_none()
+                            .w(px(1.0))
+                            .h(m.scaled(14.0))
+                            .bg(color.opacity(0.25)),
+                    )
+                    .child(IconGlyph::new(Icon::ChevronDown, m.icon_xs(), color))
+            }),
+        if snoozed {
+            tr!("Muxy notifications snoozed")
+        } else {
+            tr!("Snooze Muxy notifications")
+        },
+        model,
+    )
+    .debug_selector(|| "snooze-notifications".into())
+    .on_click(cx.listener(|model, event: &gpui::ClickEvent, window, cx| {
+        use super::menu::{Command, Item};
+        use std::time::Duration;
+
+        cx.stop_propagation();
+        let mut items = vec![
+            Item::action(
+                tr!("Snooze for 30 minutes"),
+                Command::SnoozeNotifications(Some(Duration::from_secs(30 * 60))),
+            ),
+            Item::action(
+                tr!("Snooze for 1 hour"),
+                Command::SnoozeNotifications(Some(Duration::from_secs(60 * 60))),
+            ),
+        ];
+        if model.notifications_snoozed() {
+            items.push(Item::action(
+                tr!("Resume notifications"),
+                Command::SnoozeNotifications(None),
+            ));
+        }
+        model.open_menu(items, event.position(), window, cx);
+    }))
+}
 
 impl AppModel {
     /// Every titlebar button that can be hidden, by key and name. Settings
@@ -194,6 +306,7 @@ impl AppModel {
             )
         }));
         buttons.push((SESSIONS.into(), tr!("Agent Sessions")));
+        buttons.push((NOTIFICATIONS.into(), tr!("Notifications")));
         buttons
     }
 
@@ -393,7 +506,7 @@ pub(crate) fn navigation(
                             .min_w(px(0.0))
                             .truncate()
                             .text_size(m.font_body())
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .font_weight(FontWeight::SEMIBOLD)
                             .text_color(theme.fg_muted)
                             .child("Muxy"),
                     )

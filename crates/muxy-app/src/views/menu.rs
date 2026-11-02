@@ -40,6 +40,7 @@ const SUBMENU_GRACE: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Command {
+    CenterGroupByProject,
     CenterLayout(muxy_app_core::command_center::GridLayout),
     CenterColor(Option<usize>),
     CenterCustomLayout,
@@ -95,6 +96,18 @@ pub(crate) enum Command {
     /// so a list another device changed meanwhile loses the right one.
     RemoveProjectFolder(muxy_app_core::ProjectId, u64),
     AddProject,
+    NewFolderGroup,
+    OpenFolderEntry(muxy_app_core::ProjectId, muxy_protocol::FolderEntryId),
+    EditFolderEntry(
+        muxy_app_core::ProjectId,
+        Option<muxy_protocol::FolderEntryId>,
+    ),
+    RemoveFolderEntry(muxy_app_core::ProjectId, muxy_protocol::FolderEntryId),
+    ToggleAutoSubfolders(muxy_app_core::ProjectId),
+    ToggleHiddenSubfolders(muxy_app_core::ProjectId),
+    ChooseFolderGroupParent(muxy_app_core::ProjectId),
+    FolderGroupSubfolders(muxy_app_core::ProjectId),
+    OpenSubfolder(muxy_app_core::ProjectId, u64),
     AddRemoteProject(muxy_app_core::ServerId),
     RestoreRemovedProject(usize),
     ManageRemoteDevices,
@@ -125,6 +138,7 @@ pub(crate) enum Command {
     MovePane(muxy_app_core::PaneId, muxy_app_core::Direction),
     /// Shows or hides the titlebar button at this index of the titlebar menu.
     ToggleTitlebarButton(usize),
+    SnoozeNotifications(Option<Duration>),
     /// Shows or hides the status bar item with this key.
     ToggleStatusBarItem(&'static str),
 }
@@ -161,6 +175,9 @@ impl std::fmt::Debug for MenuIcon {
 enum Kind {
     Action(Command),
     Submenu(Vec<Item>),
+    /// A folder: choosing it runs its command, and hovering it opens its
+    /// subfolders, listed once it is first hovered.
+    Folder(Command, Vec<Item>),
     /// A title over the rows after it, which can't be chosen.
     Heading,
 }
@@ -172,6 +189,16 @@ impl Item {
 
     pub(crate) fn submenu(label: impl Into<SharedString>, items: Vec<Item>) -> Self {
         Self::new(label, Kind::Submenu(items))
+    }
+
+    pub(crate) fn folder(label: impl Into<SharedString>, command: Command) -> Self {
+        Self::new(
+            label,
+            Kind::Folder(
+                command,
+                vec![Self::heading(muxy_ui::tr!("Loading folders…"))],
+            ),
+        )
     }
 
     pub(crate) fn heading(label: impl Into<SharedString>) -> Self {
@@ -228,7 +255,7 @@ impl Item {
 
     pub(crate) fn command(&self) -> Option<Command> {
         match self.kind {
-            Kind::Action(command) => Some(command),
+            Kind::Action(command) | Kind::Folder(command, _) => Some(command),
             Kind::Submenu(_) | Kind::Heading => None,
         }
     }
@@ -236,7 +263,7 @@ impl Item {
     fn submenu_items(&self) -> Option<&[Item]> {
         match &self.kind {
             Kind::Action(_) | Kind::Heading => None,
-            Kind::Submenu(items) => Some(items),
+            Kind::Submenu(items) | Kind::Folder(_, items) => Some(items),
         }
     }
 }
@@ -261,6 +288,9 @@ pub(crate) fn color_items(current: Option<&str>, command: impl Fn(usize) -> Comm
 #[derive(Debug)]
 pub(crate) struct Menu {
     pub(crate) items: Vec<Item>,
+    pub(crate) folder_group: Option<(muxy_app_core::ProjectId, std::path::PathBuf)>,
+    pub(crate) folder_paths: Vec<std::path::PathBuf>,
+    pub(crate) folder_listing: Option<Task<()>>,
     pub(crate) position: Point<Pixels>,
     /// The control the menu drops down from. It opens above the control when
     /// there is no room below.
@@ -271,6 +301,11 @@ pub(crate) struct Menu {
     /// It was opened from the Remote popover, which stays shown under it and
     /// comes back when it closes.
     pub(crate) over_remote_servers: bool,
+    /// A control under the menu, such as the sidebar row that opened it on hover,
+    /// that keeps taking clicks and drags instead of closing the menu.
+    pub(crate) passes_through: Option<muxy_ui::popover::PopoverAnchor>,
+    /// Subfolder listings started for folder rows, by folder key.
+    pub(crate) subfolder_listings: std::collections::HashMap<u64, Task<()>>,
     /// The root menu first, then one entry per open submenu, each opened from
     /// the row highlighted in the level before it.
     levels: Vec<Level>,
@@ -299,10 +334,15 @@ impl Menu {
     pub(crate) fn new(items: Vec<Item>, position: Point<Pixels>) -> Self {
         Self {
             items,
+            folder_group: None,
+            folder_paths: Vec::new(),
+            folder_listing: None,
             position,
             drops_from: None,
             returns_focus_to: None,
             over_remote_servers: false,
+            passes_through: None,
+            subfolder_listings: std::collections::HashMap::new(),
             levels: vec![Level::default()],
             pointer: None,
             pending: None,
@@ -317,6 +357,48 @@ impl Menu {
             .filter_map(Item::submenu_items)
             .flatten()
             .any(|item| matches!(item.command(), Some(Command::RestoreRemovedProject(_))))
+    }
+
+    /// The keys of the folder rows highlighted along the open submenus,
+    /// outermost first.
+    pub(crate) fn highlighted_folders(&self) -> Vec<u64> {
+        let mut folders = Vec::new();
+        let mut items = self.items.as_slice();
+        for level in &self.levels {
+            let Some(item) = level.highlighted.and_then(|index| items.get(index)) else {
+                break;
+            };
+            if let Kind::Folder(Command::OpenSubfolder(_, key), _) = item.kind {
+                folders.push(key);
+            }
+            let Some(children) = item.submenu_items() else {
+                break;
+            };
+            items = children;
+        }
+        folders
+    }
+
+    /// Replaces the subfolder rows of the folder row with `key`.
+    pub(crate) fn set_subfolders(&mut self, key: u64, subfolders: Vec<Item>) -> bool {
+        fn find(items: &mut [Item], key: u64) -> Option<&mut Vec<Item>> {
+            items.iter_mut().find_map(|item| match &mut item.kind {
+                Kind::Folder(command, children) => {
+                    if matches!(command, Command::OpenSubfolder(_, folder) if *folder == key) {
+                        Some(children)
+                    } else {
+                        find(children, key)
+                    }
+                }
+                Kind::Submenu(children) => find(children, key),
+                Kind::Action(_) | Kind::Heading => None,
+            })
+        }
+        let Some(children) = find(&mut self.items, key) else {
+            return false;
+        };
+        *children = subfolders;
+        true
     }
 
     fn items_at(&self, level: usize) -> Option<&[Item]> {
@@ -528,6 +610,7 @@ impl AppModel {
         if let Some(Overlay::Menu(menu)) = &mut self.overlay
             && update(menu)
         {
+            self.list_highlighted_subfolders(cx);
             cx.notify();
         }
     }
@@ -568,7 +651,10 @@ impl AppModel {
             return;
         };
         match menu.hover(level, index, position) {
-            Hover::Changed => cx.notify(),
+            Hover::Changed => {
+                self.list_highlighted_subfolders(cx);
+                cx.notify();
+            }
             Hover::Unchanged => {}
             Hover::Waiting => {
                 menu.grace = Some(cx.spawn(async move |model, cx| {
@@ -610,12 +696,27 @@ impl AppModel {
 
     #[allow(clippy::too_many_lines, reason = "Exhaustive menu command dispatch")]
     fn perform_menu(&mut self, command: Command, window: &mut Window, cx: &mut Context<Self>) {
+        let subfolder = match (&self.overlay, command) {
+            (Some(Overlay::Menu(menu)), Command::OpenSubfolder(project, key))
+                if menu
+                    .folder_group
+                    .as_ref()
+                    .is_some_and(|(id, _)| *id == project) =>
+            {
+                menu.folder_paths
+                    .iter()
+                    .find(|path| super::project_menu::folder_key(path) == key)
+                    .cloned()
+            }
+            _ => None,
+        };
         let position = match &self.overlay {
             Some(Overlay::Menu(menu)) => menu.position,
             _ => gpui::point(px(8.0), px(40.0)),
         };
         self.dismiss_overlay(cx);
         match command {
+            Command::CenterGroupByProject => self.toggle_command_center_grouping(cx),
             Command::CenterLayout(layout) => self.set_command_center_layout(layout, cx),
             Command::CenterCustomLayout => {
                 self.overlay = Some(Overlay::CenterLayout(
@@ -800,6 +901,55 @@ impl AppModel {
                 self.open_project_picker(window, cx);
                 return;
             }
+            Command::NewFolderGroup => {
+                self.open_new_folder_group_editor(position, window, cx);
+                return;
+            }
+            Command::ToggleAutoSubfolders(project) => {
+                self.toggle_auto_subfolders(project, window, cx);
+                return;
+            }
+            Command::ToggleHiddenSubfolders(project) => {
+                if !self.appearance.hidden_subfolders_shown.remove(&project) {
+                    self.appearance.hidden_subfolders_shown.insert(project);
+                }
+                self.save_appearance(cx);
+            }
+            Command::ChooseFolderGroupParent(project) => {
+                self.choose_folder_group_parent(project, None, window, cx);
+                return;
+            }
+            Command::FolderGroupSubfolders(project) => {
+                self.open_folder_group_menu(project, None, window, cx);
+                return;
+            }
+            Command::OpenSubfolder(project, _) => {
+                if let Some(directory) = subfolder
+                    && self.edit_project(
+                        |state| state.open_subfolder(project, directory).map(drop),
+                        cx,
+                    )
+                {
+                    self.connect_server(self.state.current_project().server_id, cx);
+                }
+            }
+            Command::OpenFolderEntry(project, entry) => {
+                if self.edit_project(
+                    |state| state.open_folder_entry(project, entry).map(drop),
+                    cx,
+                ) {
+                    let server = self.state.current_project().server_id;
+                    self.connect_server(server, cx);
+                    self.focus_active(window, cx);
+                }
+            }
+            Command::EditFolderEntry(project, entry) => {
+                self.open_folder_entry_editor(project, entry, position, window, cx);
+                return;
+            }
+            Command::RemoveFolderEntry(project, entry) => {
+                self.remove_folder_entry(project, entry, cx);
+            }
             Command::AddRemoteProject(server) => {
                 self.open_remote_project_picker(server, cx);
                 return;
@@ -847,6 +997,7 @@ impl AppModel {
                 self.change_preference(super::settings::Change::CommandsBar(visible), cx);
             }
             Command::ToggleTitlebarButton(index) => self.toggle_titlebar_button(index, cx),
+            Command::SnoozeNotifications(duration) => self.snooze_notifications(duration, cx),
             Command::ToggleStatusBarItem(key) => self.toggle_status_bar_item(key, cx),
             Command::ManageCommands => {
                 self.show_settings_at(super::settings::Category::Commands, cx);

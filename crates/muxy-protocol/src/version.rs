@@ -38,6 +38,8 @@ impl Feature {
     /// Fork capability: projects carry extra folders, and file requests can name one.
     /// The high range avoids upstream capability IDs, including computer pairing at 3.
     pub const PROJECT_FOLDERS: Self = Self(0x8001);
+    /// Fork capability: folder groups with saved terminal launchers.
+    pub const FOLDER_GROUPS: Self = Self(0x8002);
 }
 
 /// Features this build's server supports.
@@ -46,4 +48,5 @@ pub const FEATURES: &[Feature] = &[
     Feature::SESSION_ENVIRONMENT,
     Feature::PAIRED_COMPUTERS,
     Feature::PROJECT_FOLDERS,
+    Feature::FOLDER_GROUPS,
 ];

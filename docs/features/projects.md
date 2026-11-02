@@ -21,6 +21,33 @@ workspaces, and project order are kept by each app.
 **Home** is the built-in project for your home folder. It is always first and
 can't be removed. `Cmd+N` opens a tab in Home.
 
+## Folder groups
+
+Choose **Add Project → Folder Group…** to create a collection such as
+“Clients” without choosing a project directory. Hover over its sidebar icon
+(or its heading in Tab Focused) to see its saved entries. **Add Folder…**
+saves a name, folder path, and optional startup command. Clicking an entry
+opens a new terminal tab in that folder, then runs the command if supplied.
+For example, `claude "Review this client"` starts Claude with a saved prompt;
+leave the command blank for a plain shell. A missing folder shows an error
+without opening a tab.
+
+Use **Manage Entries** to edit or remove an entry. Entries can share a folder
+with different commands. Removing an entry leaves its open terminals alone.
+The **Project** submenu and the usual right-click menu retain Rename, Icon,
+Logo, and Color. Groups, entries, and artwork are included in backups and
+Recently Removed. Creating groups requires an updated local server.
+
+Turn on **Automatically Show Subfolders** to choose one parent folder for
+the group. Its hover menu then lists that folder's immediate subfolders,
+including links to folders. Hover a folder to list its own subfolders and
+drill down any number of levels; click a folder to open a plain terminal in
+it. Each level is listed when first hovered; nothing is scanned recursively or
+watched in the background. Hidden folders stay out of the list unless
+**Show Hidden Folders** is on for the group. Use **Choose Parent Folder…** to change
+the parent. Turning the toggle off brings back your saved manual entries,
+including their commands and names.
+
 ## Sidebar
 
 **Command Center**, above Home, shows running terminals across projects in a

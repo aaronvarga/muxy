@@ -1,3 +1,4 @@
+pub(crate) mod folder_entry;
 pub(crate) mod icons;
 pub(crate) mod logo;
 
@@ -25,6 +26,8 @@ enum Target {
     Tab(TabId),
     Workspace(WorkspaceId),
     NewWorkspace(Option<ProjectId>),
+    NewFolderGroup,
+    FolderGroupRoot(ProjectId, bool),
     /// A new remote server group for these servers.
     NewServerGroup(Servers),
     /// The remote server group at an index of `Settings::server_groups`.
@@ -40,6 +43,40 @@ pub(crate) struct Editor {
 }
 
 impl AppModel {
+    pub(crate) fn open_folder_group_root_editor(
+        &mut self,
+        id: ProjectId,
+        auto_subfolders: bool,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(project) = self
+            .state
+            .project(id)
+            .filter(|project| project.is_folder_group())
+        else {
+            return;
+        };
+        self.open_metadata_editor(
+            Target::FolderGroupRoot(id, auto_subfolders),
+            project.directory.to_string_lossy().into_owned(),
+            position,
+            window,
+            cx,
+        );
+    }
+
+    pub(crate) fn open_new_folder_group_editor(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.connect(cx);
+        self.open_metadata_editor(Target::NewFolderGroup, String::new(), position, window, cx);
+    }
+
     pub(crate) fn open_project_editor(
         &mut self,
         id: ProjectId,
@@ -197,6 +234,40 @@ impl AppModel {
                 }
                 created.is_some()
             }
+            Target::NewFolderGroup => {
+                if self
+                    .extensions
+                    .client(muxy_app_core::ServerId::local())
+                    .is_some_and(|client| client.supports(muxy_protocol::Feature::FOLDER_GROUPS))
+                {
+                    self.edit_project(|state| state.add_folder_group(&text).map(drop), cx)
+                } else {
+                    self.fail(
+                        tr!("Folder groups require an updated, connected local server.")
+                            .to_string(),
+                        cx,
+                    );
+                    false
+                }
+            }
+            Target::FolderGroupRoot(id, auto_subfolders) => {
+                let home = self
+                    .state
+                    .project(id)
+                    .and_then(|project| self.state.server_home(project.server_id))
+                    .unwrap_or(self.state.home());
+                let directory = if text == "~" {
+                    home.directory.clone()
+                } else if let Some(relative) = text.strip_prefix("~/") {
+                    home.directory.join(relative)
+                } else {
+                    std::path::PathBuf::from(&text)
+                };
+                self.edit_project(
+                    |state| state.set_folder_group_source(id, directory, auto_subfolders),
+                    cx,
+                )
+            }
             Target::NewServerGroup(servers) => self.name_server_group(servers, &text, cx),
             Target::ServerGroup(index) => {
                 self.name_server_group(Servers::Group(Some(index)), &text, cx)
@@ -241,6 +312,8 @@ pub(crate) fn render(
                 Target::Project(_) => tr!("Rename Project"),
                 Target::Workspace(_) => tr!("Rename Workspace"),
                 Target::NewWorkspace(_) => tr!("New Workspace"),
+                Target::NewFolderGroup => tr!("New Folder Group"),
+                Target::FolderGroupRoot(..) => tr!("Parent Folder"),
                 Target::NewServerGroup(_) => tr!("New Group"),
                 Target::ServerGroup(_) => tr!("Rename Group"),
                 Target::Divider(_) => tr!("Divider Label"),
@@ -286,7 +359,9 @@ pub(crate) fn render(
                         .child(
                             if matches!(
                                 editor.target,
-                                Target::NewWorkspace(_) | Target::NewServerGroup(_)
+                                Target::NewWorkspace(_)
+                                    | Target::NewServerGroup(_)
+                                    | Target::NewFolderGroup
                             ) {
                                 tr!("Create")
                             } else {

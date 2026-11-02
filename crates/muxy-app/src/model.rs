@@ -230,6 +230,7 @@ pub(crate) struct AppModel {
     pub(crate) window_active: bool,
     window_accessibility: window_accessibility::WindowAccessibility,
     notifications: muxy_ui::notifications::Notifications,
+    notification_snooze: Option<Task<()>>,
     pub(crate) capabilities: muxy_core::capability::Capabilities,
     pub(crate) completions: HashSet<PaneId>,
     /// Servers still finishing their work before the app quits.
@@ -640,6 +641,7 @@ impl AppModel {
             window_accessibility: window_accessibility::WindowAccessibility::default(),
             capabilities,
             notifications,
+            notification_snooze: None,
             completions: HashSet::new(),
             flushing: HashSet::new(),
             quitting: Quitting::Idle,
@@ -3057,7 +3059,9 @@ mod tests {
     mod capabilities;
     mod command_center;
     mod command_center_collapse;
+    mod command_center_groups;
     mod command_center_progress;
+    mod command_center_scroll;
     mod status_menu;
     mod webviews;
     use muxy_protocol::ExitReason;

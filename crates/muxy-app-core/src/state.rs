@@ -302,17 +302,163 @@ impl AppState {
         &self.removed_projects
     }
 
+    /// A named collection, using Home only as the fallback for a plain new tab.
+    pub fn add_folder_group(&mut self, name: &str) -> Result<ProjectId, AppError> {
+        let directory = self.home().directory.clone();
+        self.create_project(ServerId::local(), directory, |descriptor| {
+            descriptor.name = name.trim().into();
+            descriptor.kind = Some(ProjectKind::FolderGroup);
+            descriptor.icon = Some("sf:folder".into());
+        })
+    }
+
+    pub fn set_folder_entries(
+        &mut self,
+        id: ProjectId,
+        entries: Vec<muxy_protocol::FolderEntry>,
+    ) -> Result<(), AppError> {
+        let project = self.project_mut(id)?;
+        let mut descriptor = project.descriptor();
+        descriptor.folder_entries.clone_from(&entries);
+        if !project.is_folder_group() || descriptor.validate().is_err() {
+            return Err(AppError::InvalidState(
+                "invalid folder group entries".into(),
+            ));
+        }
+        self.patch_project(
+            id,
+            muxy_protocol::ProjectPatch::FolderEntries(entries.clone()),
+        )?;
+        self.project_mut(id)?.folder_entries = entries;
+        Ok(())
+    }
+
+    pub fn open_folder_entry(
+        &mut self,
+        project: ProjectId,
+        entry: muxy_protocol::FolderEntryId,
+    ) -> Result<TabId, AppError> {
+        let record = self
+            .project(project)
+            .ok_or(AppError::UnknownProject(project))?;
+        let entry = record
+            .folder_entries
+            .iter()
+            .find(|candidate| candidate.id == entry)
+            .filter(|_| record.is_folder_group() && !record.auto_subfolders)
+            .cloned()
+            .ok_or_else(|| AppError::InvalidState("folder entry is no longer available".into()))?;
+        self.open_folder_terminal(project, entry)
+    }
+
+    pub fn set_folder_group_source(
+        &mut self,
+        id: ProjectId,
+        directory: PathBuf,
+        auto_subfolders: bool,
+    ) -> Result<(), AppError> {
+        use std::os::unix::ffi::OsStrExt;
+        let project = self.project(id).ok_or(AppError::UnknownProject(id))?;
+        if !project.is_folder_group()
+            || (auto_subfolders && project.server_id.is_local() && !directory.is_dir())
+        {
+            return Err(AppError::InvalidState(
+                "choose an existing parent folder".into(),
+            ));
+        }
+        let patch = muxy_protocol::ProjectPatch::FolderSource {
+            directory: muxy_protocol::ServerPath(directory.as_os_str().as_bytes().to_vec()),
+            auto_subfolders,
+        };
+        self.patch_project(id, patch)?;
+        let project = self.project_mut(id)?;
+        project.directory = directory;
+        project.auto_subfolders = auto_subfolders;
+        project.refresh_status();
+        Ok(())
+    }
+
+    pub fn open_subfolder(
+        &mut self,
+        project: ProjectId,
+        directory: PathBuf,
+    ) -> Result<TabId, AppError> {
+        let record = self
+            .project(project)
+            .ok_or(AppError::UnknownProject(project))?;
+        if !record.is_folder_group()
+            || !record.auto_subfolders
+            || !muxy_protocol::is_inside_folder_group(&directory, &record.directory)
+        {
+            return Err(AppError::InvalidState(
+                "folder is not inside this group's folder".into(),
+            ));
+        }
+        let name = directory
+            .file_name()
+            .unwrap_or(directory.as_os_str())
+            .to_string_lossy()
+            .into_owned();
+        self.open_folder_terminal(
+            project,
+            muxy_protocol::FolderEntry {
+                id: muxy_protocol::FolderEntryId::new(),
+                name,
+                directory: muxy_protocol::ServerPath(directory.into_os_string().into_vec()),
+                command: String::new(),
+            },
+        )
+    }
+
+    fn open_folder_terminal(
+        &mut self,
+        project: ProjectId,
+        entry: muxy_protocol::FolderEntry,
+    ) -> Result<TabId, AppError> {
+        let record = self
+            .project(project)
+            .ok_or(AppError::UnknownProject(project))?;
+        let directory = PathBuf::from(std::ffi::OsString::from_vec(entry.directory.0));
+        if record.server_id.is_local() && !directory.is_dir() {
+            return Err(AppError::InvalidState("saved folder does not exist".into()));
+        }
+        let tab = self.open_terminal_tab(project)?;
+        self.set_tab_title(tab, Some(entry.name))?;
+        let pane = self
+            .window
+            .active_pane
+            .ok_or_else(|| AppError::InvalidState("terminal pane is missing".into()))?;
+        self.prepare_creation(pane, &directory);
+        self.set_startup_command(pane, &entry.command)?;
+        Ok(tab)
+    }
+
     pub fn restore_removed_project(&mut self, index: usize) -> Result<ProjectId, AppError> {
         let removed = self
             .removed_projects
             .get(index)
             .cloned()
             .ok_or_else(|| AppError::InvalidState("removed project is gone".into()))?;
-        self.create_project(removed.server_id, removed.directory, |descriptor| {
+        let directory = if removed.kind == Some(ProjectKind::FolderGroup) {
+            self.server_home(removed.server_id)
+                .ok_or_else(|| AppError::InvalidState("server home is missing".into()))?
+                .directory
+                .clone()
+        } else {
+            removed.directory.clone()
+        };
+        self.create_project(removed.server_id, directory, |descriptor| {
             descriptor.name = removed.name;
             descriptor.icon = removed.icon;
             descriptor.logo = removed.logo;
             descriptor.color = removed.color.to_string();
+            descriptor.kind = removed.kind;
+            descriptor.folder_entries = removed.folder_entries;
+            descriptor.auto_subfolders = removed.auto_subfolders;
+            if removed.kind == Some(ProjectKind::FolderGroup) {
+                descriptor.directory =
+                    muxy_protocol::ServerPath(removed.directory.into_os_string().into_vec());
+            }
         })
     }
 
@@ -486,7 +632,13 @@ impl AppState {
             self.remove_project_with_mutation(id, muxy_protocol::ProjectMutation::Delete(id))?;
         if let Some(removed) = removed {
             self.removed_projects.retain(|entry| {
-                entry.server_id != removed.server_id || entry.directory != removed.directory
+                entry.server_id != removed.server_id
+                    || entry.directory != removed.directory
+                    || entry.kind != removed.kind
+                    || (removed.kind == Some(ProjectKind::FolderGroup)
+                        && (entry.name != removed.name
+                            || entry.auto_subfolders != removed.auto_subfolders
+                            || entry.folder_entries != removed.folder_entries))
             });
             self.removed_projects.insert(0, removed);
             self.removed_projects.truncate(REMOVED_PROJECTS);

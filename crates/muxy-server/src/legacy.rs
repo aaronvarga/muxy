@@ -125,6 +125,8 @@ fn parse(bytes: &[u8]) -> io::Result<LegacyImport> {
             kind: project.kind,
             parent_id: project.parent_id,
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
         });
     }
     if let Some(pane) = snapshot.quick_terminal {

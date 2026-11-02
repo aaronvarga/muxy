@@ -119,6 +119,8 @@ fn projects() -> TestResult<(AppState, Ids)> {
             kind: parent.map(|_| ProjectKind::Worktree),
             parent_id: parent,
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
         };
     state.apply_catalog(
         ServerId::new(),

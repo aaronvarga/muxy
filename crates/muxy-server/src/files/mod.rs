@@ -89,6 +89,24 @@ impl Registry {
     /// folders, named exactly.
     pub(crate) fn files_root(&self, request: &FilesRequest) -> Result<PathBuf> {
         let project = self.catalog.project(request.project)?;
+        if project.kind == Some(muxy_protocol::ProjectKind::FolderGroup) {
+            return match &request.root {
+                Some(root)
+                    if (project.auto_subfolders
+                        && muxy_protocol::is_inside_folder_group(
+                            path(root),
+                            path(&project.directory),
+                        ))
+                        || project
+                            .folder_entries
+                            .iter()
+                            .any(|entry| entry.directory == *root) =>
+                {
+                    Ok(path(root).to_owned())
+                }
+                _ => Err(error("Choose a saved folder in this folder group")),
+            };
+        }
         match &request.root {
             None => Ok(path(&project.directory).to_owned()),
             Some(root) if *root == project.directory => Ok(path(root).to_owned()),

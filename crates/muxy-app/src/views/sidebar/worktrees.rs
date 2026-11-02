@@ -34,6 +34,7 @@ impl AppModel {
 
     pub(crate) fn has_worktrees(&self, project: &Project) -> bool {
         !project.home
+            && !project.is_folder_group()
             && project.parent_id.is_none()
             && self.worktrees_visible(project.id)
             && (self

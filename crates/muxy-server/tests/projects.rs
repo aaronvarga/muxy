@@ -48,6 +48,8 @@ fn project(path: &Path) -> ProjectDescriptor {
         kind: None,
         parent_id: None,
         folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     }
 }
 fn intent(mutation: ProjectMutation) -> ProjectIntent {
@@ -55,6 +57,99 @@ fn intent(mutation: ProjectMutation) -> ProjectIntent {
         operation: OperationId::new(),
         mutation,
     }
+}
+
+#[test]
+fn folder_groups_persist_entries_and_reject_entries_on_ordinary_projects() -> Result {
+    use muxy_protocol::{FolderEntry, FolderEntryId, ProjectKind};
+    let fixture = Fixture::new()?;
+    let registry = fixture.registry(LegacyImport::default())?;
+    let ordinary = project(&fixture.0);
+    let mut group = project(&fixture.0);
+    group.kind = Some(ProjectKind::FolderGroup);
+    registry.mutate_project(&intent(ProjectMutation::Create(ordinary.clone())))?;
+    registry.mutate_project(&intent(ProjectMutation::Create(group.clone())))?;
+    let entries = vec![FolderEntry {
+        id: FolderEntryId::new(),
+        name: "Client".into(),
+        directory: ordinary.directory.clone(),
+        command: "codex \"Review this project\"".into(),
+    }];
+    let patch = |project, entries| {
+        intent(ProjectMutation::Patch {
+            project,
+            patch: ProjectPatch::FolderEntries(entries),
+        })
+    };
+    assert!(
+        registry
+            .mutate_project(&patch(ordinary.id, entries.clone()))
+            .is_err()
+    );
+    registry.mutate_project(&patch(group.id, entries.clone()))?;
+    let parent = fixture.0.join("clients");
+    let child = parent.join("Acme");
+    fs::create_dir_all(&child)?;
+    let source = |project| {
+        intent(ProjectMutation::Patch {
+            project,
+            patch: ProjectPatch::FolderSource {
+                directory: ServerPath(parent.as_os_str().as_bytes().to_vec()),
+                auto_subfolders: true,
+            },
+        })
+    };
+    assert!(registry.mutate_project(&source(ordinary.id)).is_err());
+    registry.mutate_project(&source(group.id))?;
+    assert!(
+        registry
+            .git(&muxy_protocol::GitRequest {
+                project: group.id,
+                action: muxy_protocol::GitAction::Init,
+            })
+            .is_err()
+    );
+    assert!(!fixture.0.join(".git").exists());
+    let mut files = muxy_protocol::FilesRequest {
+        project: group.id,
+        root: None,
+        action: muxy_protocol::FilesAction::List(ServerPath(Vec::new())),
+    };
+    assert!(registry.files(&files).is_err());
+    files.root = Some(ordinary.directory.clone());
+    assert!(registry.files(&files).is_ok());
+    files.root = Some(ServerPath(child.as_os_str().as_bytes().to_vec()));
+    assert!(registry.files(&files).is_ok());
+    let mut invalid = entries.clone();
+    invalid[0].command = "echo safe\nrm -rf something".into();
+    assert!(registry.mutate_project(&patch(group.id, invalid)).is_err());
+    drop(registry);
+    let registry = fixture.registry(LegacyImport::default())?;
+    let page = registry.read_catalog(None, None)?;
+    let saved = page
+        .projects
+        .iter()
+        .find(|project| project.id == group.id)
+        .ok_or("group")?;
+    assert!(saved.auto_subfolders);
+    assert_eq!(saved.directory.0, parent.as_os_str().as_bytes());
+    assert_eq!(
+        page.projects
+            .iter()
+            .find(|project| project.id == group.id)
+            .ok_or("group")?
+            .folder_entries,
+        entries
+    );
+    assert!(
+        page.projects
+            .iter()
+            .find(|project| project.id == ordinary.id)
+            .ok_or("ordinary")?
+            .folder_entries
+            .is_empty()
+    );
+    Ok(())
 }
 
 #[test]

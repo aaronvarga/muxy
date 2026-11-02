@@ -8,7 +8,11 @@ use muxy_app_core::{
     activity::{ActivityIndicator, indicator},
     command_center::GridLayout,
 };
-use muxy_ui::{components::IconGlyph, icon::Icon, tr};
+use muxy_ui::{
+    components::{ButtonInteraction, IconGlyph},
+    icon::Icon,
+    tr,
+};
 
 use super::menu::{Command, Item, color_items};
 use crate::model::{AppModel, command_center::Tile};
@@ -278,7 +282,7 @@ pub(super) fn header(
         .h(m.title_bar_height())
         .pl(px((navigation - sidebar_width).max(0.0)) + m.spacing4())
         .pr(m.spacing2())
-        .gap(m.spacing4())
+        .gap(m.spacing2())
         .border_b_1()
         .border_color(model.theme.border)
         .when(loading, |bar| {
@@ -306,13 +310,16 @@ pub(super) fn header(
                 .flex()
                 .flex_none()
                 .items_center()
-                .gap(m.spacing2())
-                .px(m.spacing3())
-                .py(m.spacing2())
+                .h(m.control_medium())
                 .rounded(m.radius_md())
+                .border_1()
+                .border_color(model.theme.border)
+                .bg(model.theme.surface)
+                .overflow_hidden()
                 .cursor_pointer()
                 .hover(|button| button.bg(model.theme.hover))
                 .text_size(m.font_body())
+                .text_color(model.theme.fg)
                 .tooltip(super::status_bar::tooltip(
                     tr!("Layout · columns × rows").to_string(),
                     model,
@@ -332,33 +339,39 @@ pub(super) fn header(
                     .absolute()
                     .inset_0(),
                 )
-                .child(IconGlyph::new(
-                    Icon::Grid,
-                    m.icon_md(),
-                    model.theme.fg_muted,
-                ))
-                .child(tr!("Layout"))
-                .child(div().text_color(model.theme.fg_muted).child(
-                    if selected == GridLayout::Auto {
-                        tr!("Auto")
-                    } else {
-                        selected.label().into()
-                    },
-                ))
-                .child(IconGlyph::new(
-                    Icon::ChevronDown,
-                    m.icon_sm(),
-                    model.theme.fg_muted,
-                )),
-        )
-        .child(
-            super::titlebar::icon_button(
-                "command-center-back",
-                Icon::ChevronLeft,
-                tr!("Return to Project"),
-                model,
-            )
-            .on_click(cx.listener(|model, _, _, cx| model.close_command_center(cx))),
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(m.spacing3())
+                        .px(m.spacing4())
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(IconGlyph::new(Icon::Grid, m.icon_md(), model.theme.fg))
+                        .child(match selected {
+                            GridLayout::Auto => tr!("Auto Grid"),
+                            GridLayout::AutoColumns => tr!("Auto Columns"),
+                            _ => selected.label().into(),
+                        }),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .w(px(1.0))
+                        .h(m.scaled(14.0))
+                        .bg(model.theme.border),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .w(m.control_medium())
+                        .child(IconGlyph::new(
+                            Icon::ChevronDown,
+                            m.icon_xs(),
+                            model.theme.fg_muted,
+                        )),
+                ),
         )
         .child(actions)
         .into_any_element()
@@ -375,10 +388,10 @@ pub(super) fn layout_menu(
         .into_iter()
         .map(|layout| {
             Item::action(
-                if layout == GridLayout::Auto {
-                    tr!("Auto")
-                } else {
-                    layout.label().into()
+                match layout {
+                    GridLayout::Auto => tr!("Auto Grid"),
+                    GridLayout::AutoColumns => tr!("Auto Columns"),
+                    _ => layout.label().into(),
                 },
                 Command::CenterLayout(layout),
             )
@@ -387,6 +400,11 @@ pub(super) fn layout_menu(
         })
         .collect();
     items.push(Item::action(tr!("Custom…"), Command::CenterCustomLayout).separated());
+    items.push(
+        Item::action(tr!("Group by Project"), Command::CenterGroupByProject)
+            .checked_if(model.appearance.command_center_group_by_project)
+            .separated(),
+    );
     model.open_menu(items, position, window, cx);
     if let Some(crate::views::overlays::Overlay::Menu(menu)) = &mut model.overlay {
         menu.drops_from = model.command_center.layout_anchor.get();
@@ -557,17 +575,34 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
     );
     let gap = m.spacing4();
     let dimensions = [columns, rows];
-    let columns = usize::from(columns);
-    let height = ((size.height + gap) / f32::from(rows)).max(m.scaled(180.0));
+    let height = ((size.height + gap) / f32::from(u16::try_from(rows).unwrap_or(u16::MAX)))
+        .max(m.scaled(180.0));
     let compact_height = m.scaled(36.0) + px(4.0) + gap;
     let mut bottoms = vec![px(0.0); columns];
-    let positions: Vec<_> = model
-        .command_center
-        .tiles
-        .iter()
-        .enumerate()
-        .map(|(index, entry)| {
-            let column = index % columns;
+    let grouped = model.appearance.command_center_group_by_project;
+    let groups = if grouped {
+        model.command_center.project_groups()
+    } else {
+        vec![(0..model.command_center.tiles.len()).collect()]
+    };
+    let header_height = m.scaled(36.0);
+    let mut headers = Vec::new();
+    let mut positions = vec![None; model.command_center.tiles.len()];
+    for group in groups {
+        if grouped {
+            let top = bottoms.iter().copied().max().unwrap_or_default();
+            headers.push((group[0], top));
+            bottoms.fill(top + header_height + gap);
+            if model
+                .command_center
+                .project_collapsed(&model.command_center.tiles[group[0]])
+            {
+                continue;
+            }
+        }
+        for (slot, index) in group.into_iter().enumerate() {
+            let entry = &model.command_center.tiles[index];
+            let column = slot % columns;
             let top = bottoms[column];
             let extent = if model.command_center.is_collapsed(entry) {
                 compact_height
@@ -575,16 +610,18 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
                 height
             };
             bottoms[column] += extent;
-            (top, extent - gap)
-        })
-        .collect();
+            positions[index] = Some((column, top, extent - gap));
+        }
+    }
     let total = (bottoms.into_iter().max().unwrap_or_default() - gap).max(px(0.0));
     let scrolling = total > size.height + px(0.5);
-    let row_count = model.command_center.tiles.len().div_ceil(columns);
-    let bands: Vec<_> = (0..row_count)
-        .map(|row| (total - height * f32::from(u16::try_from(row).unwrap_or(u16::MAX))).min(height))
-        .take_while(|height| *height > px(0.0))
-        .collect();
+    let mut bands = Vec::new();
+    let mut remaining = total;
+    while remaining > px(0.0) {
+        bands.push(remaining.min(height));
+        remaining -= height;
+    }
+    let row_count = bands.len();
     let grid = (dimensions, size, row_count, total);
     model.command_center.columns = columns;
     if model.command_center.grid != Some(grid) {
@@ -600,11 +637,11 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
             .tiles
             .iter()
             .position(|tile| tile.pane == pane)
+        && let Some((_, top, extent)) = positions[index]
     {
         let current = model.command_center.scroll.logical_scroll_top();
         let offset = height * f32::from(u16::try_from(current.item_ix).unwrap_or(u16::MAX))
             + current.offset_in_item;
-        let (top, extent) = positions[index];
         let target = if top < offset {
             top
         } else if top + extent > offset + size.height {
@@ -638,19 +675,34 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
                 + top.offset_in_item;
             let width = (bounds.size.width
                 - gap * f32::from(u16::try_from(columns - 1).unwrap_or(u16::MAX)))
-                / f32::from(dimensions[0]);
+                / f32::from(u16::try_from(dimensions[0]).unwrap_or(u16::MAX));
             let mut elements = Vec::new();
             let _ = owner.update(cx, |model, cx| {
                 let mut visible = Vec::new();
                 window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
-                    for (index, (top, tile_height)) in positions.iter().enumerate() {
+                    for (index, top) in &headers {
+                        let frame = gpui::Bounds::new(
+                            bounds.origin + gpui::point(px(0.0), *top - offset),
+                            gpui::size(bounds.size.width, header_height),
+                        );
+                        if !frame.intersects(&bounds) {
+                            continue;
+                        }
+                        let mut element =
+                            project_header(&model.command_center.tiles[*index], model, cx);
+                        element.layout_as_root(frame.size.into(), window, cx);
+                        element.prepaint_at(frame.origin, window, cx);
+                        elements.push(element);
+                    }
+                    for (index, position) in positions.iter().enumerate() {
+                        let Some((column, top, tile_height)) = position else {
+                            continue;
+                        };
                         let frame = gpui::Bounds::new(
                             bounds.origin
                                 + gpui::point(
                                     (width + gap)
-                                        * f32::from(
-                                            u16::try_from(index % columns).unwrap_or(u16::MAX),
-                                        ),
+                                        * f32::from(u16::try_from(*column).unwrap_or(u16::MAX)),
                                     *top - offset,
                                 ),
                             gpui::size(width, *tile_height),
@@ -707,13 +759,8 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
         .into_any_element()
 }
 
-#[allow(clippy::too_many_lines, reason = "One terminal tile and its controls")]
-fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
-    let m = model.metrics;
-    let pane = entry.pane;
-    let collapsed = model.command_center.is_collapsed(entry);
-    let project = model.state.project(entry.session.info.project);
-    let name = project.map_or_else(
+fn project_name(entry: &Tile, model: &AppModel) -> String {
+    model.state.project(entry.session.info.project).map_or_else(
         || tr!("Project").to_string(),
         |project| {
             let name = project
@@ -728,7 +775,74 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                 .filter(|_| !entry.server.is_local())
                 .map_or_else(|| name.clone(), |server| format!("{server} · {name}"))
         },
-    );
+    )
+}
+
+fn project_header(entry: &Tile, model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
+    let m = model.metrics;
+    let server = entry.server;
+    let project = entry.session.info.project;
+    let mut background = model.theme.bg;
+    background.l *= 0.85;
+    let collapsed = model.command_center.project_collapsed(entry);
+    div()
+        .id(SharedString::from(format!(
+            "command-center-group-{server}-{project}"
+        )))
+        .debug_selector(move || format!("command-center-group-{project}-{collapsed}"))
+        .flex()
+        .items_center()
+        .gap(m.spacing2())
+        .size_full()
+        .px(m.spacing3())
+        .rounded(m.radius_sm())
+        .bg(background)
+        .border_b_1()
+        .border_color(model.theme.border)
+        .text_size(m.font_body())
+        .font_weight(FontWeight::SEMIBOLD)
+        .cursor_pointer()
+        .hover(|style| style.bg(model.theme.hover))
+        .tooltip(super::status_bar::tooltip(
+            if collapsed {
+                tr!("Expand Project")
+            } else {
+                tr!("Collapse Project")
+            }
+            .to_string(),
+            model,
+        ))
+        .button_interaction(cx.listener(move |model, _, _, cx| {
+            model.toggle_command_center_group(server, project, cx);
+        }))
+        .child(IconGlyph::new(
+            if collapsed {
+                Icon::ChevronRight
+            } else {
+                Icon::ChevronDown
+            },
+            m.icon_md(),
+            model.theme.fg_muted,
+        ))
+        .when_some(model.state.project(project), |header, project| {
+            header.child(super::sidebar::project_tile(
+                project,
+                model,
+                m.scaled(26.0),
+                None,
+            ))
+        })
+        .child(div().truncate().child(project_name(entry, model)))
+        .into_any_element()
+}
+
+#[allow(clippy::too_many_lines, reason = "One terminal tile and its controls")]
+fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
+    let m = model.metrics;
+    let pane = entry.pane;
+    let collapsed = model.command_center.is_collapsed(entry);
+    let project = model.state.project(entry.session.info.project);
+    let name = project_name(entry, model);
     let selected = model.active_pane() == Some(pane);
     let status = model
         .activity(entry.server)

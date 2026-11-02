@@ -8,6 +8,9 @@ use super::menu::{Command, Item, color_items};
 use super::project_editor::Field;
 use crate::model::{AppModel, git::Repository};
 
+mod folder_groups;
+pub(crate) use folder_groups::hover_opens_menu;
+
 /// The menu of a top-level project. `worktrees` is `None` when its folder is not
 /// a Git repository, and otherwise whether its worktrees are shown.
 /// `folders` is whether its server can hold extra folders, and `divider`
@@ -54,19 +57,94 @@ pub(crate) fn items(
             );
         }
     }
-    if folders && !project.home {
+    if project.is_folder_group() {
+        items.push(Item::submenu(
+            tr!("Saved Folders"),
+            folder_group_items(project),
+        ));
+    } else if folders && !project.home {
         items.push(Item::submenu(tr!("Folders"), folder_items(project)));
     }
     if divider {
         items.push(Item::action(tr!("Add Divider Below"), Command::AddDivider(id)).separated());
     }
-    items.extend(path_items(project));
+    if !project.is_folder_group() {
+        items.extend(path_items(project));
+    }
     if !project.home {
         items.push(
             Item::action(tr!("Hide Project"), Command::SetProjectHidden(id, true)).separated(),
         );
     }
     items.extend(removal(project));
+    items
+}
+
+pub(crate) fn folder_group_items(project: &Project) -> Vec<Item> {
+    let mut items: Vec<_> = project
+        .folder_entries
+        .iter()
+        .filter(|_| !project.auto_subfolders)
+        .map(|entry| {
+            Item::action(
+                entry.name.clone(),
+                Command::OpenFolderEntry(project.id, entry.id),
+            )
+        })
+        .collect();
+    let add = Item::action(
+        tr!("Add Folder…"),
+        Command::EditFolderEntry(project.id, None),
+    );
+    if !project.auto_subfolders {
+        items.push(if items.is_empty() {
+            add
+        } else {
+            add.separated()
+        });
+    }
+    if !project.auto_subfolders && !project.folder_entries.is_empty() {
+        items.push(Item::submenu(
+            tr!("Manage Entries"),
+            project
+                .folder_entries
+                .iter()
+                .map(|entry| {
+                    Item::submenu(
+                        entry.name.clone(),
+                        vec![
+                            Item::action(
+                                tr!("Edit…"),
+                                Command::EditFolderEntry(project.id, Some(entry.id)),
+                            ),
+                            Item::action(
+                                tr!("Remove"),
+                                Command::RemoveFolderEntry(project.id, entry.id),
+                            ),
+                        ],
+                    )
+                })
+                .collect(),
+        ));
+    }
+    items.push(
+        Item::action(
+            tr!("Automatically Show Subfolders"),
+            Command::ToggleAutoSubfolders(project.id),
+        )
+        .checked_if(project.auto_subfolders)
+        .separated(),
+    );
+    items.push(Item::action(
+        tr!("Choose Parent Folder…"),
+        Command::ChooseFolderGroupParent(project.id),
+    ));
+    if project.auto_subfolders {
+        items.push(Item::action(
+            tr!("Open Subfolders…"),
+            Command::FolderGroupSubfolders(project.id),
+        ));
+    }
     items
 }
 
@@ -253,7 +331,7 @@ impl AppModel {
         items(
             &self.state,
             project,
-            repository.then(|| self.worktrees_visible(project.id)),
+            (repository && !project.is_folder_group()).then(|| self.worktrees_visible(project.id)),
             focus,
             folders,
             self.dividers_shown(),

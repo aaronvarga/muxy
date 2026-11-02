@@ -8,6 +8,10 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::Path;
 
 impl Catalog {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Apply project mutations with durable idempotent receipts"
+    )]
     pub(crate) fn begin_mutation(&self, intent: &ProjectIntent) -> Result<bool, ServerError> {
         let receipt = self.lock().receipts.get(&intent.operation).cloned();
         if let Some(receipt) = receipt {
@@ -33,7 +37,9 @@ impl Catalog {
                         || state.projects.len() == MAX_PROJECTS
                     {
                         Err(bad("project identity already exists or catalog is full"))
-                    } else if !Path::new(OsStr::from_bytes(&project.directory.0)).is_dir() {
+                    } else if project.kind != Some(muxy_protocol::ProjectKind::FolderGroup)
+                        && !Path::new(OsStr::from_bytes(&project.directory.0)).is_dir()
+                    {
                         Err(ServerError::new(
                             muxy_protocol::ErrorCode::BadPath,
                             "project folder does not exist",
@@ -55,13 +61,20 @@ impl Catalog {
                 ProjectMutation::Patch { project, patch } => {
                     if state.deleting.contains(project) {
                         Err(unknown())
-                    } else if let Some(descriptor) = state.projects.get(project).cloned() {
+                    } else if let Some(mut descriptor) = state.projects.get(project).cloned() {
+                        if matches!(patch, ProjectPatch::FolderSource { .. })
+                            && descriptor.kind != Some(muxy_protocol::ProjectKind::FolderGroup)
+                        {
+                            return Err(bad("only folder groups can change their folder source"));
+                        }
                         if let ProjectPatch::Folders(folders) = patch {
                             state.validate_folders(&descriptor, folders)?;
                         }
-                        if let Some(project) = state.projects.get_mut(project) {
-                            patch.apply(project);
-                        }
+                        patch.apply(&mut descriptor);
+                        descriptor
+                            .validate()
+                            .map_err(|_| bad("invalid project metadata"))?;
+                        state.projects.insert(*project, descriptor);
                         Ok(())
                     } else {
                         Err(unknown())

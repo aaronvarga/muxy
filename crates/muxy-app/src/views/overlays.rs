@@ -1,6 +1,6 @@
 use gpui::{
-    AnyElement, Context, Entity, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    Pixels, Point, Styled, Window, div,
+    AnyElement, Bounds, Context, Entity, InteractiveElement, IntoElement, MouseButton,
+    ParentElement, Pixels, Point, Styled, Window, div, point, px,
 };
 
 use super::menu::{self, Item, Menu};
@@ -30,6 +30,7 @@ pub(crate) enum Overlay {
     Menu(Menu),
     CenterLayout([u8; 2]),
     ProjectEditor(super::project_editor::Editor),
+    FolderEntry(super::project_editor::folder_entry::Editor),
     ProjectIcons(super::project_editor::icons::Icons),
     ProjectLogo(super::project_editor::logo::Cropper),
     Projects(Entity<super::project_picker::ProjectPicker>),
@@ -63,6 +64,7 @@ impl Overlay {
                 | Self::Menu(_)
                 | Self::CenterLayout(_)
                 | Self::ProjectEditor(_)
+                | Self::FolderEntry(_)
                 | Self::ProjectIcons(_)
                 | Self::ServerForm(_)
                 | Self::PairForm(_)
@@ -322,6 +324,9 @@ pub(crate) fn layer(model: &AppModel, window: &Window, cx: &mut Context<AppModel
         Some(Overlay::CenterLayout(selection)) => {
             super::command_center::custom_layout_picker(*selection, model, cx)
         }
+        Some(Overlay::FolderEntry(editor)) => {
+            super::project_editor::folder_entry::render(editor, model, window, cx)
+        }
         Some(Overlay::ProjectEditor(editor)) => {
             super::project_editor::render(editor, model, window, cx)
         }
@@ -337,33 +342,66 @@ pub(crate) fn layer(model: &AppModel, window: &Window, cx: &mut Context<AppModel
         Some(Overlay::Projects(picker)) => picker.clone().into_any_element(),
         Some(Overlay::Commands { palette, .. }) => palette.clone().into_any_element(),
     };
+    let hole = match &model.overlay {
+        Some(Overlay::Menu(menu)) => menu.passes_through.as_ref().and_then(|row| row.get()),
+        _ => None,
+    };
+    let viewport = Bounds::new(point(px(0.0), px(0.0)), window.viewport_size());
     div()
         .absolute()
         .top_0()
         .left_0()
         .size_full()
-        .child(
-            div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full()
-                .occlude()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|model, _, _, cx| {
-                        model.dismiss_overlay(cx);
-                        cx.stop_propagation();
-                    }),
-                )
-                .on_mouse_down(
-                    MouseButton::Right,
-                    cx.listener(|model, _, _, cx| {
-                        model.dismiss_overlay(cx);
-                        cx.stop_propagation();
-                    }),
-                ),
+        .children(
+            backdrop_pieces(viewport, hole)
+                .into_iter()
+                .map(|piece| dismissing(piece, cx)),
         )
         .child(content)
         .into_any_element()
+}
+
+/// The parts of `viewport` outside `hole`, which clicks there pass through to.
+fn backdrop_pieces(viewport: Bounds<Pixels>, hole: Option<Bounds<Pixels>>) -> Vec<Bounds<Pixels>> {
+    let Some(hole) = hole
+        .map(|hole| hole.intersect(&viewport))
+        .filter(|hole| !hole.is_empty())
+    else {
+        return vec![viewport];
+    };
+    let (left, right) = (viewport.left(), viewport.right());
+    let (top, bottom) = (viewport.top(), viewport.bottom());
+    [
+        Bounds::from_corners(point(left, top), point(right, hole.top())),
+        Bounds::from_corners(point(left, hole.bottom()), point(right, bottom)),
+        Bounds::from_corners(point(left, hole.top()), point(hole.left(), hole.bottom())),
+        Bounds::from_corners(point(hole.right(), hole.top()), point(right, hole.bottom())),
+    ]
+    .into_iter()
+    .filter(|piece| !piece.is_empty())
+    .collect()
+}
+
+fn dismissing(piece: Bounds<Pixels>, cx: &mut Context<AppModel>) -> gpui::Div {
+    div()
+        .absolute()
+        .left(piece.left())
+        .top(piece.top())
+        .w(piece.size.width)
+        .h(piece.size.height)
+        .occlude()
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|model, _, _, cx| {
+                model.dismiss_overlay(cx);
+                cx.stop_propagation();
+            }),
+        )
+        .on_mouse_down(
+            MouseButton::Right,
+            cx.listener(|model, _, _, cx| {
+                model.dismiss_overlay(cx);
+                cx.stop_propagation();
+            }),
+        )
 }

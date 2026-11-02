@@ -40,6 +40,8 @@ impl Workspace {
                     kind: None,
                     parent_id: None,
                     folders: Vec::new(),
+                    folder_entries: Vec::new(),
+                    auto_subfolders: false,
                 }),
             })
             .unwrap();
@@ -426,6 +428,8 @@ fn folders_cannot_overlap_even_through_links_or_worktrees() {
             kind: Some(muxy_protocol::ProjectKind::Worktree),
             parent_id: Some(workspace.project),
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
         })
     };
     let git = |args: &[&str]| {

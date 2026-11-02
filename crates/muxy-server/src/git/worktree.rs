@@ -103,6 +103,9 @@ impl Registry {
         } else {
             parent.clone()
         };
+        if repository.kind == Some(ProjectKind::FolderGroup) {
+            return Err(error("Folder groups do not have a Git repository"));
+        }
         let lock = self.git.lock_for(path(&repository.directory))?;
         let _guard = lock.write().unwrap_or_else(PoisonError::into_inner);
         let (project, removal) = match &intent.action {
@@ -277,6 +280,8 @@ impl Registry {
             kind: Some(ProjectKind::Worktree),
             parent_id: Some(parent.id),
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
         };
         project
             .validate()
