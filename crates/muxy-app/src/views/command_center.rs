@@ -876,6 +876,33 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
         let color = gpui::Hsla::from(super::sidebar::project_color(project, model));
         model.theme.raised().blend(color.opacity(0.35))
     });
+    // The progress bar tops the session; a collapsed tile has no session, so its
+    // header carries it. It overlays rather than takes space, so nothing resizes.
+    let bar = progress.map(|progress| {
+        use muxy_protocol::ProgressState;
+        let color = match progress.state {
+            ProgressState::Paused => model.theme.warning,
+            ProgressState::Error => model.theme.danger,
+            _ => model.theme.accent,
+        };
+        let paused = matches!(progress.state, ProgressState::Paused | ProgressState::Error);
+        div()
+            .debug_selector(move || format!("command-center-progress-{index}-{:?}", progress.state))
+            .absolute()
+            .left_0()
+            .right_0()
+            .h(if paused { px(2.0) } else { px(4.0) })
+            .child(if paused {
+                div().size_full().bg(color).into_any_element()
+            } else {
+                model.spinners.activity_border(
+                    format!("command-center-working-{pane}"),
+                    px(4.0),
+                    color,
+                )
+            })
+    });
+    let (header_bar, body_bar) = if collapsed { (bar, None) } else { (None, bar) };
     let artwork = project.map_or_else(
         || IconGlyph::new(Icon::Terminal, m.icon_md(), model.theme.fg_muted).into_any_element(),
         |project| super::sidebar::project_tile(project, model, m.scaled(26.0), Some(group.clone())),
@@ -1034,47 +1061,20 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                         cx.stop_propagation();
                     })),
                 )
-                .when_some(progress, |header, progress| {
-                    use muxy_protocol::ProgressState;
-                    let color = match progress.state {
-                        ProgressState::Paused => model.theme.warning,
-                        ProgressState::Error => model.theme.danger,
-                        _ => model.theme.accent,
-                    };
-                    let paused =
-                        matches!(progress.state, ProgressState::Paused | ProgressState::Error);
-                    header.child(
-                        div()
-                            .debug_selector(move || {
-                                format!("command-center-progress-{index}-{:?}", progress.state)
-                            })
-                            .absolute()
-                            .bottom_0()
-                            .left_0()
-                            .right_0()
-                            .h(if paused { px(2.0) } else { px(4.0) })
-                            .child(if paused {
-                                div().size_full().bg(color).into_any_element()
-                            } else {
-                                model.spinners.activity_border(
-                                    format!("command-center-working-{pane}"),
-                                    px(4.0),
-                                    color,
-                                )
-                            }),
-                    )
-                }),
+                .when_some(header_bar, |header, bar| header.child(bar.bottom_0())),
         )
         .when(!collapsed, |tile| {
             tile.child(
                 div()
                     .debug_selector(move || format!("command-center-terminal-{index}"))
+                    .relative()
                     .flex_1()
                     .min_h(px(0.0))
                     .child(model.terminal(&pane).map_or_else(
                         || div().size_full().bg(model.theme.bg).into_any_element(),
                         super::super::model::PaneView::element,
-                    )),
+                    ))
+                    .when_some(body_bar, |body, bar| body.child(bar.top_0())),
             )
         })
         .when_some(
