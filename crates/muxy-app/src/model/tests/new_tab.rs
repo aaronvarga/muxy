@@ -1192,12 +1192,14 @@ fn add_project_lists_only_folders_and_opens_a_tab_in_a_saved_one(cx: &mut TestAp
 fn extra_folder_selection_is_scoped_to_its_picker_and_cannot_leak_into_new_tabs(
     cx: &mut TestAppContext,
 ) {
+    let root = tempfile::tempdir().expect("search root");
     let server = ServerId::new();
     let project = ProjectId::new();
-    let (boot, requests, _remotes) = remote_boot(
+    let (mut boot, requests, _remotes) = remote_boot(
         AppState::bootstrap().expect("state"),
         vec![servers::entry(server, "buildbox")],
     );
+    boot.settings.projects.search_root = Some(root.path().into());
     cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
     let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
     cx.simulate_resize(size(px(1200.0), px(800.0)));
