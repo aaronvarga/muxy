@@ -433,3 +433,88 @@ fn one_x_shell_command_becomes_the_default_shell_unless_one_is_chosen() {
     );
     assert!(report.attention.iter().any(|item| item.contains("fish -l")));
 }
+
+#[test]
+fn restore_onto_a_new_computer_keeps_fork_customizations() {
+    use muxy_protocol::{FolderEntry, FolderEntryId, ServerPath};
+    use std::os::unix::ffi::OsStrExt;
+
+    let folders: Vec<_> = (0..4).map(|_| tempfile::tempdir().unwrap()).collect();
+    let path = |index: usize| folders[index].path().canonicalize().unwrap();
+    let mut state = AppState::bootstrap().unwrap();
+    let id = state.add_project(ServerId::local(), path(0)).unwrap();
+    let hidden = state.add_project(ServerId::local(), path(1)).unwrap();
+    state.set_project_folders(id, vec![path(2)]).unwrap();
+    let manual = state.add_folder_group("Clients").unwrap();
+    let entry = FolderEntry {
+        id: FolderEntryId::new(),
+        name: "Acme".into(),
+        directory: ServerPath(path(0).as_os_str().as_bytes().to_vec()),
+        command: "claude".into(),
+    };
+    state
+        .set_folder_entries(manual, vec![entry.clone()])
+        .unwrap();
+    let auto = state.add_folder_group("Auto").unwrap();
+    state.set_folder_group_source(auto, path(3), true).unwrap();
+    let divider = state.add_divider(id).unwrap();
+    state.set_project_hidden(hidden, true).unwrap();
+
+    let mut settings = Settings::default();
+    let appearance = &mut settings.appearance;
+    appearance.command_center_group_by_project = true;
+    appearance.command_center_color = "#ff8800".into();
+    appearance.sidebar_icon_size = 40;
+    appearance.commands_bar_visible = false;
+    appearance.hidden_subfolders_shown.insert(auto);
+    appearance
+        .hidden_titlebar_buttons
+        .insert("top:ext:item".into());
+    appearance.hidden_status_bar_items.insert("branch".into());
+    let mut command = muxy_app_core::settings::CustomCommand::new("Shell".into(), String::new());
+    command.hidden = true;
+    command.status_bar = true;
+    settings.commands.push(command.clone());
+
+    // What export writes and a fresh install reads back.
+    let exported = serde_json::to_vec(&state.configuration_backup()).unwrap();
+    let imported: AppState = serde_json::from_slice(&exported).unwrap();
+    let restored = imported
+        .restore_configuration(&AppState::bootstrap().unwrap())
+        .unwrap();
+    let restored: AppState =
+        serde_json::from_slice(&serde_json::to_vec(&restored).unwrap()).unwrap();
+    assert_eq!(restored.project(id).unwrap().folders, [path(2)]);
+    assert_eq!(restored.project(manual).unwrap().folder_entries, [entry]);
+    let group = restored.project(auto).unwrap();
+    assert!(group.is_folder_group() && group.auto_subfolders);
+    assert_eq!(group.directory, path(3));
+    assert!(
+        restored
+            .dividers()
+            .iter()
+            .any(|line| line.id == divider && line.after == id)
+    );
+    assert!(
+        restored
+            .hidden_projects()
+            .any(|project| project.id == hidden)
+    );
+
+    let source = backup::settings_source(&settings).unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("settings.toml");
+    std::fs::write(
+        &file,
+        backup::remap_settings(&source, &imported, &restored).unwrap(),
+    )
+    .unwrap();
+    let loaded = Settings::load(&file).unwrap();
+    assert_eq!(loaded.appearance, settings.appearance);
+    let saved = loaded
+        .commands
+        .iter()
+        .find(|saved| saved.id == command.id)
+        .unwrap();
+    assert!(saved.hidden && saved.status_bar);
+}
