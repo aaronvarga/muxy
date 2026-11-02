@@ -871,6 +871,11 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
     let drag_title = entry.title.clone();
     let drag_theme = model.theme.clone();
     let group = SharedString::from(format!("command-center-tile-{pane}"));
+    // Tinted over the opaque `raised()`: `surface` is translucent and would dilute it.
+    let header_background = project.map_or(model.theme.surface, |project| {
+        let color = gpui::Hsla::from(super::sidebar::project_color(project, model));
+        model.theme.raised().blend(color.opacity(0.35))
+    });
     let artwork = project.map_or_else(
         || IconGlyph::new(Icon::Terminal, m.icon_md(), model.theme.fg_muted).into_any_element(),
         |project| super::sidebar::project_tile(project, model, m.scaled(26.0), Some(group.clone())),
@@ -914,7 +919,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                 .gap(m.spacing3())
                 .px(m.spacing3())
                 .py(m.spacing2())
-                .bg(model.theme.surface)
+                .bg(header_background)
                 .cursor_grab()
                 .on_mouse_down(
                     MouseButton::Right,
@@ -1047,13 +1052,13 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                             .bottom_0()
                             .left_0()
                             .right_0()
-                            .h(px(2.0))
+                            .h(if paused { px(2.0) } else { px(4.0) })
                             .child(if paused {
                                 div().size_full().bg(color).into_any_element()
                             } else {
                                 model.spinners.activity_border(
                                     format!("command-center-working-{pane}"),
-                                    px(2.0),
+                                    px(4.0),
                                     color,
                                 )
                             }),

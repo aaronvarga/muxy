@@ -63,7 +63,7 @@ fn progress_border_matches_session_activity_without_resizing_and_survives_collap
     assert!((bar.bottom() - header.bottom()).abs() <= px(0.5));
     assert_eq!(bar.left(), header.left());
     assert_eq!(bar.right(), header.right());
-    assert_eq!(bar.size.height, px(2.0));
+    assert_eq!(bar.size.height, px(4.0));
     assert!(
         cx.debug_bounds("command-center-progress-1-Paused")
             .is_some()

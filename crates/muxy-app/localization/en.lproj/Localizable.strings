@@ -238,6 +238,7 @@
 "Bright colors for bold text" = "Bright colors for bold text";
 "Bring history, bookmarks, or sign-ins from a browser on this computer." = "Bring history, bookmarks, or sign-ins from a browser on this computer.";
 "Broadcast to Split Panes" = "Broadcast to Split Panes";
+"Brown" = "Brown";
 "Browse" = "Browse";
 "Browse Folders…" = "Browse Folders…";
 "Browse extensions" = "Browse extensions";
@@ -441,6 +442,7 @@
 "Copy Update Command" = "Copy Update Command";
 "Copy on select" = "Copy on select";
 "Copy selected terminal text to the clipboard as soon as you finish selecting." = "Copy selected terminal text to the clipboard as soon as you finish selecting.";
+"Coral" = "Coral";
 "Could Not Install Command Line Tool" = "Could Not Install Command Line Tool";
 "Could not check for or download the latest app update: %@" = "Could not check for or download the latest app update: %@";
 "Could not check the running process: %@" = "Could not check the running process: %@";
@@ -538,6 +540,7 @@
 "Creating branch" = "Creating branch";
 "Creating worktree" = "Creating worktree";
 "Creating…" = "Creating…";
+"Crimson" = "Crimson";
 "Crop Logo" = "Crop Logo";
 "Current device" = "Current device";
 "Current pane" = "Current pane";
@@ -726,6 +729,9 @@
 "Global X11 shortcuts cannot cover a Wayland desktop." = "Global X11 shortcuts cannot cover a Wayland desktop.";
 "Global folder: %@" = "Global folder: %@";
 "Global template: %@" = "Global template: %@";
+"Gold" = "Gold";
+"Grass" = "Grass";
+"Gray" = "Gray";
 "Green" = "Green";
 "Group" = "Group";
 "Group Actions" = "Group Actions";
@@ -832,6 +838,7 @@
 "Items" = "Items";
 "Its projects and layouts leave this app; nothing on the server changes." = "Its projects and layouts leave this app; nothing on the server changes.";
 "Its saved certificate fingerprint is invalid." = "Its saved certificate fingerprint is invalid.";
+"Jade" = "Jade";
 "Just now" = "Just now";
 "Keep Quick Terminal open and above other windows when it loses focus. Same as its pin button." = "Keep Quick Terminal open and above other windows when it loses focus. Same as its pin button.";
 "Keep Waiting" = "Keep Waiting";
@@ -849,6 +856,7 @@
 "Last seen %lld h ago" = "Last seen %lld h ago";
 "Last seen %lld min ago" = "Last seen %lld min ago";
 "Last seen just now" = "Last seen just now";
+"Lavender" = "Lavender";
 "Layout · columns × rows" = "Layout · columns × rows";
 "Layouts" = "Layouts";
 "Leave the command blank for a terminal, or run a command such as claude \"Review this client\"." = "Leave the command blank for a terminal, or run a command such as claude \"Review this client\".";
@@ -887,6 +895,7 @@
 "Logs" = "Logs";
 "Looking for the newest release on your update channel." = "Looking for the newest release on your update channel.";
 "MUXY TIP" = "MUXY TIP";
+"Magenta" = "Magenta";
 "Make Default" = "Make Default";
 "Manage Commands…" = "Manage Commands…";
 "Manage Devices…" = "Manage Devices…";
@@ -899,6 +908,7 @@
 "Manage the local server that keeps your terminal sessions running." = "Manage the local server that keeps your terminal sessions running.";
 "Manual Order" = "Manual Order";
 "Mark each agent with the color of the project it runs in." = "Mark each agent with the color of the project it runs in.";
+"Maroon" = "Maroon";
 "Maximize" = "Maximize";
 "Maximize Pane" = "Maximize Pane";
 "Medium" = "Medium";
@@ -918,6 +928,7 @@
 "Migration" = "Migration";
 "Minimize" = "Minimize";
 "Minimize Window" = "Minimize Window";
+"Mint" = "Mint";
 "Missing application directory" = "Missing application directory";
 "Missing desktop update checksum" = "Missing desktop update checksum";
 "Missing installation directory" = "Missing installation directory";
@@ -975,6 +986,7 @@
 "Name" = "Name";
 "Name (A–Z)" = "Name (A–Z)";
 "Name (Z–A)" = "Name (Z–A)";
+"Navy" = "Navy";
 "Needs input" = "Needs input";
 "Needs your attention" = "Needs your attention";
 "Neither" = "Neither";
@@ -1069,6 +1081,7 @@
 "Offline transcription timed out. Try a smaller model or a shorter recording." = "Offline transcription timed out. Try a smaller model or a shorter recording.";
 "Offline voice model" = "Offline voice model";
 "Older sessions" = "Older sessions";
+"Olive" = "Olive";
 "On" = "On";
 "On the other computer, open the Devices tab, turn on Allow other devices, and copy its pairing link. Both computers must reach each other on the network or through a VPN." = "On the other computer, open the Devices tab, turn on Allow other devices, and copy its pairing link. Both computers must reach each other on the network or through a VPN.";
 "On-device speech recognition is unavailable for this language. Choose another dictation language." = "On-device speech recognition is unavailable for this language. Choose another dictation language.";
@@ -1155,6 +1168,7 @@
 "Pin Tab" = "Pin Tab";
 "Pink" = "Pink";
 "Pixels" = "Pixels";
+"Plum" = "Plum";
 "Points to change the font size by, such as 1." = "Points to change the font size by, such as 1.";
 "Port" = "Port";
 "Preparing on-device dictation…" = "Preparing on-device dictation…";
@@ -1456,6 +1470,8 @@
 "Sidebar vibrancy" = "Sidebar vibrancy";
 "Sidebar vibrancy level" = "Sidebar vibrancy level";
 "Size" = "Size";
+"Sky" = "Sky";
+"Slate" = "Slate";
 "Small" = "Small";
 "Snooze Muxy notifications" = "Snooze Muxy notifications";
 "Snooze for 1 hour" = "Snooze for 1 hour";
@@ -1483,6 +1499,7 @@
 "Startup Command (optional)" = "Startup Command (optional)";
 "Status" = "Status";
 "Stays open when it loses focus" = "Stays open when it loses focus";
+"Steel" = "Steel";
 "Still connecting to %@. Try again in a moment." = "Still connecting to %@. Try again in a moment.";
 "Stop" = "Stop";
 "Stop Server" = "Stop Server";
@@ -1631,6 +1648,7 @@
 "Toggle Pane Zoom" = "Toggle Pane Zoom";
 "Toggle Sidebar" = "Toggle Sidebar";
 "Toggle Voice Recording" = "Toggle Voice Recording";
+"Tomato" = "Tomato";
 "Top" = "Top";
 "Trackpad scroll speed" = "Trackpad scroll speed";
 "Transcribing on this computer…" = "Transcribing on this computer…";
