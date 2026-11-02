@@ -83,7 +83,18 @@ fn environment(
     identity: (muxy_protocol::ServerIdentity, muxy_protocol::SessionId),
     extra: &BTreeMap<String, String>,
 ) -> Vec<(OsString, OsString)> {
-    let mut env: Vec<_> = env::vars_os()
+    environment_from(env::vars_os(), identity, extra)
+}
+
+fn environment_from(
+    inherited: impl Iterator<Item = (OsString, OsString)>,
+    identity: (muxy_protocol::ServerIdentity, muxy_protocol::SessionId),
+    extra: &BTreeMap<String, String>,
+) -> Vec<(OsString, OsString)> {
+    let mut env: Vec<_> = inherited
+        // A launcher's NO_COLOR (often from automation) would strip color from every terminal;
+        // a shell profile or project environment can still set it.
+        .filter(|(name, _)| name != "NO_COLOR")
         .filter(|(name, _)| name.to_str().is_none_or(|name| !extra.contains_key(name)))
         .collect();
     env.extend(
@@ -249,6 +260,20 @@ mod tests {
         assert_eq!(last(&env, "LC_ALL"), Some(&OsString::from("C")));
         assert_eq!(last(&env, "MUXY_SESSION_ID"), Some(&OsString::from("7")));
         assert_eq!(last(&env, "TERM"), Some(&OsString::from("xterm-256color")));
+    }
+
+    #[test]
+    fn inherited_no_color_never_reaches_terminals_but_a_requested_one_does() {
+        let session = muxy_protocol::SessionId::new(7).expect("non-zero");
+        let identity = (muxy_protocol::ServerIdentity::from_u128(1), session);
+        let inherited = || pairs(&[("NO_COLOR", "1"), ("HOME", "/home/dev")]).into_iter();
+        let env = environment_from(inherited(), identity, &BTreeMap::new());
+        assert_eq!(last(&env, "NO_COLOR"), None);
+        assert_eq!(last(&env, "HOME"), Some(&OsString::from("/home/dev")));
+        assert_eq!(last(&env, "COLORTERM"), Some(&OsString::from("truecolor")));
+        let extra = BTreeMap::from([("NO_COLOR".to_owned(), "1".to_owned())]);
+        let env = environment_from(inherited(), identity, &extra);
+        assert_eq!(last(&env, "NO_COLOR"), Some(&OsString::from("1")));
     }
 
     fn pairs(values: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
