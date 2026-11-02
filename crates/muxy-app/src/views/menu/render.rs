@@ -380,9 +380,11 @@ fn dimensions(
         leading += m.scaled(ICON + popover::ROW_PADDING);
     }
     for (item, shortcut) in items.iter().zip(shortcuts) {
+        // Truncation sums unkerned glyph widths, which run wider than this kerned measure;
+        // the extra padding keeps the widest label from being cut short.
         let mut row_width = measure(&item.label, m.font_body())
             + leading
-            + m.scaled(popover::ROW_PADDING) * 2.0
+            + m.scaled(popover::ROW_PADDING) * 3.0
             + m.scaled(popover::PADDING) * 2.0
             + px(2.0);
         if let Some(shortcut) = shortcut {
