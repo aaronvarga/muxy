@@ -493,6 +493,23 @@ impl AppModel {
                     .with_binding(&format!("command.{id}"), None)?;
                 settings.save_commands(&path)?;
             }
+            Change::MoveCommand(id, down) => {
+                let Some(index) = settings
+                    .commands
+                    .iter()
+                    .position(|command| command.id == id)
+                else {
+                    return Ok(());
+                };
+                let Some(target) = index
+                    .checked_add_signed(if down { 1 } else { -1 })
+                    .filter(|target| *target < settings.commands.len())
+                else {
+                    return Ok(());
+                };
+                settings.commands.swap(index, target);
+                settings.save_commands(&path)?;
+            }
             Change::Binding(id, chord) => {
                 if let Some(chord) = &chord {
                     self.validate_quick_conflict(chord)?;
@@ -985,7 +1002,7 @@ fn terminal_field(id: &str) -> bool {
 
 fn change_id(change: &Change) -> &str {
     match change {
-        Change::Command(_) | Change::RemoveCommand(_) => "commands",
+        Change::Command(_) | Change::RemoveCommand(_) | Change::MoveCommand(..) => "commands",
         Change::QuickTerminal(_) => "quick-shortcut",
         Change::Theme(false, _) => "light-theme",
         Change::Theme(true, _) => "dark-theme",

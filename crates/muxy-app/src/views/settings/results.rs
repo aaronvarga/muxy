@@ -15,7 +15,7 @@ pub(super) struct Results {
     pub(super) shortcut_focus: Vec<[FocusHandle; 2]>,
     /// Record, reset, and unassign for each extension shortcut, by keymap id.
     pub(super) extension_focus: HashMap<String, [FocusHandle; 3]>,
-    pub(super) command_focus: HashMap<String, [FocusHandle; 4]>,
+    pub(super) command_focus: HashMap<String, [FocusHandle; 6]>,
     pub(super) reveal_focus: Rc<Cell<bool>>,
     pub(super) dirty: bool,
     reset_scroll: bool,
@@ -275,7 +275,7 @@ impl SettingsView {
             self.results
                 .command_focus
                 .entry(id)
-                .or_insert_with(|| [(); 4].map(|()| cx.focus_handle().tab_stop(true)));
+                .or_insert_with(|| [(); 6].map(|()| cx.focus_handle().tab_stop(true)));
         }
     }
 

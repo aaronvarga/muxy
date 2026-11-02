@@ -138,6 +138,7 @@ pub(crate) enum Change {
     Binding(String, Option<muxy_app_core::settings::KeyChord>),
     Command(muxy_app_core::settings::CustomCommand),
     RemoveCommand(String),
+    MoveCommand(String, bool),
     /// Removes an extension command's shortcut.
     Unassign(String),
     ShellIntegration(bool),

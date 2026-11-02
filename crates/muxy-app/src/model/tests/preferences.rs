@@ -357,6 +357,65 @@ fn terminal_reset_asks_first_then_restores_every_default_on_the_page(cx: &mut Te
 }
 
 #[gpui::test]
+fn command_reordering_persists_ids_shortcuts_and_hidden_entries(cx: &mut TestAppContext) {
+    use muxy_app_core::settings::{CustomCommand, Settings};
+
+    let (mut boot, requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let mut hidden = CustomCommand::new("Hidden".into(), "echo hidden".into());
+    hidden.hidden = true;
+    boot.settings.commands = vec![
+        CustomCommand::new("First".into(), "echo first".into()),
+        hidden,
+        CustomCommand::new("Last".into(), "echo last".into()),
+    ];
+    let original = boot.settings.commands.clone();
+    let shortcut = original[2].shortcut_id();
+    boot.settings.keymap = boot
+        .settings
+        .keymap
+        .with_binding(&shortcut, Some("ctrl-alt-l".parse().expect("shortcut")))
+        .expect("binding");
+    let path = boot.state_path.with_file_name("settings.toml");
+    boot.settings.save_commands(&path).expect("save commands");
+    let (model, cx) = settings_window(boot, cx);
+    model.update(cx, |model, cx| {
+        requests.try_iter().for_each(drop);
+        model.change_preference(Change::MoveCommand(original[2].id.clone(), false), cx);
+        model.change_preference(Change::MoveCommand(original[2].id.clone(), false), cx);
+        let expected = vec![
+            original[2].clone(),
+            original[0].clone(),
+            original[1].clone(),
+        ];
+        assert_eq!(model.settings.commands, expected);
+        let saved = Settings::load(&path).expect("saved order");
+        assert_eq!(saved.commands, expected);
+        assert_eq!(
+            saved.keymap.binding(&shortcut),
+            model.settings.keymap.binding(&shortcut)
+        );
+        model.change_preference(Change::MoveCommand(original[2].id.clone(), false), cx);
+        model.change_preference(Change::MoveCommand(original[1].id.clone(), true), cx);
+        model.change_preference(Change::MoveCommand("deleted-command".into(), true), cx);
+        assert_eq!(model.settings.commands, expected);
+        model.change_preference(Change::MoveCommand(original[2].id.clone(), true), cx);
+        assert_eq!(
+            model.settings.commands,
+            vec![
+                original[0].clone(),
+                original[2].clone(),
+                original[1].clone()
+            ]
+        );
+        assert!(
+            !requests
+                .try_iter()
+                .any(|(_, work)| matches!(work, Work::Attach { .. }))
+        );
+    });
+}
+
+#[gpui::test]
 fn terminal_key_bindings_apply_atomically_and_never_take_a_command_shortcut(
     cx: &mut TestAppContext,
 ) {

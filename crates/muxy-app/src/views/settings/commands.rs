@@ -126,6 +126,10 @@ fn draft_toggle(
     )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Command rows include shortcut, editing and ordering controls"
+)]
 pub(super) fn row(pane: &SettingsView, index: usize, cx: &mut Context<SettingsView>) -> AnyElement {
     let command = &pane.snapshot.settings.commands[index];
     let id = command.shortcut_id();
@@ -212,7 +216,38 @@ pub(super) fn row(pane: &SettingsView, index: usize, cx: &mut Context<SettingsVi
                 let id = id.clone();
                 move || format!("settings-delete-{id}")
             }),
-        );
+        )
+        .children([false, true].into_iter().map(|down| {
+            let command_id = command.id.clone();
+            let direction = if down { "down" } else { "up" };
+            controls::button(
+                pane.style(),
+                &format!("move-{direction}-{id}"),
+                &if down {
+                    tr!("Move Down")
+                } else {
+                    tr!("Move Up")
+                },
+                enabled
+                    && if down {
+                        index + 1 < pane.snapshot.settings.commands.len()
+                    } else {
+                        index > 0
+                    },
+                cx.listener(move |pane, _, _, cx| {
+                    pane.recording = None;
+                    cx.emit(SettingsEvent::Change(Change::MoveCommand(
+                        command_id.clone(),
+                        down,
+                    )));
+                }),
+            )
+            .track_focus(&focus[if down { 5 } else { 4 }])
+            .debug_selector({
+                let id = id.clone();
+                move || format!("settings-move-{direction}-{id}")
+            })
+        }));
     pane.text_row(
         &id,
         &command.name,
