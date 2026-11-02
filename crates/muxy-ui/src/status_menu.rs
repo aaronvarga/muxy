@@ -35,3 +35,5 @@ pub fn attention_count(entries: &[Entry]) -> usize {
 mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::StatusMenu;
+#[cfg(target_os = "macos")]
+pub(crate) use macos::project_icon;

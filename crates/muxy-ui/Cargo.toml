@@ -16,7 +16,7 @@ test-support = []
 serde_json.workspace = true
 muxy-core = { path = "../muxy-core" }
 gpui = { version = "=0.2.2", default-features = false }
-image = { version = "0.25", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
 unicode-segmentation = "1"
 async-channel = "2"
 raw-window-handle = "0.6"
@@ -26,7 +26,7 @@ polybrowser = { git = "https://github.com/saeedvaziry/polybrowser", branch = "ma
 objc2-javascript-core = { version = "=0.3.2", default-features = false, features = ["std", "JSBase", "JSContextRef", "JSObjectRef", "JSStringRef", "JSValueRef"] }
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "WKWebView", "WKWebViewConfiguration", "WKUserContentController", "WKUserScript", "WKContentWorld", "WKScriptMessage", "WKScriptMessageHandlerWithReply", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKUIDelegate", "WKWindowFeatures", "WKURLSchemeHandler", "WKURLSchemeTask", "WKSnapshotConfiguration"] }
 dispatch2 = "0.3"
-objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSettings", "UNNotificationSound", "UNNotificationTrigger", "UNUserNotificationCenter"] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNNotification", "UNNotificationAttachment", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSettings", "UNNotificationSound", "UNNotificationTrigger", "UNUserNotificationCenter"] }
 block2 = "0.6"
 objc2 = "0.6"
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGColor", "CGColorSpace", "CGContext", "CGImage", "CGBitmapContext", "CGPath", "CGAffineTransform", "CGEvent", "CGEventTypes", "CGRemoteOperation"] }

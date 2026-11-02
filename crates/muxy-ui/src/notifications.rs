@@ -81,9 +81,23 @@ impl Notifications {
 
     /// Shows a notification that opens something in the app: an
     /// [`Event::Opened`] follows when the user opens it.
-    pub fn deliver(&self, id: &str, title: &str, body: &str) {
+    pub fn deliver(
+        &self,
+        id: &str,
+        title: &str,
+        body: &str,
+        icon: Option<&crate::status_menu::ProjectIcon>,
+    ) {
         match &self.0 {
-            Backend::Native(service) => service.deliver(id, title, body),
+            Backend::Native(service) => {
+                #[cfg(target_os = "macos")]
+                service.deliver(id, title, body, icon);
+                #[cfg(target_os = "linux")]
+                {
+                    let _ = icon;
+                    service.deliver(id, title, body);
+                }
+            }
             #[cfg(any(test, feature = "test-support"))]
             Backend::Simulated(simulated) => simulated.shown().push(id.to_owned()),
             Backend::Absent(_) => {}

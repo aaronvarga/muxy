@@ -213,7 +213,7 @@ fn session_icon(icon: Retained<NSImage>, dot: Option<Retained<NSImage>>) -> Reta
     image
 }
 
-fn project_icon(icon: &ProjectIcon) -> Retained<NSImage> {
+pub(crate) fn project_icon(icon: &ProjectIcon) -> Retained<NSImage> {
     if let Some(bytes) = &icon.logo
         && let Some(image) = NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(bytes))
     {
