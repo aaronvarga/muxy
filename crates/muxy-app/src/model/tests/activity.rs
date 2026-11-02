@@ -39,6 +39,38 @@ fn claims(requests: &std::sync::mpsc::Receiver<(u64, Work)>) -> Vec<Vec<u64>> {
 }
 
 #[gpui::test]
+fn activity_notifications_identify_the_project_session_and_artwork(cx: &mut TestAppContext) {
+    let mut state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    state.open_terminal_tab(home).expect("tab");
+    let pane = state.window().active_pane.expect("pane");
+    let session = SessionId::new(42).expect("session");
+    state
+        .set_pane_session(pane, Some(session))
+        .expect("session");
+    state
+        .set_pane_title(pane, "Review the estimate")
+        .expect("title");
+    state
+        .set_project_icon(home, Some("🚀".into()))
+        .expect("icon");
+    let (boot, _) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, _| {
+        let event = completed(1, session, home);
+        let (title, body, icon) = model.activity_notification_content(ServerId::local(), &event);
+        assert!(title.contains("Codex"));
+        assert!(title.contains(&model.state.home().name));
+        assert!(body.starts_with("Review the estimate\n"));
+        assert_eq!(body.lines().count(), 2);
+        assert_eq!(icon.expect("project icon").glyph, "🚀");
+        model.state.set_pane_title(pane, "").expect("empty title");
+        let (_, body, _) = model.activity_notification_content(ServerId::local(), &event);
+        assert!(body.starts_with("Terminal 42\n"));
+    });
+}
+
+#[gpui::test]
 fn alerts_are_claimed_shown_and_cleared_only_with_a_notification_service(cx: &mut TestAppContext) {
     let mut state = AppState::bootstrap().expect("state");
     let home = state.home().id;

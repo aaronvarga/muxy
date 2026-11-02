@@ -1,5 +1,9 @@
 use std::collections::HashSet;
+use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::PathBuf;
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use async_channel::{Receiver, Sender};
@@ -8,15 +12,62 @@ use muxy_core::capability::Capability;
 use objc2::rc::Retained;
 use objc2::runtime::{Bool, ProtocolObject};
 use objc2::{AnyThread, DefinedClass, define_class, msg_send};
-use objc2_foundation::{NSArray, NSBundle, NSError, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{NSArray, NSBundle, NSError, NSObject, NSObjectProtocol, NSString, NSURL};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent, UNNotification,
-    UNNotificationPresentationOptions, UNNotificationRequest, UNNotificationResponse,
-    UNNotificationSettings, UNNotificationSound, UNUserNotificationCenter,
+    UNNotificationAttachment, UNNotificationPresentationOptions, UNNotificationRequest,
+    UNNotificationResponse, UNNotificationSettings, UNNotificationSound, UNUserNotificationCenter,
     UNUserNotificationCenterDelegate,
 };
 
 use super::Event;
+
+struct IconFile(PathBuf);
+
+impl Drop for IconFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+fn icon_attachment(
+    icon: &crate::status_menu::ProjectIcon,
+) -> Option<(Retained<UNNotificationAttachment>, Arc<IconFile>)> {
+    use image::ImageEncoder;
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    let image = crate::status_menu::project_icon(icon);
+    let pixels = crate::bitmap::render_rgba(&image, 64, 64)?;
+    let mut png = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(&pixels, 64, 64, image::ExtendedColorType::Rgba8)
+        .ok()?;
+    let path = std::env::temp_dir().join(format!(
+        "muxy-notification-{}-{}.png",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)
+        .ok()?;
+    let guard = Arc::new(IconFile(path));
+    file.write_all(&png).ok()?;
+    drop(file);
+    let url = NSURL::from_file_path(&guard.0)?;
+    // SAFETY: No options dictionary is supplied; AppKit rendered the local PNG.
+    let attachment = unsafe {
+        UNNotificationAttachment::attachmentWithIdentifier_URL_options_error(
+            &NSString::from_str("project"),
+            &url,
+            None,
+        )
+    }
+    .ok()?;
+    Some((attachment, guard))
+}
 
 define_class!(
     #[unsafe(super(NSObject))]
@@ -174,14 +225,24 @@ impl Service {
 
     /// The system brings the app forward for a click on any notification.
     pub(super) fn inform(&self, id: &str, title: &str, body: &str) {
-        self.deliver(id, title, body);
+        self.deliver(id, title, body, None);
     }
 
-    pub(super) fn deliver(&self, id: &str, title: &str, body: &str) {
+    pub(super) fn deliver(
+        &self,
+        id: &str,
+        title: &str,
+        body: &str,
+        icon: Option<&crate::status_menu::ProjectIcon>,
+    ) {
         let content = UNMutableNotificationContent::new();
         content.setTitle(&NSString::from_str(title));
         content.setBody(&NSString::from_str(body));
         content.setSound(Some(&UNNotificationSound::defaultSound()));
+        let icon_file = icon.and_then(icon_attachment).map(|(attachment, file)| {
+            content.setAttachments(&NSArray::from_retained_slice(&[attachment]));
+            file
+        });
         let request = UNNotificationRequest::requestWithIdentifier_content_trigger(
             &NSString::from_str(id),
             &content,
@@ -195,7 +256,12 @@ impl Service {
         let completion = RcBlock::new(move |granted: Bool, _: *mut NSError| {
             permission.report(!granted.as_bool());
             pending.authorized(&id, granted.as_bool(), || {
-                center.addNotificationRequest_withCompletionHandler(&request, None);
+                let icon_file = icon_file.clone();
+                let submitted = RcBlock::new(move |_: *mut NSError| {
+                    // Retain the source PNG until macOS has accepted or rejected the attachment.
+                    let _ = &icon_file;
+                });
+                center.addNotificationRequest_withCompletionHandler(&request, Some(&submitted));
             });
         });
         self.center
@@ -211,6 +277,38 @@ impl Service {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn project_artwork_becomes_a_bounded_upright_notification_attachment() {
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_fn(18, 18, |_, y| {
+            image::Rgba(if y < 9 {
+                [255, 0, 0, 255]
+            } else {
+                [0, 0, 255, 255]
+            })
+        })
+        .write_to(&mut png, image::ImageFormat::Png)
+        .expect("logo");
+        for logo in [Some(Arc::from(png.into_inner())), None] {
+            let icon = crate::status_menu::ProjectIcon {
+                logo,
+                glyph: "sf:house.fill".into(),
+                color: "#123456".into(),
+            };
+            let (attachment, file) = icon_attachment(&icon).expect("image attachment");
+            let path = attachment.URL().to_file_path().expect("attachment path");
+            let bitmap = image::open(&path).expect("read PNG").to_rgba8();
+            assert_eq!(bitmap.dimensions(), (64, 64));
+            if icon.logo.is_some() {
+                assert!(bitmap.get_pixel(32, 8)[0] > 200, "red stays above blue");
+                assert!(bitmap.get_pixel(32, 55)[2] > 200, "blue stays below red");
+            }
+            let source = file.0.clone();
+            drop(file);
+            assert!(!source.exists(), "temporary source is cleaned up");
+        }
+    }
 
     #[test]
     fn a_denied_permission_is_reported_once_and_lifted_when_allowed_again() {

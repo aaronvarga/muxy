@@ -421,22 +421,82 @@ impl AppModel {
             return;
         };
         for event in self.activity_notification_events(server, &ids) {
-            let project = self
-                .state
-                .project(event.project)
-                .map_or("Muxy", |project| project.name.as_str());
-            let title = match self.server_name(server) {
-                Some(name) if !server.is_local() => {
-                    format!("{} · {project} · {name}", event.provider.name())
-                }
-                _ => format!("{} · {project}", event.provider.name()),
-            };
+            let (title, body, icon) = self.activity_notification_content(server, event);
             self.notifications.deliver(
                 &notification_id(server, event.id),
                 &title,
-                &activity_description(event.kind),
+                &body,
+                icon.as_ref(),
             );
         }
+    }
+
+    pub(super) fn activity_notification_content(
+        &self,
+        server: ServerId,
+        event: &muxy_protocol::ActivityEvent,
+    ) -> (String, String, Option<muxy_ui::status_menu::ProjectIcon>) {
+        let project = self.state.project(event.project);
+        let project_name = project.map_or_else(
+            || "Muxy".to_owned(),
+            |project| {
+                project
+                    .parent_id
+                    .and_then(|id| self.state.project(id))
+                    .map_or_else(
+                        || project.name.clone(),
+                        |parent| format!("{} / {}", parent.name, project.name),
+                    )
+            },
+        );
+        let mut title = format!("{} · {project_name}", event.provider.name());
+        if let Some(name) = self.server_name(server).filter(|_| !server.is_local()) {
+            title.push_str(" · ");
+            title.push_str(name);
+        }
+        let session_title = self
+            .command_center
+            .tiles
+            .iter()
+            .filter(|_| self.command_center.active)
+            .find(|tile| tile.server == server && tile.session.info.id == event.session)
+            .map(|tile| tile.title.as_str())
+            .filter(|title| !title.trim().is_empty())
+            .or_else(|| {
+                self.session_pane(server, event.session)
+                    .and_then(|(project, tab, pane)| {
+                        project
+                            .tabs
+                            .iter()
+                            .find(|candidate| candidate.id == tab)?
+                            .panes
+                            .iter()
+                            .find(|candidate| candidate.id == pane)
+                            .map(|pane| pane.title.as_str())
+                    })
+                    .filter(|title| !title.trim().is_empty())
+            })
+            .filter(|title| title.trim() != "Terminal")
+            .map_or_else(
+                || tr!("Terminal %lld", event.session.get()).to_string(),
+                |title| title.split_whitespace().collect::<Vec<_>>().join(" "),
+            );
+        let icon = project.map(|project| muxy_ui::status_menu::ProjectIcon {
+            logo: project.logo.clone(),
+            glyph: project.icon.clone().unwrap_or_else(|| {
+                if project.home && server.is_local() {
+                    "sf:house.fill".into()
+                } else {
+                    muxy_app_core::initial(&project.name).to_uppercase()
+                }
+            }),
+            color: project.color.as_str().to_owned(),
+        });
+        (
+            title,
+            format!("{session_title}\n{}", activity_description(event.kind)),
+            icon,
+        )
     }
 
     pub(crate) fn navigate_activity(&mut self, server: ServerId, id: u64, cx: &mut Context<Self>) {
