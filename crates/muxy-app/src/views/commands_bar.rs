@@ -116,8 +116,8 @@ pub(super) fn agent(command: &muxy_app_core::settings::CustomCommand) -> Option<
     let name = command.name.split_whitespace().next();
     [program, name].into_iter().flatten().find_map(|word| {
         Some(match word.to_lowercase().as_str() {
-            "claude" => AgentProvider::Claude,
-            "codex" => AgentProvider::Codex,
+            "claude" | "cc" => AgentProvider::Claude,
+            "codex" | "cx" => AgentProvider::Codex,
             "opencode" => AgentProvider::OpenCode,
             "cursor" | "cursor-agent" => AgentProvider::Cursor,
             "copilot" => AgentProvider::Copilot,
@@ -166,6 +166,12 @@ mod tests {
             Some(AgentProvider::Claude)
         );
         assert_eq!(agent("Codex", "cx"), Some(AgentProvider::Codex));
+        assert_eq!(agent("CC Review", "review"), Some(AgentProvider::Claude));
+        assert_eq!(agent("CX Review", "review"), Some(AgentProvider::Codex));
+        assert_eq!(agent("Agent", "cc"), Some(AgentProvider::Claude));
+        assert_eq!(agent("Agent", "cx"), Some(AgentProvider::Codex));
+        assert_eq!(agent("CC", "codex"), Some(AgentProvider::Codex));
+        assert_eq!(agent("Accounts", "cargo test"), None);
         assert_eq!(agent("Terminal", ""), None);
         assert_eq!(agent("Tests", "cargo test"), None);
     }
