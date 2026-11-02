@@ -1,5 +1,7 @@
 use super::*;
 use gpui::point;
+
+use crate::views::project_menu::HOVER_DELAY;
 use muxy_protocol::ErrorCode;
 
 #[gpui::test]
@@ -34,6 +36,7 @@ fn automatic_folder_group_hover_launches_children_and_toggle_off_restores_manual
     cx.run_until_parked();
     let row = cx.debug_bounds("project-row-1").expect("group row");
     cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(HOVER_DELAY);
     cx.run_until_parked();
     assert!(cx.debug_bounds("menu-label-Manual review").is_none());
     assert!(cx.debug_bounds("menu-label-notes.txt").is_none());
@@ -50,6 +53,7 @@ fn automatic_folder_group_hover_launches_children_and_toggle_off_restores_manual
         assert_eq!(model.state.startup_command(pane), None);
     });
     cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(HOVER_DELAY);
     cx.run_until_parked();
     let toggle = cx
         .debug_bounds("menu-label-Automatically Show Subfolders")
@@ -65,6 +69,7 @@ fn automatic_folder_group_hover_launches_children_and_toggle_off_restores_manual
         );
     });
     cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(HOVER_DELAY);
     cx.run_until_parked();
     view.update(cx, |model, cx| {
         model.receive_folder_group_listing(group, root.path(), Ok(vec![child]), cx);
@@ -110,6 +115,7 @@ fn folder_group_hover_launches_the_saved_folder_and_keeps_artwork_controls(
     cx.run_until_parked();
     let row = cx.debug_bounds("project-row-1").expect("folder group row");
     cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(HOVER_DELAY);
     cx.run_until_parked();
     let launch = cx
         .debug_bounds("menu-label-Review client")
@@ -131,6 +137,7 @@ fn folder_group_hover_launches_the_saved_folder_and_keeps_artwork_controls(
         );
     });
     cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(HOVER_DELAY);
     cx.run_until_parked();
     let project = cx
         .debug_bounds("menu-label-Project")
@@ -993,6 +1000,7 @@ fn automatic_folder_group_hides_dot_folders_until_shown(cx: &mut TestAppContext)
     let row = cx.debug_bounds("project-row-1").expect("group row");
     let list = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
         cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+        cx.executor().advance_clock(HOVER_DELAY);
         cx.run_until_parked();
         view.update(cx, |model, cx| {
             let folders = vec![hidden.clone(), visible.clone()];
@@ -1049,6 +1057,7 @@ fn folder_group_with_its_hover_menu_open_can_still_be_dragged(cx: &mut TestAppCo
         .expect("other row")
         .center();
     cx.simulate_mouse_move(from, None, Modifiers::none());
+    cx.executor().advance_clock(HOVER_DELAY);
     cx.run_until_parked();
     assert!(view.read_with(cx, |model, _| matches!(
         model.overlay,
@@ -1100,6 +1109,7 @@ fn hovering_folder_group_subfolders_drills_down_and_clicking_opens_that_folder(
     cx.run_until_parked();
     let row = cx.debug_bounds("project-row-1").expect("group row");
     cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(HOVER_DELAY);
     cx.run_until_parked();
     let hover = |label: &str, cx: &mut VisualTestContext| {
         let bounds = cx
@@ -1123,4 +1133,35 @@ fn hovering_folder_group_subfolders_drills_down_and_clicking_opens_that_folder(
             ServerPath(web.as_os_str().as_bytes().to_vec())
         );
     });
+}
+
+#[gpui::test]
+fn folder_group_menu_waits_for_the_hover_delay_and_passing_over_does_not_open_it(
+    cx: &mut TestAppContext,
+) {
+    let mut state = AppState::bootstrap().expect("state");
+    state.add_folder_group("Clients").expect("group");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.sidebar_expanded = true;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.run_until_parked();
+    let delay = HOVER_DELAY;
+    let menu_open = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |model, _| {
+            matches!(model.overlay, Some(Overlay::Menu(_)))
+        })
+    };
+    let row = cx.debug_bounds("project-row-1").expect("group row");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(delay / 2);
+    assert!(!menu_open(&view, cx), "menu opened before the delay");
+    cx.simulate_mouse_move(point(px(600.0), px(400.0)), None, Modifiers::none());
+    cx.executor().advance_clock(delay);
+    assert!(
+        !menu_open(&view, cx),
+        "passing over the row opened the menu"
+    );
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    cx.executor().advance_clock(delay);
+    assert!(menu_open(&view, cx));
 }
