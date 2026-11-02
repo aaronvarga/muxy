@@ -48,11 +48,25 @@ pub(crate) fn hover_opens_menu(
         .inset_0(),
     )
     .on_hover(cx.listener(move |model, hovered: &bool, window, cx| {
+        // Leaving the row before the delay cancels the pending open.
+        model.folder_group_hover = None;
         if *hovered && !cx.has_active_drag() {
-            model.open_folder_group_menu(id, Some(anchor.clone()), window, cx);
+            let anchor = anchor.clone();
+            model.folder_group_hover = Some(cx.spawn_in(window, async move |model, cx| {
+                cx.background_executor().timer(HOVER_DELAY).await;
+                let _ = model.update_in(cx, |model, window, cx| {
+                    model.folder_group_hover = None;
+                    if !cx.has_active_drag() {
+                        model.open_folder_group_menu(id, Some(anchor), window, cx);
+                    }
+                });
+            }));
         }
     }))
 }
+
+/// How long the pointer rests on a folder group's row before its menu opens.
+pub(crate) const HOVER_DELAY: std::time::Duration = std::time::Duration::from_millis(300);
 
 /// Lists `directory`'s folders off the main thread, on its server when remote.
 fn list_subfolders(

@@ -249,6 +249,8 @@ pub(crate) struct AppModel {
     window_accessibility: window_accessibility::WindowAccessibility,
     notifications: muxy_ui::notifications::Notifications,
     notification_snooze: Option<Task<()>>,
+    /// Opens a hovered folder group's menu after a short delay.
+    pub(crate) folder_group_hover: Option<Task<()>>,
     pub(crate) capabilities: muxy_core::capability::Capabilities,
     /// Servers still finishing their work before the app quits.
     flushing: HashSet<ServerId>,
@@ -726,6 +728,7 @@ impl AppModel {
             capabilities,
             notifications,
             notification_snooze: None,
+            folder_group_hover: None,
             flushing: HashSet::new(),
             quitting: Quitting::Idle,
             updates: updates::Updater::default(),

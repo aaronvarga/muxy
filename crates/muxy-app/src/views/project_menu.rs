@@ -9,6 +9,8 @@ use super::project_editor::Field;
 use crate::model::{AppModel, git::Repository};
 
 mod folder_groups;
+#[cfg(test)]
+pub(crate) use folder_groups::HOVER_DELAY;
 pub(crate) use folder_groups::hover_opens_menu;
 
 /// The menu of a top-level project. `worktrees` is `None` when its folder is not
