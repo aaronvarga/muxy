@@ -23,12 +23,13 @@ pub(crate) struct CommandCenter {
     pub(crate) tiles: Vec<Tile>,
     pub(crate) visible: Vec<PaneId>,
     pub(crate) collapsed: HashSet<(ServerId, SessionId)>,
+    pub(crate) collapsed_projects: HashSet<(ServerId, ProjectId)>,
     pub(crate) focused: Option<PaneId>,
     pub(crate) columns: usize,
     pub(crate) scroll: ListState,
     pub(crate) scrollbar: muxy_ui::scrollbar::ListScrollbar,
     pub(crate) layout_anchor: muxy_ui::popover::PopoverAnchor,
-    pub(crate) grid: Option<([u8; 2], gpui::Size<gpui::Pixels>, usize, gpui::Pixels)>,
+    pub(crate) grid: Option<([usize; 2], gpui::Size<gpui::Pixels>, usize, gpui::Pixels)>,
     pub(crate) reveal: Option<PaneId>,
     render_epoch: u64,
 }
@@ -40,9 +41,11 @@ impl Default for CommandCenter {
             tiles: Vec::new(),
             visible: Vec::new(),
             collapsed: HashSet::new(),
+            collapsed_projects: HashSet::new(),
             focused: None,
             columns: 1,
-            scroll: ListState::new(0, ListAlignment::Top, px(0.0)),
+            // Measure spacer bands up front so wheel scrolling knows the full extent.
+            scroll: ListState::new(0, ListAlignment::Top, px(0.0)).measure_all(),
             scrollbar: muxy_ui::scrollbar::ListScrollbar::default(),
             layout_anchor: muxy_ui::popover::PopoverAnchor::default(),
             grid: None,
@@ -56,6 +59,27 @@ impl CommandCenter {
     pub(crate) fn is_collapsed(&self, tile: &Tile) -> bool {
         self.collapsed
             .contains(&(tile.server, tile.session.info.id))
+    }
+
+    pub(crate) fn project_groups(&self) -> Vec<Vec<usize>> {
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        let mut indices = HashMap::new();
+        for (index, tile) in self.tiles.iter().enumerate() {
+            let next = groups.len();
+            let group = *indices
+                .entry((tile.server, tile.session.info.project))
+                .or_insert(next);
+            if group == groups.len() {
+                groups.push(Vec::new());
+            }
+            groups[group].push(index);
+        }
+        groups
+    }
+
+    pub(crate) fn project_collapsed(&self, tile: &Tile) -> bool {
+        self.collapsed_projects
+            .contains(&(tile.server, tile.session.info.project))
     }
 
     pub(crate) fn tile(&self, pane: PaneId) -> Option<&Tile> {
@@ -87,18 +111,65 @@ impl AppModel {
         cx.notify();
     }
 
-    pub(crate) fn close_command_center(&mut self, cx: &mut Context<Self>) {
-        self.command_center.leave();
-        self.sync_visible(cx);
-        self.focus_requested = true;
-        cx.notify();
-    }
-
     pub(crate) fn set_command_center_layout(&mut self, layout: GridLayout, cx: &mut Context<Self>) {
         self.appearance.command_center_layout = layout;
         self.command_center.grid = None;
         self.command_center.scroll.scroll_to(ListOffset::default());
         self.save_appearance(cx);
+        cx.notify();
+    }
+
+    pub(crate) fn toggle_command_center_grouping(&mut self, cx: &mut Context<Self>) {
+        self.appearance.command_center_group_by_project =
+            !self.appearance.command_center_group_by_project;
+        self.save_appearance(cx);
+        self.command_center.scroll.scroll_to(ListOffset::default());
+        self.refresh_command_center_groups(cx);
+    }
+
+    pub(crate) fn toggle_command_center_group(
+        &mut self,
+        server: ServerId,
+        project: ProjectId,
+        cx: &mut Context<Self>,
+    ) {
+        if !self
+            .command_center
+            .collapsed_projects
+            .remove(&(server, project))
+        {
+            self.command_center
+                .collapsed_projects
+                .insert((server, project));
+        }
+        self.refresh_command_center_groups(cx);
+    }
+
+    fn refresh_command_center_groups(&mut self, cx: &mut Context<Self>) {
+        let hidden: HashSet<_> = self
+            .command_center
+            .tiles
+            .iter()
+            .filter(|tile| {
+                self.appearance.command_center_group_by_project
+                    && self.command_center.project_collapsed(tile)
+            })
+            .map(|tile| tile.pane)
+            .collect();
+        self.command_center
+            .visible
+            .retain(|pane| !hidden.contains(pane));
+        if self
+            .command_center
+            .focused
+            .is_some_and(|pane| hidden.contains(&pane))
+        {
+            self.command_center.focused = None;
+        }
+        self.command_center.grid = None;
+        self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
+        self.focus_requested = true;
+        self.sync_visible(cx);
         cx.notify();
     }
 
@@ -250,9 +321,16 @@ impl AppModel {
                     })
             })
             .collect();
+        let quick_session = self
+            .state
+            .quick_terminal()
+            .and_then(|pane| self.pane_session(pane.id));
         let mut tiles: Vec<_> = self
             .running_sessions()
             .into_iter()
+            .filter(|(server, session)| {
+                !server.is_local() || Some(session.info.id) != quick_session
+            })
             .filter(|(server, session)| seen.insert((*server, session.info.id)))
             .map(|(server, session)| {
                 let previous = previous.get(&(server, session.info.id));
@@ -342,10 +420,11 @@ impl AppModel {
 
     pub(super) fn command_center_focus(&mut self, pane: PaneId, cx: &mut Context<Self>) {
         if self.command_center.active
-            && self
-                .command_center
-                .tile(pane)
-                .is_some_and(|tile| !self.command_center.is_collapsed(tile))
+            && self.command_center.tile(pane).is_some_and(|tile| {
+                !(self.command_center.is_collapsed(tile)
+                    || self.appearance.command_center_group_by_project
+                        && self.command_center.project_collapsed(tile))
+            })
         {
             self.command_center.focused = Some(pane);
             self.focus_requested = true;
@@ -359,15 +438,34 @@ impl AppModel {
         cx: &mut Context<Self>,
     ) {
         use muxy_app_core::Direction;
-        let Some(mut index) = self
-            .command_center
-            .tiles
-            .iter()
-            .position(|tile| Some(tile.pane) == self.active_pane())
-        else {
+        let columns = self.command_center.columns.max(1);
+        let order: Vec<_> = if self.appearance.command_center_group_by_project {
+            self.command_center
+                .project_groups()
+                .into_iter()
+                .filter(|group| {
+                    !self
+                        .command_center
+                        .project_collapsed(&self.command_center.tiles[group[0]])
+                })
+                .flat_map(|group| {
+                    let padding = (columns - group.len() % columns) % columns;
+                    group
+                        .into_iter()
+                        .map(Some)
+                        .chain(std::iter::repeat_n(None, padding))
+                })
+                .collect()
+        } else {
+            (0..self.command_center.tiles.len()).map(Some).collect()
+        };
+        let Some(mut index) = order.iter().position(|index| {
+            index.is_some_and(|index| {
+                Some(self.command_center.tiles[index].pane) == self.active_pane()
+            })
+        }) else {
             return;
         };
-        let columns = self.command_center.columns.max(1);
         while let Some(next) = (match direction {
             Direction::Left if index % columns > 0 => index.checked_sub(1),
             Direction::Right if index % columns + 1 < columns => index.checked_add(1),
@@ -375,10 +473,13 @@ impl AppModel {
             Direction::Down => index.checked_add(columns),
             _ => None,
         })
-        .filter(|index| *index < self.command_center.tiles.len())
+        .filter(|index| *index < order.len())
         {
             index = next;
-            let tile = &self.command_center.tiles[index];
+            let Some(tile_index) = order[index] else {
+                continue;
+            };
+            let tile = &self.command_center.tiles[tile_index];
             if self.command_center.is_collapsed(tile) {
                 continue;
             }

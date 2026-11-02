@@ -24,6 +24,46 @@ pub(super) fn listing(sessions: Vec<ProjectSession>) -> ProjectSessions {
 }
 
 #[gpui::test]
+fn command_center_excludes_quick_terminal_without_hiding_home_sessions(cx: &mut TestAppContext) {
+    let mut state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let quick = state.ensure_quick_terminal();
+    let quick_session = SessionId::new(701).expect("session");
+    state
+        .set_pane_session(quick, Some(quick_session))
+        .expect("session");
+    let (boot, requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        model.receive(
+            local(
+                1,
+                Update::Connected(vec![session(home, 701).info, session(home, 702).info]),
+            ),
+            cx,
+        );
+        acknowledge_catalog(model, cx);
+        model.open_command_center(cx);
+        for visible in [false, true, false] {
+            model.quick.visible = visible;
+            model.receive_session_page(
+                home,
+                Ok(listing(vec![session(home, 701), session(home, 702)])),
+                cx,
+            );
+            assert_eq!(model.command_center.tiles.len(), 1);
+            assert_eq!(model.command_center.tiles[0].session.info.id.get(), 702);
+            assert_eq!(model.pane_session(quick), Some(quick_session));
+        }
+        assert!(
+            !requests
+                .try_iter()
+                .any(|(_, work)| matches!(work, Work::Discard(..)))
+        );
+    });
+}
+
+#[gpui::test]
 fn sidebar_command_center_icon_stays_below_the_titlebar_and_fits_large_icons(
     cx: &mut TestAppContext,
 ) {
@@ -217,7 +257,7 @@ fn dashboard_attaches_existing_sessions_without_editing_projects_or_closing_proc
             work,
             Work::Discard(..) | Work::StopServer { .. } | Work::EndAll(_)
         )));
-        model.close_command_center(cx);
+        model.select_project(model.state.current_project().id, cx);
         assert!(!model.command_center.active);
         assert_eq!(model.state, before);
         let work: Vec<_> = requests.try_iter().map(|(_, work)| work).collect();
@@ -248,7 +288,7 @@ fn dashboard_ignores_a_late_attachment_after_returning_to_a_project(cx: &mut Tes
         model.command_center.visible = vec![pane];
         model.sync_visible(cx);
         model.start_attach(pane, Size { cols: 60, rows: 20 }, cx);
-        model.close_command_center(cx);
+        model.select_project(model.state.current_project().id, cx);
         let before = model.state.clone();
         requests.try_iter().for_each(drop);
         model.receive(
@@ -433,6 +473,80 @@ fn custom_layout_hover_selection_keyboard_and_persistence(cx: &mut TestAppContex
 }
 
 #[gpui::test]
+fn auto_columns_tracks_sessions_in_full_height_panes_and_saves_selection(cx: &mut TestAppContext) {
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1400.0), px(900.0)));
+    view.update(cx, |model, cx| {
+        model.receive(
+            local(
+                1,
+                Update::Connected((1..=5).map(|id| session(home, id).info).collect()),
+            ),
+            cx,
+        );
+        acknowledge_catalog(model, cx);
+        model.receive_session_page(
+            home,
+            Ok(listing(vec![session(home, 1), session(home, 2)])),
+            cx,
+        );
+        model.open_command_center(cx);
+    });
+    cx.run_until_parked();
+    preferences::click_preference(cx, "command-center-layout");
+    preferences::click_preference(cx, "menu-label-Auto Columns");
+    for count in [2, 5, 1] {
+        view.update(cx, |model, cx| {
+            model.receive_session_page(
+                home,
+                Ok(listing((1..=count).map(|id| session(home, id)).collect())),
+                cx,
+            );
+        });
+        cx.run_until_parked();
+        let selected = view.read_with(cx, |model, _| {
+            model.active_pane() == Some(model.command_center.tiles[0].pane)
+        });
+        let first = cx
+            .debug_bounds(format!("command-center-tile-0-None-focused-{selected}").leak())
+            .expect("first terminal");
+        view.read_with(cx, |model, _| {
+            let (dimensions, viewport, _, total) = model.command_center.grid.expect("grid");
+            assert_eq!(dimensions, [usize::try_from(count).expect("count"), 1]);
+            assert!((first.size.height - viewport.height).abs() < px(1.0));
+            assert!((total - viewport.height).abs() < px(1.0));
+            assert_eq!(
+                muxy_app_core::settings::Appearance::load(
+                    &model.path.with_file_name("settings.toml")
+                )
+                .expect("appearance")
+                .command_center_layout,
+                GridLayout::AutoColumns
+            );
+        });
+        if count > 1 {
+            let selected = view.read_with(cx, |model, _| {
+                model.active_pane() == Some(model.command_center.tiles[1].pane)
+            });
+            let second = cx
+                .debug_bounds(format!("command-center-tile-1-None-focused-{selected}").leak())
+                .expect("second terminal");
+            assert_eq!(first.top(), second.top());
+            assert_eq!(first.size, second.size);
+            assert!(second.left() > first.right());
+        }
+    }
+    preferences::click_preference(cx, "command-center-layout");
+    preferences::click_preference(cx, "menu-label-Auto Grid");
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.appearance.command_center_layout, GridLayout::Auto);
+    });
+}
+
+#[gpui::test]
 fn larger_layout_presets_can_be_selected_and_saved_with_fewer_terminals(cx: &mut TestAppContext) {
     let state = AppState::bootstrap().expect("state");
     let home = state.home().id;
@@ -468,7 +582,7 @@ fn larger_layout_presets_can_be_selected_and_saved_with_fewer_terminals(cx: &mut
             assert_eq!(model.appearance.command_center_layout, layout);
             assert_eq!(
                 model.command_center.grid.expect("grid").0,
-                layout.dimensions().expect("manual grid")
+                layout.dimensions().expect("manual grid").map(usize::from)
             );
             assert_eq!(
                 muxy_app_core::settings::Appearance::load(
@@ -1058,7 +1172,7 @@ fn dragging_dashboard_headers_reorders_only_the_dashboard_and_survives_refresh_a
         let saved =
             muxy_app_core::settings::Appearance::load(&model.path.with_file_name("settings.toml"))
                 .expect("saved order");
-        model.close_command_center(cx);
+        model.select_project(model.state.current_project().id, cx);
         model.command_center.tiles.clear();
         model.appearance.command_center_order = saved.command_center_order;
         model.open_command_center(cx);

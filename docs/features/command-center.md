@@ -64,8 +64,7 @@ The command palette also offers **Move Terminal Earlier** and **Move Terminal
 Later** for keyboard reordering.
 
 **Open in Project** returns to an existing tab and pane. A detached session opens
-in a new tab in its original project. Clicking a project in the sidebar or the
-**Return to Project** button leaves Command Center. Each tile has an **×** button
+in a new tab in its original project. Clicking a project in the sidebar leaves Command Center. Each tile has an **×** button
 to close its terminal session, also available in the right-click menu and with
 the close-pane shortcut. Closing asks for confirmation, ends that terminal, and
 removes its panes from the original project while keeping Command Center open.
@@ -86,7 +85,10 @@ layouts are saved and add rows as more terminals open, just like presets.
 **Command Center Layout…** in the command palette opens the same menu for
 keyboard navigation. **Open in Project** is also available in the palette.
 
-**Auto** chooses a grid using the number of terminals and the available space.
+**Auto Grid** chooses a grid using the number of terminals and the available space.
+**Auto Columns** gives each terminal a full-height column in a single row,
+automatically adjusting the column count as terminals start and end. When
+**Group by Project** is enabled, each project keeps its own section.
 Manual layouts keep their selected column count and add rows as needed. For
 example, **4 × 2** grows to four columns and three rows when a ninth terminal
 starts. Rows shrink back to the preset minimum when terminals end. Tiles keep

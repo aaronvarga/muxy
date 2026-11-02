@@ -180,6 +180,9 @@ impl Registry {
         connection: &Arc<Connection>,
     ) -> Result<Option<Subscription>> {
         let descriptor = self.catalog.project(project)?;
+        if descriptor.kind == Some(muxy_protocol::ProjectKind::FolderGroup) {
+            return Ok(None);
+        }
         let directory = descriptor.directory.as_path();
         self.git
             .watches

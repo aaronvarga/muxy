@@ -73,6 +73,30 @@ fn notification_event(identifier: &str) -> Option<(ServerId, u64)> {
 }
 
 impl AppModel {
+    pub(crate) fn notifications_snoozed(&self) -> bool {
+        self.notifications.is_snoozed()
+    }
+
+    pub(crate) fn snooze_notifications(
+        &mut self,
+        duration: Option<std::time::Duration>,
+        cx: &mut Context<Self>,
+    ) {
+        self.notification_snooze = None;
+        self.notifications.set_snoozed(duration.is_some());
+        if let Some(duration) = duration {
+            self.notification_snooze = Some(cx.spawn(async move |model, cx| {
+                cx.background_executor().timer(duration).await;
+                let _ = model.update(cx, |model, cx| {
+                    model.notifications.set_snoozed(false);
+                    model.notification_snooze = None;
+                    cx.notify();
+                });
+            }));
+        }
+        cx.notify();
+    }
+
     pub(crate) fn activity(&self, server: ServerId) -> Option<&ActivityView> {
         self.servers.get(server).map(|runtime| &runtime.activity)
     }

@@ -55,11 +55,11 @@ pub use graphics::{
 
 mod project;
 pub use project::{
-    CATALOG_PAGE_SIZE, CatalogPage, ClientId, DeviceId, MAX_PROJECT_FOLDERS,
-    MAX_PROJECT_LOGO_BYTES, MAX_PROJECTS, MAX_SESSION_NAME, OperationId, PROJECT_COLORS,
-    ProjectDescriptor, ProjectId, ProjectIntent, ProjectKind, ProjectMutation, ProjectPatch,
-    ProjectSession, ProjectSessions, ServerIdentity, SessionStatus, is_project_symbol, overlaps,
-    validate_session_name,
+    CATALOG_PAGE_SIZE, CatalogPage, ClientId, DeviceId, FolderEntry, FolderEntryId,
+    MAX_PROJECT_FOLDERS, MAX_PROJECT_LOGO_BYTES, MAX_PROJECTS, MAX_SESSION_NAME, OperationId,
+    PROJECT_COLORS, ProjectDescriptor, ProjectId, ProjectIntent, ProjectKind, ProjectMutation,
+    ProjectPatch, ProjectSession, ProjectSessions, ServerIdentity, SessionStatus,
+    is_inside_folder_group, is_project_symbol, overlaps, validate_session_name,
 };
 
 mod remote;

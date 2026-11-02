@@ -1,6 +1,6 @@
 use gpui::{
-    AnyElement, App, Context, Entity, FocusHandle, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Pixels, Point, Styled, Window, div,
+    AnyElement, App, Bounds, Context, Entity, FocusHandle, InteractiveElement, IntoElement,
+    MouseButton, ParentElement, Pixels, Point, Styled, Window, div, point, px,
 };
 use muxy_ui::popover::PopoverAnchor;
 
@@ -25,6 +25,7 @@ pub(crate) enum Overlay {
     Menu(Menu),
     CenterLayout([u8; 2]),
     ProjectEditor(super::project_editor::Editor),
+    FolderEntry(super::project_editor::folder_entry::Editor),
     ProjectIcons(super::project_editor::icons::Icons),
     ProjectLogo(super::project_editor::logo::Cropper),
     Projects(Entity<super::project_picker::ProjectPicker>),
@@ -140,6 +141,7 @@ impl Overlay {
             Self::Menu(menu) => menu,
             Self::CenterLayout(selection) => selection,
             Self::ProjectEditor(editor) => editor,
+            Self::FolderEntry(editor) => editor,
             Self::ProjectIcons(icons) => icons,
             Self::ProjectLogo(cropper) => cropper,
             Self::Projects(picker) => picker,
@@ -320,11 +322,32 @@ pub(crate) fn place(
 
 /// A full-window layer that dismisses the overlay on a click.
 pub(crate) fn backdrop(cx: &mut Context<AppModel>) -> AnyElement {
-    div()
-        .absolute()
-        .top_0()
-        .left_0()
-        .size_full()
+    dismissing(div().absolute().top_0().left_0().size_full(), cx).into_any_element()
+}
+
+/// The parts of `viewport` outside `hole`, which clicks there pass through to.
+fn backdrop_pieces(viewport: Bounds<Pixels>, hole: Option<Bounds<Pixels>>) -> Vec<Bounds<Pixels>> {
+    let Some(hole) = hole
+        .map(|hole| hole.intersect(&viewport))
+        .filter(|hole| !hole.is_empty())
+    else {
+        return vec![viewport];
+    };
+    let (left, right) = (viewport.left(), viewport.right());
+    let (top, bottom) = (viewport.top(), viewport.bottom());
+    [
+        Bounds::from_corners(point(left, top), point(right, hole.top())),
+        Bounds::from_corners(point(left, hole.bottom()), point(right, bottom)),
+        Bounds::from_corners(point(left, hole.top()), point(hole.left(), hole.bottom())),
+        Bounds::from_corners(point(hole.right(), hole.top()), point(right, hole.bottom())),
+    ]
+    .into_iter()
+    .filter(|piece| !piece.is_empty())
+    .collect()
+}
+
+fn dismissing(piece: gpui::Div, cx: &mut Context<AppModel>) -> gpui::Div {
+    piece
         .occlude()
         .on_mouse_down(
             MouseButton::Left,
@@ -340,7 +363,6 @@ pub(crate) fn backdrop(cx: &mut Context<AppModel>) -> AnyElement {
                 cx.stop_propagation();
             }),
         )
-        .into_any_element()
 }
 
 pub(crate) fn layer(model: &AppModel, window: &Window, cx: &mut Context<AppModel>) -> AnyElement {
@@ -357,12 +379,25 @@ pub(crate) fn layer(model: &AppModel, window: &Window, cx: &mut Context<AppModel
     if own_backdrop {
         return content;
     }
+    let hole = match overlay {
+        Overlay::Menu(menu) => menu.passes_through.as_ref().and_then(|row| row.get()),
+        _ => None,
+    };
+    let viewport = Bounds::new(point(px(0.0), px(0.0)), window.viewport_size());
     div()
         .absolute()
         .top_0()
         .left_0()
         .size_full()
-        .child(backdrop(cx))
+        .children(backdrop_pieces(viewport, hole).into_iter().map(|piece| {
+            let area = div()
+                .absolute()
+                .left(piece.left())
+                .top(piece.top())
+                .w(piece.size.width)
+                .h(piece.size.height);
+            dismissing(area, cx)
+        }))
         .child(content)
         .into_any_element()
 }

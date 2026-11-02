@@ -19,6 +19,8 @@ impl Project {
             directory: ServerPath::from(&self.directory),
             kind: self.kind,
             parent_id: self.parent_id,
+            folder_entries: self.folder_entries.clone(),
+            auto_subfolders: self.auto_subfolders,
             folders: self
                 .folders
                 .iter()
@@ -44,6 +46,8 @@ impl Project {
             kind: None,
             parent_id: None,
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
             tabs: Vec::new(),
             groups: None,
             status: ProjectStatus::Available,
@@ -62,6 +66,8 @@ impl Project {
         self.directory = descriptor.directory.as_path().to_path_buf();
         self.kind = descriptor.kind;
         self.parent_id = descriptor.parent_id;
+        self.folder_entries.clone_from(&descriptor.folder_entries);
+        self.auto_subfolders = descriptor.auto_subfolders;
         self.folders = descriptor
             .folders
             .iter()
@@ -178,6 +184,11 @@ impl AppState {
                     self.removed_projects.retain(|removed| {
                         removed.server_id != server
                             || removed.directory.as_os_str().as_bytes() != project.directory.0
+                            || removed.kind != project.kind
+                            || (project.kind == Some(crate::ProjectKind::FolderGroup)
+                                && (removed.name != project.name
+                                    || removed.auto_subfolders != project.auto_subfolders
+                                    || removed.folder_entries != project.folder_entries))
                     });
                 }
                 Ok(())

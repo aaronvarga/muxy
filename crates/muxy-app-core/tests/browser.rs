@@ -155,6 +155,8 @@ fn projects_with_worktrees(api_worktree: &str, web_worktree: &str) -> TestResult
             kind: parent.map(|_| ProjectKind::Worktree),
             parent_id: parent,
             folders: Vec::new(),
+            folder_entries: Vec::new(),
+            auto_subfolders: false,
         };
     state.apply_catalog(
         ServerId::new(),
