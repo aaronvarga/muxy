@@ -443,63 +443,86 @@ impl Composer {
         row.into_any_element()
     }
 
-    fn toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
-        let m = self.metrics;
-        let enabled = !self.sending && !self.recording();
+    /// Attach, dictation and more actions, in that order.
+    fn tools(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let recording =
             self.recording() && self.voice_snapshot.phase != muxy_ui::voice::Phase::Starting;
         let transcribing =
             recording && self.voice_snapshot.phase == muxy_ui::voice::Phase::Transcribing;
+        let mut tools = vec![self.glyph_button(
+            "composer-attach",
+            "plus",
+            tr_key!("Attach File"),
+            Control::Toolbar,
+            |_, _, cx| cx.emit(ComposerEvent::Attach),
+            cx,
+        )];
+        if self.dictation != muxy_core::capability::Capability::Unsupported {
+            tools.push(self.glyph_button(
+                "composer-voice",
+                if transcribing {
+                    "xmark"
+                } else if recording {
+                    "stop.fill"
+                } else {
+                    "mic"
+                },
+                if transcribing {
+                    tr_key!("Cancel Dictation")
+                } else if recording {
+                    tr_key!("Finish Dictation")
+                } else {
+                    tr_key!("Start Dictation")
+                },
+                if self.recording() {
+                    Control::Recording
+                } else {
+                    Control::Toolbar
+                },
+                |view, _, cx| view.toggle_voice(cx),
+                cx,
+            ));
+        }
+        tools.push(self.glyph_button(
+            "composer-more",
+            "ellipsis",
+            tr_key!("More Composer Actions"),
+            Control::Toolbar,
+            |_, _, cx| cx.emit(ComposerEvent::Menu),
+            cx,
+        ));
+        tools
+    }
+
+    fn send_button(&self, cx: &mut Context<Self>) -> AnyElement {
+        let m = self.metrics;
+        let enabled = !self.sending && !self.recording();
+        div()
+            .id("composer-send")
+            .debug_selector(|| "composer-send".into())
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .size(m.control_large())
+            .rounded(m.radius_xl())
+            .bg(self.theme.accent)
+            .child(SymbolGlyph::new("arrow.up", m.font_body(), self.theme.accent_foreground).bold())
+            .when(enabled, |button| {
+                button.button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
+            })
+            .into_any_element()
+    }
+
+    fn toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
+        let m = self.metrics;
         div()
             .flex()
             .flex_none()
             .items_center()
             .gap(m.spacing2())
             .pt(m.spacing4())
-            .child(self.glyph_button(
-                "composer-attach",
-                "plus",
-                tr_key!("Attach File"),
-                Control::Toolbar,
-                |_, _, cx| cx.emit(ComposerEvent::Attach),
-                cx,
-            ))
-            .children(
-                (self.dictation != muxy_core::capability::Capability::Unsupported).then(|| {
-                    self.glyph_button(
-                        "composer-voice",
-                        if transcribing {
-                            "xmark"
-                        } else if recording {
-                            "stop.fill"
-                        } else {
-                            "mic"
-                        },
-                        if transcribing {
-                            tr_key!("Cancel Dictation")
-                        } else if recording {
-                            tr_key!("Finish Dictation")
-                        } else {
-                            tr_key!("Start Dictation")
-                        },
-                        if self.recording() {
-                            Control::Recording
-                        } else {
-                            Control::Toolbar
-                        },
-                        |view, _, cx| view.toggle_voice(cx),
-                        cx,
-                    )
-                }),
-            )
-            .child(self.glyph_button(
-                "composer-more",
-                "ellipsis",
-                tr_key!("More Composer Actions"),
-                Control::Toolbar,
-                |_, _, cx| cx.emit(ComposerEvent::Menu),
-                cx,
-            ))
+            .children(self.tools(cx))
             .child(
                 div()
                     .min_w_0()
@@ -513,42 +536,145 @@ impl Composer {
                     }),
             )
             .child(div().flex_1().min_w(m.spacing4()))
-            .child(
-                div()
-                    .id("composer-send")
-                    .debug_selector(|| "composer-send".into())
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .justify_center()
-                    .size(m.control_large())
-                    .rounded(m.radius_xl())
-                    .bg(self.theme.accent)
-                    .child(
-                        SymbolGlyph::new("arrow.up", m.font_body(), self.theme.accent_foreground)
-                            .bold(),
-                    )
-                    .when(enabled, |button| {
-                        button
-                            .button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
-                    }),
-            )
+            .child(self.send_button(cx))
             .into_any_element()
     }
 
+    /// The agent skills matching the word being typed, highlighted one first.
+    fn completions(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let m = self.metrics;
+        let (_, matches) = self.completion(cx)?;
+        let selected = self.skill_selected.min(matches.len() - 1);
+        let rows: Vec<_> = matches
+            .into_iter()
+            .enumerate()
+            .map(|(index, skill)| {
+                div()
+                    .id(("composer-skill", index))
+                    .debug_selector(move || format!("composer-skill-{index}"))
+                    .flex()
+                    .items_center()
+                    .gap(m.spacing4())
+                    .px(m.spacing4())
+                    .py(m.spacing2())
+                    .rounded(m.radius_sm())
+                    .when(index == selected, |row| row.bg(self.theme.hover))
+                    .cursor_pointer()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |view, _, window, cx| {
+                            view.accept_completion(Some(index), cx);
+                            gpui::Focusable::focus_handle(&view.input, cx).focus(window);
+                            cx.stop_propagation();
+                        }),
+                    )
+                    .child(
+                        div()
+                            .flex_none()
+                            .font_family(muxy_ui::font::monospace())
+                            .text_size(m.font_footnote())
+                            .text_color(self.theme.fg)
+                            .child(skill.text.clone()),
+                    )
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex_1()
+                            .truncate()
+                            .text_size(m.font_footnote())
+                            .text_color(self.theme.fg_muted)
+                            .child(skill.description.clone()),
+                    )
+            })
+            .collect();
+        Some(
+            div()
+                .debug_selector(|| "composer-skills".into())
+                .flex()
+                .flex_col()
+                .flex_none()
+                .p(m.spacing1())
+                .rounded(m.radius_md())
+                .bg(self.theme.raised())
+                .border_1()
+                .border_color(self.theme.border)
+                .shadow(muxy_ui::theme::Elevation::Elevated.shadow(self.theme.bg))
+                .children(rows)
+                .into_any_element(),
+        )
+    }
+
+    /// The docked composer: a strip of `dock_height` along a session's bottom.
+    fn docked_row(&self, cx: &mut Context<Self>) -> AnyElement {
+        let m = self.metrics;
+        let line = self.input_style.line_height;
+        // Attach leads the input; more actions, then dictation, sit before send.
+        let mut trailing = self.tools(cx);
+        let attach = trailing.remove(0);
+        trailing.reverse();
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(m.spacing2())
+            .h(super::dock_height(m))
+            .px(m.spacing3())
+            .child(attach)
+            .child(
+                div()
+                    .id("composer-editor")
+                    .debug_selector(|| "composer-editor".into())
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .justify_center()
+                    .child(
+                        // One or two rows of text, centered in the dock.
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_none()
+                            .h(self
+                                .input
+                                .read(cx)
+                                .content_height()
+                                .max(line)
+                                .min(line * 2.0)
+                                .min(super::dock_height(m) - m.spacing3() * 2.0))
+                            .child(self.input.clone()),
+                    ),
+            )
+            .children(trailing)
+            .child(self.send_button(cx))
+            .into_any_element()
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Composer key handling and its docked and full layouts"
+    )]
     fn body(&self, cx: &mut Context<Self>) -> AnyElement {
         let m = self.metrics;
         let feedback = self.recording() || self.error.is_some();
+        let docked = self.settings.presentation == ComposerPresentation::Docked;
         div()
             .id("composer-body")
             .debug_selector(|| "composer-body".into())
             .key_context("Composer")
             .flex()
             .flex_col()
-            .size_full()
+            .when(!docked, |body| body.size_full().min_h_0().p(m.scaled(14.0)))
+            .when(docked, |body| {
+                body.relative()
+                    .w_full()
+                    .flex_none()
+                    .bg(self.theme.raised())
+                    .border_t_1()
+                    .border_color(self.theme.border)
+            })
             .min_w_0()
-            .min_h_0()
-            .p(m.scaled(14.0))
             .on_action(cx.listener(|view, _: &Submit, _, cx| view.submit(true, cx)))
             .on_action(cx.listener(|view, _: &Insert, _, cx| view.submit(false, cx)))
             .on_action(cx.listener(|_, _: &Close, _, cx| cx.emit(ComposerEvent::Close)))
@@ -566,44 +692,124 @@ impl Composer {
                             view.toggle_voice(cx);
                         }
                         cx.stop_propagation();
+                    } else {
+                        // Enter takes the highlighted suggestion, or sends;
+                        // Shift-Enter (`Newline`) adds a line.
+                        if !view.accept_completion(None, cx) {
+                            view.submit(true, cx);
+                        }
+                        cx.stop_propagation();
                     }
                 }),
             )
+            .capture_action(cx.listener(|view, _: &muxy_ui::text_input::Up, _, cx| {
+                if view.move_completion(-1, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|view, _: &muxy_ui::text_input::Down, _, cx| {
+                if view.move_completion(1, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|view, _: &muxy_ui::text_input::Cancel, _, cx| {
+                if view.dismiss_completion(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|view, _: &Close, _, cx| {
+                if view.dismiss_completion(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .on_action(cx.listener(|view, _: &super::Complete, _, cx| {
+                if !view.accept_completion(None, cx) {
+                    cx.propagate();
+                }
+            }))
+            .on_action(cx.listener(|view, _: &super::Newline, _, cx| {
+                view.input
+                    .update(cx, |input, cx| input.insert_at_selection("\n", cx));
+            }))
             .on_drop(cx.listener(|_, paths: &gpui::ExternalPaths, _, cx| {
                 cx.emit(ComposerEvent::Files(paths.paths().to_vec()));
             }))
-            .when(
-                self.settings.presentation == ComposerPresentation::Floating,
-                |body| body.child(self.metadata(cx)),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h_0()
-                    .child(
+            .when(docked, |body| {
+                let attachments = !self.draft.file_attachments.is_empty();
+                // Status and attachments float above the dock so its height,
+                // and so every terminal's size, never changes.
+                body.child(self.docked_row(cx))
+                    .children(self.completions(cx).map(|list| {
                         div()
-                            .id("composer-editor")
-                            .debug_selector(|| "composer-editor".into())
-                            .flex()
-                            .flex_col()
-                            .flex_1()
-                            .min_w_0()
-                            .min_h_0()
-                            .px(m.spacing1())
-                            .py(m.spacing6())
-                            .child(self.input.clone()),
-                    )
-                    .when(feedback, |editor| {
-                        editor.child(div().pt(m.spacing2()).child(self.feedback(cx)))
-                    }),
-            )
-            .when(!self.draft.file_attachments.is_empty(), |body| {
-                body.child(self.attachments(cx))
+                            .absolute()
+                            .left(m.spacing3())
+                            .right(m.spacing3())
+                            .bottom_full()
+                            .mb(m.spacing2())
+                            .child(list)
+                    }))
+                    .when(feedback || attachments, |body| {
+                        body.child(
+                            div()
+                                .absolute()
+                                .left_0()
+                                .right_0()
+                                .bottom_full()
+                                .flex()
+                                .flex_col()
+                                .px(m.spacing3())
+                                .py(m.spacing1())
+                                .bg(self.theme.raised())
+                                .border_t_1()
+                                .border_color(self.theme.border)
+                                .when(feedback, |overlay| overlay.child(self.feedback(cx)))
+                                .when(attachments, |overlay| overlay.child(self.attachments(cx))),
+                        )
+                    })
             })
-            .child(self.toolbar(cx))
+            .when(!docked, |body| self.full_body(body, feedback, cx))
             .into_any_element()
+    }
+
+    fn full_body(
+        &self,
+        body: gpui::Stateful<gpui::Div>,
+        feedback: bool,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let m = self.metrics;
+        body.when(
+            self.settings.presentation == ComposerPresentation::Floating,
+            |body| body.child(self.metadata(cx)),
+        )
+        .children(self.completions(cx))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .flex_1()
+                .min_h_0()
+                .child(
+                    div()
+                        .id("composer-editor")
+                        .debug_selector(|| "composer-editor".into())
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .min_w_0()
+                        .min_h_0()
+                        .px(m.spacing1())
+                        .py(m.spacing6())
+                        .child(self.input.clone()),
+                )
+                .when(feedback, |editor| {
+                    editor.child(div().pt(m.spacing2()).child(self.feedback(cx)))
+                }),
+        )
+        .when(!self.draft.file_attachments.is_empty(), |body| {
+            body.child(self.attachments(cx))
+        })
+        .child(self.toolbar(cx))
     }
 
     pub(super) fn render_composer(
@@ -611,6 +817,12 @@ impl Composer {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        if self.settings.presentation == ComposerPresentation::Docked {
+            let style = self.input_style;
+            self.input
+                .update(cx, |input, cx| input.set_style(style, cx));
+            return self.body(cx);
+        }
         if self.settings.presentation == ComposerPresentation::Floating {
             let progress = self.visibility.sample(window);
             let scale = 0.98 + progress * 0.02;

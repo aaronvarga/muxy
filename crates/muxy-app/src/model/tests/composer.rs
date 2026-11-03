@@ -289,7 +289,10 @@ fn a_floating_composer_closed_by_its_menu_row_leaves_the_keyboard_to_the_termina
     view.update(cx, |model, cx| {
         let composer = model.composer.view.clone().expect("composer");
         composer.update(cx, |composer, cx| {
-            composer.menu_action(Command::Presentation, cx);
+            composer.menu_action(
+                Command::Presentation(muxy_app_core::settings::ComposerPresentation::Floating),
+                cx,
+            );
         });
     });
     cx.run_until_parked();
@@ -345,4 +348,180 @@ fn focused_terminal_and_composer_are_text_inputs(cx: &mut TestAppContext) {
             Some("Terminal".into())
         );
     });
+}
+
+#[gpui::test]
+fn docked_composer_keeps_a_draft_per_session_and_sends_to_the_clicked_session(
+    cx: &mut TestAppContext,
+) {
+    let mut state = AppState::bootstrap().expect("state");
+    state.open_terminal_tab(state.home().id).expect("tab");
+    let first = state.home().tabs[0].panes[0].id;
+    let second = state.split_pane(first, Direction::Right).expect("split");
+    for (pane, id) in [(first, 41), (second, 42)] {
+        state
+            .set_pane_session(pane, SessionId::new(id))
+            .expect("session");
+    }
+    state.focus_pane(first).expect("focus");
+    let (mut boot, requests) = stub_boot(state);
+    boot.settings.composer.presentation = muxy_app_core::settings::ComposerPresentation::Docked;
+    boot.settings.composer.clear_on_close = true;
+    cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1000.0), px(600.0)));
+    view.update(cx, |model, cx| {
+        model.servers.local.connection = ConnectionState::Ready;
+        for (index, pane) in [first, second].into_iter().enumerate() {
+            let mut attachment = attachment();
+            attachment.channel =
+                muxy_protocol::ChannelId(u32::try_from(index + 1).expect("channel"));
+            model.receive(
+                (
+                    ServerId::local(),
+                    1,
+                    Update::Attached {
+                        pane,
+                        session: model.pane_session(pane).expect("session"),
+                        attachment,
+                        created: false,
+                    },
+                ),
+                cx,
+            );
+        }
+    });
+    cx.run_until_parked();
+    // The active session hosts the composer; the other shows a same-height dock.
+    let editor = cx.debug_bounds("composer-editor").expect("docked editor");
+    let dock = cx
+        .debug_bounds(format!("composer-dock-{second}").leak())
+        .expect("inactive dock");
+    assert!(editor.bottom() <= dock.bottom() + px(1.0));
+    view.read_with(cx, |model, _| assert_eq!(model.composer.pane, Some(first)));
+    cx.simulate_click(editor.center(), Modifiers::none());
+    cx.simulate_input("for first");
+    cx.simulate_click(dock.center(), Modifiers::none());
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.active_pane(), Some(second));
+        assert_eq!(model.composer.pane, Some(second));
+    });
+    assert_eq!(composer_text(&view, cx), "");
+    cx.simulate_input("for second");
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    });
+    cx.run_until_parked();
+    let (channel, bytes) = requests
+        .try_iter()
+        .find_map(|(_, work)| match work {
+            Work::WriteInput { channel, bytes, .. } => Some((channel, bytes)),
+            _ => None,
+        })
+        .expect("delivery");
+    assert_eq!(channel, muxy_protocol::ChannelId(2));
+    assert_eq!(bytes, b"\x15for second\r");
+    // Switching back restores the first session's draft, even with clear-on-close.
+    let first_dock = cx
+        .debug_bounds(format!("composer-dock-{first}").leak())
+        .expect("first dock");
+    cx.simulate_click(first_dock.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(composer_text(&view, cx), "for first");
+    // Leaving and returning to the dock keeps session drafts despite clear-on-close.
+    for presentation in [
+        muxy_app_core::settings::ComposerPresentation::Panel,
+        muxy_app_core::settings::ComposerPresentation::Docked,
+    ] {
+        view.update(cx, |model, cx| {
+            let composer = model.composer.view.clone().expect("composer");
+            composer.update(cx, |composer, cx| {
+                composer.menu_action(
+                    crate::views::composer::menu::Command::Presentation(presentation),
+                    cx,
+                );
+            });
+        });
+        cx.run_until_parked();
+    }
+    assert_eq!(composer_text(&view, cx), "for first");
+}
+
+#[gpui::test]
+fn enter_sends_the_composer_and_shift_enter_adds_a_line(cx: &mut TestAppContext) {
+    let (view, cx, requests) = attached_composer(cx);
+    cx.simulate_input("first");
+    cx.simulate_keystrokes("shift-enter");
+    cx.simulate_input("second");
+    assert_eq!(composer_text(&view, cx), "first\nsecond");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let (bytes, completion) = delivery(&requests);
+    assert!(bytes.starts_with(b"\x15first"));
+    assert!(bytes.ends_with(b"second\r"));
+    completion.try_send(Ok(())).expect("ack");
+    cx.run_until_parked();
+    assert_eq!(composer_text(&view, cx), "");
+}
+
+#[gpui::test]
+fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
+    use muxy_app_core::agent_skills::Skill;
+
+    let (view, cx, requests) = attached_composer(cx);
+    view.update(cx, |model, cx| {
+        let composer = model.composer.view.clone().expect("composer");
+        composer.update(cx, |composer, _| {
+            composer.skills = std::sync::Arc::new(
+                ["/review", "/release-notes", "/plan", "$imagegen"]
+                    .map(|text| Skill {
+                        text: text.into(),
+                        description: String::new(),
+                    })
+                    .to_vec(),
+            );
+        });
+    });
+    let offered = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |model, cx| {
+            let composer = model.composer.view.as_ref().expect("composer").read(cx);
+            composer.completion(cx).map(|(_, matches)| {
+                matches
+                    .iter()
+                    .map(|skill| skill.text.clone())
+                    .collect::<Vec<_>>()
+            })
+        })
+    };
+    cx.simulate_input("/re");
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("composer-skill-1").is_some());
+    assert_eq!(
+        offered(cx),
+        Some(vec!["/review".into(), "/release-notes".into()])
+    );
+    cx.simulate_keystrokes("down enter");
+    assert_eq!(composer_text(&view, cx), "/release-notes ");
+    // `/` completes only at the start; `$` anywhere; Escape hides the list.
+    cx.simulate_input("x /pl");
+    assert_eq!(offered(cx), None);
+    cx.simulate_input(" $ima");
+    assert_eq!(offered(cx), Some(vec!["$imagegen".into()]));
+    cx.simulate_keystrokes("escape");
+    assert_eq!(offered(cx), None);
+    assert!(view.read_with(cx, |model, _| model.composer.view.is_some()));
+    assert!(
+        !requests
+            .try_iter()
+            .any(|(_, work)| matches!(work, Work::WriteInput { .. }))
+    );
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        delivery(&requests).0,
+        b"\x15/release-notes x /pl $ima\r".to_vec()
+    );
 }

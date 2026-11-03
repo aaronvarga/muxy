@@ -16,6 +16,8 @@ pub enum ComposerPresentation {
     #[default]
     Panel,
     Floating,
+    /// Always shown at the bottom of each terminal session.
+    Docked,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -9,7 +9,8 @@ use gpui::{
     Subscription, Task, Window, div,
 };
 use muxy_app_core::{
-    PaneId, ServerId,
+    PaneId, ProjectId, ServerId,
+    agent_skills::{Agent, Skill},
     composer::{
         ComposerDraft, ComposerStore, DraftId, SAVE_DEBOUNCE,
         image_storage::prepare_image_source,
@@ -18,6 +19,7 @@ use muxy_app_core::{
             plan_submission,
         },
     },
+    settings::ComposerPresentation,
 };
 use muxy_core::capability::Feature;
 use muxy_protocol::{ChannelId, Modes};
@@ -39,13 +41,19 @@ pub(crate) struct ComposerRuntime {
     pub(crate) closing: Option<Entity<Composer>>,
     exit: Option<Task<()>>,
     key: Option<DraftId>,
-    pane: Option<PaneId>,
+    pub(super) pane: Option<PaneId>,
     store: Arc<Mutex<ComposerStore>>,
     subscription: Option<Subscription>,
     save: Option<Task<()>>,
     submission: Option<Task<()>>,
     pub(super) preferences_dirty: bool,
+    /// The agent and folder the open composer's skills come from.
+    skills_source: Option<SkillSource>,
+    skill_cache: HashMap<SkillSource, Arc<Vec<Skill>>>,
+    skill_scan: Option<Task<()>>,
 }
+
+type SkillSource = (Agent, PathBuf);
 
 impl ComposerRuntime {
     pub(super) fn new(store: ComposerStore) -> Self {
@@ -60,17 +68,265 @@ impl ComposerRuntime {
             save: None,
             submission: None,
             preferences_dirty: false,
+            skills_source: None,
+            skill_cache: HashMap::new(),
+            skill_scan: None,
         }
     }
 }
 
 impl AppModel {
     pub(super) fn composer_key(&self) -> DraftId {
+        if self.composer_docked()
+            && let Some(key) = self.active_pane().and_then(|pane| self.session_draft(pane))
+        {
+            return key;
+        }
         let project = self.state.current_project();
         DraftId::for_project(project.server_id, project.id)
     }
 
+    pub(crate) fn composer_docked(&self) -> bool {
+        self.settings.composer.presentation == ComposerPresentation::Docked
+    }
+
+    /// The draft of a pane's terminal session, in a project tab or the command center.
+    pub(crate) fn session_draft(&self, pane: PaneId) -> Option<DraftId> {
+        let session = self.pane_session(pane)?;
+        let (server, project) = self.pane_project(pane)?;
+        Some(DraftId::for_session(server, project, session))
+    }
+
+    /// The server and project of a command center tile or a project tab's pane.
+    fn pane_project(&self, pane: PaneId) -> Option<(ServerId, ProjectId)> {
+        if let Some(tile) = self.command_center.tile(pane) {
+            return Some((tile.server, tile.session.info.project));
+        }
+        let project = self.state.projects().iter().find(|project| {
+            project
+                .tabs
+                .iter()
+                .any(|tab| tab.panes.iter().any(|candidate| candidate.id == pane))
+        })?;
+        Some((project.server_id, project.id))
+    }
+
+    /// The Claude or Codex agent running in a local pane, and its project folder.
+    fn pane_skill_source(&self, pane: PaneId) -> Option<SkillSource> {
+        let session = self.pane_session(pane)?;
+        let (server, project) = self.pane_project(pane)?;
+        if !server.is_local() {
+            return None;
+        }
+        let provider = self
+            .activity(server)?
+            .snapshot
+            .agents
+            .iter()
+            .find(|agent| agent.session == session)?
+            .provider;
+        let agent = match provider {
+            muxy_protocol::AgentProvider::Claude => Agent::Claude,
+            muxy_protocol::AgentProvider::Codex => Agent::Codex,
+            _ => return None,
+        };
+        Some((agent, self.state.project(project)?.directory.clone()))
+    }
+
+    /// Gives the open composer its agent's skills: cached ones at once, then a
+    /// fresh scan off the main thread whenever the agent or folder changes.
+    pub(crate) fn sync_composer_skills(&mut self, cx: &mut Context<Self>) {
+        let Some(view) = self.composer.view.clone() else {
+            return;
+        };
+        let source = self
+            .composer
+            .pane
+            .and_then(|pane| self.pane_skill_source(pane));
+        if source == self.composer.skills_source {
+            return;
+        }
+        self.composer.skills_source.clone_from(&source);
+        let cached = source
+            .as_ref()
+            .and_then(|source| self.composer.skill_cache.get(source).cloned())
+            .unwrap_or_default();
+        view.update(cx, |view, cx| {
+            view.skills = cached;
+            cx.notify();
+        });
+        let (Some((agent, folder)), Some(home)) = (source.clone(), std::env::home_dir()) else {
+            self.composer.skill_scan = None;
+            return;
+        };
+        self.composer.skill_scan = Some(cx.spawn(async move |model, cx| {
+            let skills = cx
+                .background_executor()
+                .spawn(async move {
+                    Arc::new(muxy_app_core::agent_skills::discover(
+                        agent,
+                        &home,
+                        Some(&folder),
+                    ))
+                })
+                .await;
+            let _ = model.update(cx, |model, cx| {
+                if let Some(source) = source {
+                    model
+                        .composer
+                        .skill_cache
+                        .insert(source.clone(), skills.clone());
+                    if model.composer.skills_source.as_ref() == Some(&source)
+                        && let Some(view) = &model.composer.view
+                    {
+                        view.update(cx, |view, cx| {
+                            view.skills = skills;
+                            cx.notify();
+                        });
+                    }
+                }
+            });
+        }));
+    }
+
+    /// Keeps the docked composer on the active session, swapping drafts without
+    /// clearing them and without moving keyboard focus.
+    pub(crate) fn sync_docked_composer(&mut self, cx: &mut Context<Self>) {
+        if !self.composer_docked() {
+            return;
+        }
+        let desired = self.active_pane().and_then(|pane| self.session_draft(pane));
+        if self.composer.key == desired
+            && self.composer.view.is_some() == desired.is_some()
+            && self.composer.pane == self.active_pane()
+        {
+            return;
+        }
+        let requested = self.focus_requested;
+        if self.composer.view.is_some() {
+            self.dismiss_composer(false, cx);
+        }
+        if desired.is_some() {
+            self.open_composer(cx);
+        }
+        self.focus_requested = requested;
+    }
+
+    /// A click in a session's dock makes that session active and types into it.
+    pub(crate) fn focus_docked_composer(
+        &mut self,
+        pane: PaneId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus_pane(pane, cx);
+        if self.active_pane() != Some(pane) {
+            return;
+        }
+        self.sync_docked_composer(cx);
+        if let Some(view) = &self.composer.view {
+            self.blur_webviews(cx);
+            view.focus_handle(cx).focus(window);
+            self.focus_requested = false;
+        }
+        cx.notify();
+    }
+
+    /// Wraps a terminal with its docked composer, or a same-height placeholder
+    /// for inactive sessions so terminals never resize when focus moves.
+    pub(crate) fn dock_composer(
+        &self,
+        pane: PaneId,
+        content: gpui::AnyElement,
+        cx: &Context<Self>,
+    ) -> gpui::AnyElement {
+        let Some(key) = self
+            .composer_docked()
+            .then(|| self.session_draft(pane))
+            .flatten()
+        else {
+            return content;
+        };
+        let dock = match &self.composer.view {
+            Some(view) if self.composer.pane == Some(pane) => view.clone().into_any_element(),
+            _ => {
+                let m = self.metrics;
+                let text = self
+                    .composer
+                    .store
+                    // Never wait on a save in progress from the render path.
+                    .try_lock()
+                    .ok()
+                    .and_then(|store| {
+                        store
+                            .draft(&key)
+                            .and_then(|draft| draft.text.lines().find(|line| !line.trim().is_empty()))
+                            .map(str::to_owned)
+                    });
+                div()
+                    .id(gpui::SharedString::from(format!("composer-dock-{pane}")))
+                    .debug_selector(move || format!("composer-dock-{pane}"))
+                    .flex_none()
+                    .w_full()
+                    .bg(self.theme.raised())
+                    .border_t_1()
+                    .border_color(self.theme.border)
+                    .cursor_text()
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(move |model, _, window, cx| {
+                            model.focus_docked_composer(pane, window, cx);
+                            cx.stop_propagation();
+                        }),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .h(crate::views::composer::dock_height(m))
+                            .px(m.spacing6())
+                            .text_size(m.scaled(self.settings.composer.font_size))
+                            .text_color(if text.is_some() {
+                                self.theme.fg_muted
+                            } else {
+                                self.theme.fg_dim
+                            })
+                            .child(
+                                div()
+                                    .min_w_0()
+                                    .truncate()
+                                    .child(text.unwrap_or_else(|| tr!("Type or speak…").into())),
+                            ),
+                    )
+                    .into_any_element()
+            }
+        };
+        div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .min_w_0()
+            .min_h_0()
+            .child(div().flex_1().min_h_0().child(content))
+            .child(dock)
+            .into_any_element()
+    }
+
     pub(crate) fn toggle_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.composer_docked() {
+            self.sync_docked_composer(cx);
+            if let Some(view) = &self.composer.view {
+                if view.focus_handle(cx).is_focused(window) {
+                    self.focus_requested = true;
+                } else {
+                    self.blur_webviews(cx);
+                    view.focus_handle(cx).focus(window);
+                    self.focus_requested = false;
+                }
+                cx.notify();
+            }
+            return;
+        }
         if self.command_center.active
             && let Some(pane) = self.active_pane()
         {
@@ -94,9 +350,7 @@ impl AppModel {
     }
 
     fn place_composer_panel(&mut self, view: &Entity<Composer>, cx: &mut Context<Self>) {
-        if view.read(cx).settings.presentation
-            == muxy_app_core::settings::ComposerPresentation::Panel
-        {
+        if view.read(cx).settings.presentation == ComposerPresentation::Panel {
             self.place_panel(view.read(cx).placement(), cx);
         } else {
             self.panels.remove(&PanelId::new(PANEL));
@@ -104,6 +358,7 @@ impl AppModel {
     }
 
     fn open_composer(&mut self, cx: &mut Context<Self>) {
+        self.composer.skills_source = None;
         self.composer.closing = None;
         self.composer.exit = None;
         let key = self.composer_key();
@@ -135,6 +390,11 @@ impl AppModel {
         self.place_composer_panel(&view, cx);
         self.composer.subscription = Some(cx.subscribe(&view, |model, _, event, cx| match event {
             ComposerEvent::Changed => model.composer_changed(cx),
+            // Docked composers stay; Escape hands the keyboard back to the session.
+            ComposerEvent::Close if model.composer_docked() => {
+                model.focus_requested = true;
+                cx.notify();
+            }
             ComposerEvent::Close => model.close_composer(cx),
             ComposerEvent::Submit(enter) => model.submit_composer(*enter, cx),
             ComposerEvent::Attach => model.choose_composer_files(cx),
@@ -152,14 +412,22 @@ impl AppModel {
                         );
                     });
                 }
+                let leaving_dock = model.composer_docked()
+                    && settings.presentation != ComposerPresentation::Docked;
                 model.settings.composer = settings.clone();
                 model.composer.preferences_dirty = true;
+                // The session draft must survive leaving the dock, even with clear-on-close.
+                if leaving_dock && model.composer.view.is_some() {
+                    model.dismiss_composer(false, cx);
+                    model.open_composer(cx);
+                }
                 if let Some(view) = &model.composer.view {
                     let view = view.clone();
                     model.place_composer_panel(&view, cx);
                 }
                 model.save_composer(cx);
                 model.sync_preferences(cx);
+                model.sync_composer(cx);
                 cx.notify();
             }
         }));
@@ -192,8 +460,7 @@ impl AppModel {
         self.save_composer(cx);
         self.panels.remove(&PanelId::new(PANEL));
         if let Some(view) = self.composer.view.take()
-            && view.read(cx).settings.presentation
-                == muxy_app_core::settings::ComposerPresentation::Floating
+            && view.read(cx).settings.presentation == ComposerPresentation::Floating
         {
             view.update(cx, |view, cx| {
                 view.visibility.hide();
@@ -218,6 +485,10 @@ impl AppModel {
     }
 
     pub(super) fn sync_composer(&mut self, cx: &mut Context<Self>) {
+        if self.composer_docked() {
+            self.sync_docked_composer(cx);
+            return;
+        }
         if self.composer.view.is_none() {
             return;
         }
@@ -452,9 +723,7 @@ impl AppModel {
                 self.project_title(project)
             );
         });
-        if self.settings.composer.presentation
-            == muxy_app_core::settings::ComposerPresentation::Floating
-        {
+        if self.settings.composer.presentation != ComposerPresentation::Panel {
             return content;
         }
         let dimension = gpui::px(view.read(cx).sizing(window).layout().dimension() + 1.0);
@@ -513,9 +782,7 @@ impl AppModel {
         else {
             return div().into_any_element();
         };
-        if self.settings.composer.presentation
-            != muxy_app_core::settings::ComposerPresentation::Floating
-        {
+        if self.settings.composer.presentation != ComposerPresentation::Floating {
             return div().into_any_element();
         }
         div()
@@ -867,7 +1134,7 @@ impl AppModel {
                 let steps = prepared?;
                 let _ = model.update(cx, |model, cx| {
                     if model.composer.key.as_ref() == Some(&key)
-                        && model.settings.composer.presentation == muxy_app_core::settings::ComposerPresentation::Floating {
+                        && model.settings.composer.presentation == ComposerPresentation::Floating {
                         model.dismiss_composer(false, cx);
                     }
                 });

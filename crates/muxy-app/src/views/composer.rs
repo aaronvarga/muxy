@@ -19,9 +19,18 @@ use muxy_ui::{
     tr,
 };
 
-actions!(composer, [Submit, Insert, Close, ToggleVoice]);
+actions!(
+    composer,
+    [Submit, Insert, Newline, Complete, Close, ToggleVoice]
+);
 pub(crate) const PANEL: &str = "builtin:composer";
 pub(crate) const TRANSITION: std::time::Duration = std::time::Duration::from_millis(150);
+
+/// Height of the docked composer's input row; inactive sessions draw a
+/// placeholder of the same height so terminals never resize on focus changes.
+pub(crate) fn dock_height(metrics: Metrics) -> gpui::Pixels {
+    metrics.scaled(56.0)
+}
 
 #[derive(Clone)]
 pub(crate) enum ComposerEvent {
@@ -59,6 +68,11 @@ pub(crate) struct Composer {
     pub(crate) menu_anchor: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     pub(crate) visibility: muxy_ui::motion::VisibilityMotion,
     input_style: InputStyle,
+    /// The session agent's skills, offered while a `/` or `$` word is typed.
+    pub(crate) skills: std::sync::Arc<Vec<muxy_app_core::agent_skills::Skill>>,
+    skill_selected: usize,
+    /// Where the word whose suggestions Escape dismissed starts.
+    skill_dismissed: Option<usize>,
     floating_resize: Option<(
         gpui::Point<gpui::Pixels>,
         gpui::Size<gpui::Pixels>,
@@ -106,9 +120,17 @@ impl Composer {
         });
         let subscription = cx.subscribe(&input, |view: &mut Self, input, event, cx| {
             if matches!(event, InputEvent::Cancelled) {
-                cx.emit(ComposerEvent::Close);
+                if view.completion(cx).is_some() {
+                    view.dismiss_completion(cx);
+                } else {
+                    cx.emit(ComposerEvent::Close);
+                }
             }
             if matches!(event, InputEvent::Changed) {
+                view.skill_selected = 0;
+                if input.read(cx).text().is_empty() {
+                    view.skill_dismissed = None;
+                }
                 input.read(cx).text().clone_into(&mut view.draft.text);
                 cx.emit(ComposerEvent::Changed);
             }
@@ -140,6 +162,9 @@ impl Composer {
                 cx.background_executor().clone(),
             ),
             input_style,
+            skills: std::sync::Arc::default(),
+            skill_selected: 0,
+            skill_dismissed: None,
         };
         view.refresh_style(cx);
         view
@@ -348,6 +373,108 @@ impl Composer {
             voice.pause(self.voice_snapshot.phase != muxy_ui::voice::Phase::Paused);
         }
         cx.notify();
+    }
+}
+
+/// Suggestions for the word before the caret, at most this many.
+const COMPLETIONS: usize = 8;
+
+impl Composer {
+    /// The word being completed and the skills it matches, best first. `/`
+    /// completes only at the start of the message, as agents read it there.
+    pub(crate) fn completion(
+        &self,
+        cx: &gpui::App,
+    ) -> Option<(
+        std::ops::Range<usize>,
+        Vec<&muxy_app_core::agent_skills::Skill>,
+    )> {
+        if self.skills.is_empty() || self.recording() {
+            return None;
+        }
+        let input = self.input.read(cx);
+        let cursor = input.cursor_offset();
+        if !input.selected_range().is_empty() {
+            return None;
+        }
+        let text = input.text().get(..cursor)?;
+        let start = text
+            .char_indices()
+            .rev()
+            .find(|(_, character)| character.is_whitespace())
+            .map_or(0, |(index, character)| index + character.len_utf8());
+        let word = &text[start..];
+        let trigger = word.chars().next()?;
+        if !(trigger == '$' || trigger == '/' && start == 0) || self.skill_dismissed == Some(start)
+        {
+            return None;
+        }
+        let query = word[1..].to_lowercase();
+        let mut matches: Vec<_> = self
+            .skills
+            .iter()
+            .filter(|skill| skill.text.starts_with(trigger))
+            .filter_map(|skill| {
+                let name = skill.text[1..].to_lowercase();
+                let rank = if name.starts_with(&query) {
+                    0
+                } else if name.split(':').any(|part| part.starts_with(&query)) {
+                    1
+                } else if name.contains(&query) {
+                    2
+                } else {
+                    return None;
+                };
+                Some((rank, skill))
+            })
+            .collect();
+        matches.sort_by_key(|(rank, _)| *rank);
+        let matches: Vec<_> = matches
+            .into_iter()
+            .take(COMPLETIONS)
+            .map(|(_, skill)| skill)
+            .collect();
+        (!matches.is_empty()).then_some((start..cursor, matches))
+    }
+
+    /// Replaces the word with the chosen skill; false when nothing was offered.
+    pub(crate) fn accept_completion(
+        &mut self,
+        index: Option<usize>,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some((range, matches)) = self.completion(cx) else {
+            return false;
+        };
+        let Some(skill) = matches.get(index.unwrap_or(self.skill_selected).min(matches.len() - 1))
+        else {
+            return false;
+        };
+        let text = format!("{} ", skill.text);
+        self.input
+            .update(cx, |input, cx| input.replace_range(range, &text, cx));
+        true
+    }
+
+    fn move_completion(&mut self, delta: isize, cx: &mut Context<Self>) -> bool {
+        let Some((_, matches)) = self.completion(cx) else {
+            return false;
+        };
+        let count = matches.len();
+        self.skill_selected = (self.skill_selected.min(count - 1).cast_signed() + delta)
+            .rem_euclid(count.cast_signed())
+            .cast_unsigned();
+        cx.notify();
+        true
+    }
+
+    fn dismiss_completion(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some((range, _)) = self.completion(cx) else {
+            return false;
+        };
+        self.skill_dismissed = Some(range.start);
+        cx.notify();
+        true
     }
 }
 

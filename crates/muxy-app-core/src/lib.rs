@@ -4,6 +4,7 @@
 //! server execution and UI toolkit code do not.
 
 pub mod agent_sessions;
+pub mod agent_skills;
 pub mod backup;
 pub mod browser;
 pub mod command_center;

@@ -12,7 +12,7 @@ pub(crate) enum Command {
     Insert,
     ClearAfter,
     ClearClose,
-    Presentation,
+    Presentation(ComposerPresentation),
     ResetSize,
 }
 
@@ -52,13 +52,21 @@ impl Composer {
         clear_close.checked = self.settings.clear_on_close;
         items.push((clear_close, Command::ClearClose));
         let floating = self.settings.presentation == ComposerPresentation::Floating;
-        let mut presentation = Item::new(if floating {
-            tr!("Use Composer Panel")
-        } else {
-            tr!("Use Floating Composer")
-        });
-        presentation.separator = true;
-        items.push((presentation, Command::Presentation));
+        let mut separator = true;
+        for (presentation, label) in [
+            (ComposerPresentation::Panel, tr!("Use Composer Panel")),
+            (ComposerPresentation::Floating, tr!("Use Floating Composer")),
+            (
+                ComposerPresentation::Docked,
+                tr!("Dock Composer in Sessions"),
+            ),
+        ] {
+            if presentation != self.settings.presentation {
+                let mut item = Item::new(label);
+                item.separator = std::mem::take(&mut separator);
+                items.push((item, Command::Presentation(presentation)));
+            }
+        }
         if floating {
             items.push((Item::new(tr!("Reset Composer Size")), Command::ResetSize));
         }
@@ -84,14 +92,7 @@ impl Composer {
                 self.settings.clear_after_sending = !self.settings.clear_after_sending;
             }
             Command::ClearClose => self.settings.clear_on_close = !self.settings.clear_on_close,
-            Command::Presentation => {
-                self.settings.presentation =
-                    if self.settings.presentation == ComposerPresentation::Panel {
-                        ComposerPresentation::Floating
-                    } else {
-                        ComposerPresentation::Panel
-                    }
-            }
+            Command::Presentation(presentation) => self.settings.presentation = presentation,
             Command::ResetSize => {
                 self.settings.expanded = false;
                 self.settings.floating_width = 570.0;

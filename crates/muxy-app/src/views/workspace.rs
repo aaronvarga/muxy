@@ -122,6 +122,8 @@ fn workspace_bindings(keymap: &impl muxy_core::shortcuts::ShortcutSettings) -> V
     registry.register(ShortcutId::VoicePause, &super::voice::Pause);
     registry.register(ShortcutId::ComposerSubmit, &super::composer::Submit);
     registry.register(ShortcutId::ComposerInsert, &super::composer::Insert);
+    registry.register(ShortcutId::ComposerNewline, &super::composer::Newline);
+    registry.register(ShortcutId::ComposerComplete, &super::composer::Complete);
     registry.register(ShortcutId::ComposerClose, &super::composer::Close);
     registry.register(ShortcutId::ComposerVoice, &super::composer::ToggleVoice);
     registry.register(ShortcutId::NavigateBack, &NavigateBack);
@@ -897,6 +899,7 @@ impl AppModel {
                     && self.close_prompt.is_none()
                     && self.composer.closing.is_none()
                     && (self.composer.view.is_none()
+                        || self.composer_docked()
                         || (self.settings.composer.pinned
                             && self.settings.composer.presentation
                                 == muxy_app_core::settings::ComposerPresentation::Panel));
@@ -916,6 +919,8 @@ impl AppModel {
 impl AppModel {
     fn prepare_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let _span = crate::profiler::span(crate::profiler::Metric::WorkspacePrepare);
+        self.sync_docked_composer(cx);
+        self.sync_composer_skills(cx);
         if self.overlay.is_none()
             && (self.focus_requested
                 || (self.active_pane().is_none()

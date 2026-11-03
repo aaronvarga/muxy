@@ -603,6 +603,7 @@
 "Dismiss Dictation Error" = "Dismiss Dictation Error";
 "Distribute unused cell space equally around the terminal grid." = "Distribute unused cell space equally around the terminal grid.";
 "Divider Label" = "Divider Label";
+"Dock Composer in Sessions" = "Dock Composer in Sessions";
 "Dock Panel" = "Dock Panel";
 "Don't ask again" = "Don't ask again";
 "Downloading and verifying the latest release. You can keep working." = "Downloading and verifying the latest release. You can keep working.";
@@ -1810,7 +1811,9 @@
 "close tab" = "close tab";
 "committed %@" = "committed %@";
 "composer close" = "composer close";
+"composer complete" = "composer complete";
 "composer insert" = "composer insert";
+"composer newline" = "composer newline";
 "composer submit" = "composer submit";
 "composer voice" = "composer voice";
 "copy" = "copy";

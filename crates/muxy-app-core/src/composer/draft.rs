@@ -29,9 +29,29 @@ impl DraftId {
             .expect("Project and server identifiers are UUIDs")
     }
 
+    /// A draft for one terminal session, used by the docked composer.
+    pub fn for_session(
+        server: crate::ServerId,
+        project: crate::ProjectId,
+        session: muxy_protocol::SessionId,
+    ) -> Self {
+        Self(format!(
+            "{}:{}",
+            Self::for_project(server, project).0,
+            session.get()
+        ))
+    }
+
     pub fn parse(value: &str) -> Option<Self> {
-        let (server, project) = value.split_once(':')?;
-        let id = Self::new(server, project)?;
+        let (server, rest) = value.split_once(':')?;
+        let (project, session) = rest
+            .split_once(':')
+            .map_or((rest, None), |(project, session)| (project, Some(session)));
+        let mut id = Self::new(server, project)?;
+        if let Some(session) = session {
+            let session = muxy_protocol::SessionId::new(session.parse().ok()?)?;
+            id.0 = format!("{}:{}", id.0, session.get());
+        }
         (id.0 == value).then_some(id)
     }
 
@@ -692,6 +712,18 @@ mod tests {
 
     fn id() -> DraftId {
         DraftId::new(PROJECT, WORKTREE).unwrap()
+    }
+
+    #[test]
+    fn session_draft_ids_round_trip_and_stay_distinct_from_project_drafts() {
+        let server = crate::ServerId::new();
+        let project = crate::ProjectId::new();
+        let session =
+            DraftId::for_session(server, project, muxy_protocol::SessionId::new(7).unwrap());
+        assert_eq!(DraftId::parse(session.as_str()), Some(session.clone()));
+        assert_ne!(session, DraftId::for_project(server, project));
+        assert_eq!(DraftId::parse(&format!("{}:0", id().as_str())), None);
+        assert_eq!(DraftId::parse(&format!("{}:07", id().as_str())), None);
     }
 
     fn image_draft_with(text: &str, filename: &str) -> ComposerDraft {

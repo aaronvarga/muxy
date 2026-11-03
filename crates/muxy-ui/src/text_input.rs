@@ -638,6 +638,11 @@ impl TextInput {
         self
     }
 
+    /// Height of the wrapped text as last laid out.
+    pub fn content_height(&self) -> Pixels {
+        self.last_content.height
+    }
+
     pub fn text(&self) -> &str {
         &self.content
     }
@@ -661,6 +666,17 @@ impl TextInput {
         }
         let range = self.selected_range.clone();
         self.apply_edit(range, text, false, false, cx);
+    }
+
+    /// Replaces `range` (byte offsets) and leaves the caret after `text`.
+    pub fn replace_range(&mut self, range: Range<usize>, text: &str, cx: &mut Context<Self>) {
+        if range.end <= self.content.len()
+            && self.content.is_char_boundary(range.start)
+            && self.content.is_char_boundary(range.end)
+        {
+            self.marked_range = None;
+            self.apply_edit(range, text, false, false, cx);
+        }
     }
 
     pub fn insert_at_selection(&mut self, text: &str, cx: &mut Context<Self>) {
@@ -1959,6 +1975,10 @@ impl Element for TextElement {
         );
         let content = prepaint.content;
         self.input.update(cx, |input, _| {
+            // Containers sized from `content_height` need a frame with the new height.
+            if input.last_content.height != content.height {
+                window.refresh();
+            }
             input.last_layout = Some(layout);
             input.last_content = content;
             input.scroll = scroll;

@@ -586,6 +586,27 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
         vec![(0..model.command_center.tiles.len()).collect()]
     };
     let header_height = m.scaled(36.0);
+    // Auto Columns folds a column whose every tile is collapsed into a narrow strip.
+    let mut strips = vec![None; columns];
+    if model.appearance.command_center_layout == GridLayout::AutoColumns {
+        for group in &groups {
+            let tiles = &model.command_center.tiles;
+            if grouped && model.command_center.project_collapsed(&tiles[group[0]]) {
+                continue;
+            }
+            for (slot, index) in group.iter().enumerate() {
+                let strip = &mut strips[slot % columns];
+                *strip = Some(
+                    strip.unwrap_or(true) && model.command_center.is_collapsed(&tiles[*index]),
+                );
+            }
+        }
+    }
+    let strips: Vec<bool> = strips
+        .into_iter()
+        .map(|strip| strip == Some(true))
+        .collect();
+    let strip_width = m.scaled(48.0);
     let mut headers = Vec::new();
     let mut positions = vec![None; model.command_center.tiles.len()];
     for group in groups {
@@ -604,7 +625,7 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
             let entry = &model.command_center.tiles[index];
             let column = slot % columns;
             let top = bottoms[column];
-            let extent = if model.command_center.is_collapsed(entry) {
+            let extent = if model.command_center.is_collapsed(entry) && !strips[column] {
                 compact_height
             } else {
                 height
@@ -673,9 +694,20 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
             let top = paint_scroll.logical_scroll_top();
             let offset = height * f32::from(u16::try_from(top.item_ix).unwrap_or(u16::MAX))
                 + top.offset_in_item;
-            let width = (bounds.size.width
-                - gap * f32::from(u16::try_from(columns - 1).unwrap_or(u16::MAX)))
-                / f32::from(u16::try_from(dimensions[0]).unwrap_or(u16::MAX));
+            let narrow = strips.iter().filter(|strip| **strip).count();
+            let width = ((bounds.size.width
+                - gap * f32::from(u16::try_from(columns - 1).unwrap_or(u16::MAX))
+                - strip_width * f32::from(u16::try_from(narrow).unwrap_or(u16::MAX)))
+                / f32::from(u16::try_from((dimensions[0] - narrow).max(1)).unwrap_or(u16::MAX)))
+            .max(px(0.0));
+            let lefts: Vec<_> = strips
+                .iter()
+                .scan(px(0.0), |left, strip| {
+                    let current = *left;
+                    *left += if *strip { strip_width } else { width } + gap;
+                    Some(current)
+                })
+                .collect();
             let mut elements = Vec::new();
             let _ = owner.update(cx, |model, cx| {
                 let mut visible = Vec::new();
@@ -698,14 +730,10 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
                         let Some((column, top, tile_height)) = position else {
                             continue;
                         };
+                        let strip = strips[*column];
                         let frame = gpui::Bounds::new(
-                            bounds.origin
-                                + gpui::point(
-                                    (width + gap)
-                                        * f32::from(u16::try_from(*column).unwrap_or(u16::MAX)),
-                                    *top - offset,
-                                ),
-                            gpui::size(width, *tile_height),
+                            bounds.origin + gpui::point(lefts[*column], *top - offset),
+                            gpui::size(if strip { strip_width } else { width }, *tile_height),
                         );
                         if !frame.intersects(&bounds) {
                             continue;
@@ -716,7 +744,7 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
                         }
                         let mut element = div()
                             .size_full()
-                            .child(tile(entry, index, model, cx))
+                            .child(tile(entry, index, strip, model, cx))
                             .into_any_element();
                         element.layout_as_root(frame.size.into(), window, cx);
                         element.prepaint_at(frame.origin, window, cx);
@@ -837,7 +865,13 @@ fn project_header(entry: &Tile, model: &AppModel, cx: &mut Context<AppModel>) ->
 }
 
 #[allow(clippy::too_many_lines, reason = "One terminal tile and its controls")]
-fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
+fn tile(
+    entry: &Tile,
+    index: usize,
+    strip: bool,
+    model: &AppModel,
+    cx: &mut Context<AppModel>,
+) -> AnyElement {
     let m = model.metrics;
     let pane = entry.pane;
     let collapsed = model.command_center.is_collapsed(entry);
@@ -919,7 +953,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
         .flex_1()
         .min_w(px(0.0))
         .h_full()
-        .when(collapsed, Styled::h_auto)
+        .when(collapsed && !strip, Styled::h_auto)
         .rounded(m.radius_md())
         .border_2()
         .border_color(if selected {
@@ -946,6 +980,8 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                 .gap(m.spacing3())
                 .px(m.spacing3())
                 .py(m.spacing2())
+                // A folded column stacks the header vertically down the strip.
+                .when(strip, |header| header.flex_col().flex_1().px(m.spacing1()))
                 .bg(header_background)
                 .cursor_grab()
                 .on_mouse_down(
@@ -973,7 +1009,8 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                         .debug_selector(move || format!("command-center-artwork-{index}"))
                         .child(artwork),
                 )
-                .child(
+                .when(!strip, |header| {
+                    header.child(
                     div()
                         .flex()
                         .flex_col()
@@ -997,8 +1034,9 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                                 .text_color(model.theme.fg_muted)
                                 .child(entry.title.clone()),
                         ),
-                )
-                .when_some(attention, |header, label| {
+                    )
+                })
+                .when_some(attention.filter(|_| !strip), |header, label| {
                     header.child(
                         div()
                             .debug_selector(move || {
@@ -1030,6 +1068,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                         model,
                     )
                     .debug_selector(move || format!("command-center-collapse-{index}-{collapsed}"))
+                    .when(strip, Styled::mr_0)
                     .on_click(cx.listener(move |model, _, _, cx| {
                         model.toggle_command_center_terminal(pane, cx);
                         cx.stop_propagation();
@@ -1043,6 +1082,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                         model,
                     )
                     .debug_selector(move || format!("command-center-project-{pane}"))
+                    .when(strip, Styled::mr_0)
                     .on_click(cx.listener(move |model, _, _, cx| {
                         model.open_command_center_project(pane, cx);
                         cx.stop_propagation();
@@ -1056,6 +1096,7 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                         model,
                     )
                     .debug_selector(move || format!("command-center-close-{index}"))
+                    .when(strip, Styled::mr_0)
                     .on_click(cx.listener(move |model, _, _, cx| {
                         model.close_pane(pane, cx);
                         cx.stop_propagation();
@@ -1070,9 +1111,13 @@ fn tile(entry: &Tile, index: usize, model: &AppModel, cx: &mut Context<AppModel>
                     .relative()
                     .flex_1()
                     .min_h(px(0.0))
-                    .child(model.terminal(&pane).map_or_else(
-                        || div().size_full().bg(model.theme.bg).into_any_element(),
-                        super::super::model::PaneView::element,
+                    .child(model.dock_composer(
+                        pane,
+                        model.terminal(&pane).map_or_else(
+                            || div().size_full().bg(model.theme.bg).into_any_element(),
+                            super::super::model::PaneView::element,
+                        ),
+                        cx,
                     ))
                     .when_some(body_bar, |body, bar| body.child(bar.top_0())),
             )
