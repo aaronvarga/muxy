@@ -924,6 +924,7 @@ impl AppModel {
                 return;
             }
             Command::OpenSubfolder(project, _) => {
+                self.command_center.leave();
                 if let Some(directory) = subfolder
                     && self.edit_project(
                         |state| state.open_subfolder(project, directory).map(drop),
@@ -934,6 +935,7 @@ impl AppModel {
                 }
             }
             Command::OpenFolderEntry(project, entry) => {
+                self.command_center.leave();
                 if self.edit_project(
                     |state| state.open_folder_entry(project, entry).map(drop),
                     cx,

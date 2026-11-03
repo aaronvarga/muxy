@@ -86,7 +86,7 @@ impl CommandCenter {
         self.tiles.iter().find(|tile| tile.pane == pane)
     }
 
-    pub(super) fn leave(&mut self) {
+    pub(crate) fn leave(&mut self) {
         self.active = false;
         self.visible.clear();
         self.focused = None;
