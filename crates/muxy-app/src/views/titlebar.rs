@@ -82,19 +82,8 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
     let window_controls = linux::controls_width(window);
     #[cfg(not(target_os = "linux"))]
     let window_controls = 0.0;
-    let notification_named = f32::from(content_size(window).width)
-        - navigation_width(model, window).max(model.sidebar_width())
-        - width
-        - window_controls
-        >= f32::from(model.metrics.scaled(NOTIFICATIONS_WIDTH + 160.0));
     if notifications {
-        width += f32::from(
-            if notification_named {
-                model.metrics.scaled(NOTIFICATIONS_WIDTH)
-            } else {
-                model.metrics.control_medium()
-            } + model.metrics.spacing2(),
-        );
+        width += f32::from(model.metrics.control_medium() + model.metrics.spacing2());
     }
     let room = f32::from(content_size(window).width)
         - navigation_width(model, window).max(model.sidebar_width())
@@ -120,10 +109,10 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         .flex_none()
         .items_center()
         .when(cfg!(target_os = "linux"), Styled::h_full)
-        .when(notifications, |bar| {
-            bar.child(notifications_button(model, notification_named, cx))
-        })
         .children(project_apps)
+        .when(notifications, |bar| {
+            bar.child(notifications_button(model, cx))
+        })
         .on_mouse_down(
             MouseButton::Right,
             cx.listener(|model, event: &gpui::MouseDownEvent, window, cx| {
@@ -194,13 +183,8 @@ const ZOOM: &str = "zoom";
 const LAYOUTS: &str = "layouts";
 const SESSIONS: &str = "agent_sessions";
 const NOTIFICATIONS: &str = "notifications";
-const NOTIFICATIONS_WIDTH: f32 = 112.0;
 
-fn notifications_button(
-    model: &AppModel,
-    named: bool,
-    cx: &mut Context<AppModel>,
-) -> Stateful<Div> {
+fn notifications_button(model: &AppModel, cx: &mut Context<AppModel>) -> Stateful<Div> {
     let snoozed = model.notifications_snoozed();
     let m = model.metrics;
     let color = if snoozed {
@@ -214,23 +198,13 @@ fn notifications_button(
             .flex()
             .flex_none()
             .items_center()
-            .gap(m.spacing3())
-            .w(if named {
-                m.scaled(NOTIFICATIONS_WIDTH)
-            } else {
-                m.control_medium()
-            })
-            .h(m.control_medium())
-            .px(if named { m.spacing4() } else { px(0.0) })
+            .size(m.control_medium())
             .justify_center()
             .mr(m.spacing2())
             .rounded(m.radius_md())
             .border_1()
             .border_color(color.opacity(0.3))
             .bg(color.opacity(0.1))
-            .text_size(m.font_body())
-            .text_color(color)
-            .font_weight(FontWeight::SEMIBOLD)
             .cursor_pointer()
             .hover(move |style| style.bg(color.opacity(0.18)))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -238,23 +212,7 @@ fn notifications_button(
                 if snoozed { Icon::Pause } else { Icon::Bell },
                 m.icon_md(),
                 color,
-            ))
-            .when(named, |button| {
-                button
-                    .child(div().flex_1().truncate().child(if snoozed {
-                        tr!("Snoozed")
-                    } else {
-                        tr!("Active")
-                    }))
-                    .child(
-                        div()
-                            .flex_none()
-                            .w(px(1.0))
-                            .h(m.scaled(14.0))
-                            .bg(color.opacity(0.25)),
-                    )
-                    .child(IconGlyph::new(Icon::ChevronDown, m.icon_xs(), color))
-            }),
+            )),
         if snoozed {
             tr!("Muxy notifications snoozed")
         } else {

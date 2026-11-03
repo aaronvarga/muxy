@@ -103,7 +103,6 @@
 "AI worker stopped" = "AI worker stopped";
 "ANSI colors" = "ANSI colors";
 "Action" = "Action";
-"Active" = "Active";
 "Active pane" = "Active pane";
 "Active sidebar" = "Active sidebar";
 "Active system-wide" = "Active system-wide";
@@ -1476,7 +1475,6 @@
 "Snooze Muxy notifications" = "Snooze Muxy notifications";
 "Snooze for 1 hour" = "Snooze for 1 hour";
 "Snooze for 30 minutes" = "Snooze for 30 minutes";
-"Snoozed" = "Snoozed";
 "Some history exceeds the scan limit." = "Some history exceeds the scan limit.";
 "Some projects unavailable" = "Some projects unavailable";
 "Space" = "Space";
