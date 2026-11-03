@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::wire::cbor::open_enum;
 
 use crate::{
-    AttachSnapshot, ChannelId, ForegroundProcess, HistoryCursor, HistoryPage, SavedScreen,
-    SearchPage, SearchSource, ServerPath, SessionId, SessionInfo, Size,
+    AttachSnapshot, ChannelId, ForegroundProcess, HistoryCursor, HistoryPage, PromptMarks,
+    SavedScreen, SearchPage, SearchSource, ServerPath, SessionId, SessionInfo, Size,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -196,6 +196,10 @@ pub enum RequestBody {
         #[n(1)]
         colors: Option<TerminalColors>,
     },
+    /// Fork request: the prompt rows in a live session's recent history and screen.
+    /// The high number keeps clear of upstream variants.
+    #[n(0x8001)]
+    PromptMarks(#[n(0)] ChannelId),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -311,6 +315,8 @@ pub enum ReplyBody {
     Uploaded(#[n(0)] Option<ServerPath>),
     #[n(39)]
     SessionColorsSet,
+    #[n(0x8001)]
+    PromptMarks(#[n(0)] PromptMarks),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

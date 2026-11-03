@@ -179,6 +179,25 @@ pub struct SearchPage {
     pub scanned_rows: u64,
 }
 
+/// One prompt row. `row` counts from the top of history; screen rows follow it.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
+pub struct PromptMark {
+    #[n(0)]
+    pub row: u64,
+    #[n(1)]
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
+pub struct PromptMarks {
+    /// Oldest first.
+    #[n(0)]
+    pub marks: Vec<PromptMark>,
+    /// History rows when the marks were read.
+    #[n(1)]
+    pub total_rows: u64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub struct ForegroundProcess {
     #[n(0)]

@@ -43,6 +43,7 @@ pub(crate) enum PaneEvent {
     Bell,
     History(HistoryRequest),
     Search(find::SearchRequest),
+    PromptMarks,
 }
 
 gpui::actions!(terminal, [CloseFind]);
@@ -107,6 +108,7 @@ pub(crate) struct TerminalPane {
     #[cfg(target_os = "macos")]
     native_sequence: u64,
     pub(super) scrollbar: Scrollbar,
+    pub(super) rail: super::rail::Rail,
     saved_history: Option<HistoryRequest>,
     pub(crate) focus: FocusHandle,
     pub(crate) focused: bool,
@@ -206,6 +208,7 @@ impl TerminalPane {
             #[cfg(target_os = "macos")]
             native_sequence: 0,
             scrollbar: Scrollbar::new(cx.background_executor().now()),
+            rail: super::rail::Rail::default(),
             saved_history: None,
             focus: cx.focus_handle(),
             focused: true,
@@ -306,6 +309,8 @@ impl TerminalPane {
         self.emit_title(cx);
         self.grid = Some(attachment.grid);
         self.restart_find(cx);
+        self.reset_prompt_marks();
+        self.refresh_prompt_marks(cx);
         if let Some(size) = resized
             && let Some(grid) = &mut self.grid
         {
@@ -625,6 +630,7 @@ impl TerminalPane {
                 if let Some(grid) = &mut self.grid {
                     grid.screen_prompts(seq, rows);
                 }
+                self.refresh_prompt_marks(cx);
                 cx.notify();
                 return;
             }
@@ -668,6 +674,8 @@ impl TerminalPane {
                     grid.history_total = total_rows;
                     grid.history_fresh = false;
                 }
+                // Agent messages carry no prompt marks; output scrolling is the cue.
+                self.refresh_prompt_marks(cx);
                 cx.notify();
                 return;
             }
@@ -858,6 +866,7 @@ impl TerminalPane {
             self.focused = focused;
             self.cursor_blink.reset();
             self.focus_changed(focused, cx);
+            self.refresh_prompt_marks(cx);
             cx.notify();
         }
     }
@@ -1770,10 +1779,12 @@ impl Render for TerminalPane {
             .children(find::bar(self, cx))
             .child(
                 div()
+                    .relative()
                     .flex_1()
                     .min_h(px(0.0))
                     .overflow_hidden()
-                    .child(element::terminal(cx.entity(), &palette)),
+                    .child(element::terminal(cx.entity(), &palette))
+                    .children(super::rail::rail(self, cx)),
             )
     }
 }

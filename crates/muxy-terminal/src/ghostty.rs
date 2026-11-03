@@ -623,7 +623,7 @@ impl Terminal {
         Ok(prompts)
     }
 
-    fn screen_with_prompts(&mut self) -> Result<(Vec<Row>, Vec<u16>), TerminalError> {
+    pub fn screen_with_prompts(&mut self) -> Result<(Vec<Row>, Vec<u16>), TerminalError> {
         let render = |error| TerminalError::wrap(TerminalStep::Render, error);
         let snapshot = self.render.update(&self.engine).map_err(render)?;
         let mut iteration = self.rows.update(&snapshot).map_err(render)?;

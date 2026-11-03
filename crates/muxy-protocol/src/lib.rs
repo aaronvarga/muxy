@@ -32,13 +32,13 @@ pub use screen::{
 pub use session::{
     AttachSnapshot, ClientKind, ExitReason, ForegroundProcess, HistoryCursor, HistoryPage,
     InputModes, LinkRow, LinkSpan, MetadataEvent, Modifiers, MouseAction, MouseButton, MouseEvent,
-    ProgressState, SavedScreen, ScrollDirection, SearchMatch, SearchPage, SearchSource,
-    SessionClient, SessionInfo, SessionMetadata, SessionProgress, TerminalProgress,
+    ProgressState, PromptMark, PromptMarks, SavedScreen, ScrollDirection, SearchMatch, SearchPage,
+    SearchSource, SessionClient, SessionInfo, SessionMetadata, SessionProgress, TerminalProgress,
 };
 pub use validate::{
-    MAX_CLIPBOARD_TEXT, MAX_COLS, MAX_INPUT, MAX_LINK_SPANS, MAX_LINK_URI, MAX_ROWS,
-    validate_environment, validate_input, validate_path, validate_search, validate_size,
-    validate_versions,
+    MAX_CLIPBOARD_TEXT, MAX_COLS, MAX_INPUT, MAX_LINK_SPANS, MAX_LINK_URI, MAX_PROMPT_MARKS,
+    MAX_PROMPT_TEXT, MAX_ROWS, validate_environment, validate_input, validate_path,
+    validate_search, validate_size, validate_versions,
 };
 pub use version::{CURRENT, FEATURES, Feature, SUPPORTED, V1, V2, Version};
 

@@ -428,6 +428,17 @@ impl Client {
         }
     }
 
+    /// The prompt rows of an attached session. Servers from before this answer `Unsupported`.
+    pub fn prompt_marks(
+        &self,
+        channel: ChannelId,
+    ) -> Result<muxy_protocol::PromptMarks, ClientError> {
+        match self.request(RequestBody::PromptMarks(channel))? {
+            ReplyBody::PromptMarks(marks) => Ok(marks),
+            other => Err(ClientError::UnexpectedReply(Box::new(other))),
+        }
+    }
+
     pub fn resize(&self, channel: ChannelId, size: Size) -> Result<(), ClientError> {
         match self.request(RequestBody::Resize { channel, size })? {
             ReplyBody::Resized => Ok(()),

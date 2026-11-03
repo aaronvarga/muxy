@@ -5,6 +5,10 @@ use crate::{
 
 pub const MAX_COLS: u16 = 4096;
 pub const MAX_ROWS: u16 = 1024;
+/// The most prompt marks one reply carries, newest kept.
+pub const MAX_PROMPT_MARKS: usize = 500;
+/// The most bytes of a prompt row's text a mark carries.
+pub const MAX_PROMPT_TEXT: usize = 512;
 pub const MAX_LINK_SPANS: usize = 1024;
 pub const MAX_LINK_URI: usize = 2048;
 pub const MAX_CLIPBOARD_TEXT: usize = 1024 * 1024;
@@ -160,7 +164,7 @@ fn validate_mouse(event: &MouseEvent) -> Result<(), ErrorCode> {
 
 fn validate_request(body: &RequestBody) -> Result<(), ErrorCode> {
     match body {
-        RequestBody::ClearScreen(channel) => {
+        RequestBody::ClearScreen(channel) | RequestBody::PromptMarks(channel) => {
             if *channel == crate::CONTROL {
                 Err(ErrorCode::UnknownChannel)
             } else {
@@ -284,6 +288,22 @@ fn validate_reply(body: &ReplyBody) -> Result<(), ErrorCode> {
         ReplyBody::Catalog(page) => page.validate(),
         ReplyBody::ProjectSessions(page) => page.validate(),
         ReplyBody::ServerSettings(settings) => settings.validate(),
+        ReplyBody::PromptMarks(marks) => {
+            if marks.marks.len() > MAX_PROMPT_MARKS
+                || marks.marks.iter().any(|mark| {
+                    mark.text.len() > MAX_PROMPT_TEXT
+                        || mark.row >= marks.total_rows.saturating_add(u64::from(MAX_ROWS))
+                })
+                || marks
+                    .marks
+                    .windows(2)
+                    .any(|pair| pair[0].row >= pair[1].row)
+            {
+                Err(ErrorCode::BadRequest)
+            } else {
+                Ok(())
+            }
+        }
         ReplyBody::SearchPage(page) => {
             if page.matches.len() > 500
                 || page.scanned_rows > 2000

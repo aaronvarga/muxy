@@ -514,6 +514,7 @@ pub(super) fn rows(
             "scroll-on-keystroke" => Some(options.scroll_on_keystroke),
             "scroll-on-output" => Some(options.scroll_on_output),
             "mouse-reporting" => Some(options.mouse_reporting),
+            "prompt-rail" => Some(options.prompt_rail),
             "keybind-clear-defaults" => Some(terminal.keybindings.clear_defaults),
             _ => None,
         };

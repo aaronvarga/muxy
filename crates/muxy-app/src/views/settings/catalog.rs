@@ -804,6 +804,15 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Scrolling"),
     },
     Setting {
+        id: "prompt-rail",
+        label: tr_key!("Prompt rail"),
+        description: tr_key!(
+            "Show a tick on the right edge for each prompt and agent message. Click one to scroll back to it."
+        ),
+        category: Category::Terminal,
+        section: tr_key!("Scrolling"),
+    },
+    Setting {
         id: "mouse-reporting",
         label: tr_key!("Allow programs to use the mouse"),
         description: tr_key!(

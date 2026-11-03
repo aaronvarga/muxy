@@ -7,7 +7,8 @@ use std::time::{Duration, Instant};
 
 use muxy_protocol::{
     AttachSnapshot, ChannelId, ErrorCode, ExitReason, HistoryCursor, HistoryPage, InputModes,
-    MetadataEvent, SavedScreen, ScreenFrame, SearchPage, SessionInfo, Size, TerminalColors,
+    MetadataEvent, PromptMarks, SavedScreen, ScreenFrame, SearchPage, SessionInfo, Size,
+    TerminalColors,
 };
 use muxy_terminal::Terminal;
 use muxy_terminal::pty::{ExitStatus, Pty, PtyEvent};
@@ -26,6 +27,20 @@ const CHECKPOINT: Duration = Duration::from_secs(1);
 /// CAN ends any unfinished escape sequence or character.
 const CANCEL: &[u8] = b"\x18";
 const METADATA_POLL: Duration = Duration::from_millis(100);
+/// History rows a prompt scan reads when it can't build on the last one.
+const PROMPT_SCAN_ROWS: usize = 2000;
+
+/// History marks found so far. Rows in history don't change while the
+/// terminal's history generation holds, so later scans read only new rows.
+#[derive(Default)]
+struct PromptCache {
+    generation: Option<u64>,
+    /// History rows already read.
+    scanned: usize,
+    marks: Vec<muxy_protocol::PromptMark>,
+    /// Whether the last row read was a rule.
+    under_rule: bool,
+}
 
 type Fault = Box<dyn Error + Send + Sync>;
 
@@ -100,6 +115,7 @@ struct Owner {
     output_pending: bool,
     resize_pending: bool,
     compress_pending: bool,
+    prompt_cache: PromptCache,
     history_total: u64,
     history_generation: u64,
     input_modes: InputModes,
@@ -198,6 +214,7 @@ pub(crate) fn start(
                 output_pending: false,
                 resize_pending: false,
                 compress_pending: false,
+                prompt_cache: PromptCache::default(),
                 history_total: 0,
                 history_generation: 0,
                 input_modes: InputModes::default(),
@@ -363,6 +380,9 @@ impl Owner {
                     reply,
                 })) => {
                     let _ = reply.send(self.search(&query, ignore_case, before, max_results));
+                }
+                Wake::Event(OwnerEvent::Command(SessionCommand::PromptMarks(reply))) => {
+                    let _ = reply.send(self.prompt_marks());
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::End)) => {
                     return self.terminate(ExitReason::Ended);
@@ -707,6 +727,55 @@ impl Owner {
         })
     }
 
+    fn prompt_marks(&mut self) -> Result<PromptMarks, ServerError> {
+        let failed =
+            |error| ServerError::new(ErrorCode::HistoryUnavailable, format!("prompts: {error}"));
+        let history_rows = self.terminal.history_rows().map_err(failed)?;
+        let generation = self.terminal.history_generation().map_err(failed)?;
+        let cache = &mut self.prompt_cache;
+        if cache.generation != Some(generation) || cache.scanned > history_rows {
+            // Rows moved, so earlier marks no longer point at them.
+            *cache = PromptCache {
+                generation: Some(generation),
+                ..PromptCache::default()
+            };
+        }
+        let start = cache
+            .scanned
+            .max(history_rows.saturating_sub(PROMPT_SCAN_ROWS));
+        if start < history_rows {
+            if start > cache.scanned {
+                cache.under_rule = false;
+            }
+            self.compress_pending = true;
+            let (history, prompts) = self
+                .terminal
+                .history_with_prompts(start..history_rows)
+                .map_err(failed)?;
+            let rows = with_prompts(&history, &prompts, start);
+            let (found, under_rule) = super::prompts::marks(rows, cache.under_rule);
+            cache.marks.extend(found);
+            let excess = cache
+                .marks
+                .len()
+                .saturating_sub(muxy_protocol::MAX_PROMPT_MARKS);
+            cache.marks.drain(..excess);
+            cache.scanned = history_rows;
+            cache.under_rule = under_rule;
+        }
+        let (screen, prompts) = self.terminal.screen_with_prompts().map_err(failed)?;
+        let (on_screen, _) = super::prompts::marks(
+            with_prompts(&screen, &prompts, history_rows),
+            cache.under_rule,
+        );
+        let marks: Vec<_> = cache.marks.iter().cloned().chain(on_screen).collect();
+        let excess = marks.len().saturating_sub(muxy_protocol::MAX_PROMPT_MARKS);
+        Ok(PromptMarks {
+            marks: marks.into_iter().skip(excess).collect(),
+            total_rows: history_rows as u64,
+        })
+    }
+
     fn update_metadata(&mut self) {
         let terminal = self.terminal.take_events();
         for event in &terminal {
@@ -958,6 +1027,20 @@ impl Owner {
             );
         }
     }
+}
+
+/// `(row, text, shell prompt)` for `lines` that start at `first`.
+fn with_prompts(
+    lines: &[muxy_protocol::Row],
+    prompts: &[u16],
+    first: usize,
+) -> impl Iterator<Item = (usize, String, bool)> {
+    let prompts: std::collections::BTreeSet<usize> =
+        prompts.iter().copied().map(usize::from).collect();
+    lines.iter().enumerate().map(move |(index, line)| {
+        let text = line.runs.iter().map(|run| run.text.as_str()).collect();
+        (first + index, text, prompts.contains(&index))
+    })
 }
 
 fn exit_reason(status: ExitStatus) -> ExitReason {

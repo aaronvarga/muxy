@@ -50,6 +50,7 @@ pub(super) fn permit(device: Option<DeviceKind>, body: &RequestBody) -> Result<(
         | RequestBody::HistoryPage { .. }
         | RequestBody::SavedHistoryPage { .. }
         | RequestBody::Search { .. }
+        | RequestBody::PromptMarks(_)
         | RequestBody::SetTerminalColors(_)
         | RequestBody::SetSessionColors { .. }
         | RequestBody::ReadServerSettings

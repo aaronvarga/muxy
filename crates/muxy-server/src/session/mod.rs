@@ -1,12 +1,13 @@
 mod metadata;
 mod owner;
+mod prompts;
 
 use std::fmt;
 use std::sync::mpsc::{SendError, Sender};
 
 use muxy_protocol::{
     AttachSnapshot, ChannelId, ExitReason, ForegroundProcess, HistoryCursor, HistoryPage,
-    MetadataEvent, MouseEvent, ScreenFrame, SearchPage, SessionId, SessionInfo, Size,
+    MetadataEvent, MouseEvent, PromptMarks, ScreenFrame, SearchPage, SessionId, SessionInfo, Size,
     TerminalColors,
 };
 
@@ -62,6 +63,7 @@ pub enum SessionCommand {
         max_results: u16,
         reply: Sender<Result<SearchPage, ServerError>>,
     },
+    PromptMarks(Sender<Result<PromptMarks, ServerError>>),
     Stop,
 }
 

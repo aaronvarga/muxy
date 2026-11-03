@@ -73,6 +73,7 @@ mod views {
         pub(crate) mod input;
         pub(crate) mod links;
         pub(crate) mod pane;
+        pub(crate) mod rail;
         pub(crate) mod scroll;
         pub(crate) mod scrollbar;
         pub(crate) mod selection;

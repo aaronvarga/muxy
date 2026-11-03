@@ -336,6 +336,10 @@ pub(crate) enum Work {
         source: SearchSource,
         request: SearchRequest,
     },
+    PromptMarks {
+        pane: PaneId,
+        channel: ChannelId,
+    },
     Connect,
     /// Hangs up until the next Connect; the worker stays.
     Disconnect,
@@ -423,6 +427,7 @@ impl Work {
             Self::CancelCreation(..) => "CancelCreation",
             Self::MutateProject(..) => "MutateProject",
             Self::Search { .. } => "Search",
+            Self::PromptMarks { .. } => "PromptMarks",
             Self::Connect => "Connect",
             Self::Disconnect => "Disconnect",
             Self::ReconnectAfterUpdate(..) => "ReconnectAfterUpdate",
@@ -503,6 +508,10 @@ pub(crate) enum Update {
         pane: PaneId,
         request: SearchRequest,
         result: Result<SearchPage, ClientError>,
+    },
+    PromptMarks {
+        pane: PaneId,
+        result: Result<muxy_protocol::PromptMarks, ClientError>,
     },
     Connected(Vec<SessionInfo>),
     ServerSettings(Result<muxy_protocol::ServerSettingsDoc, ClientError>),
@@ -988,6 +997,10 @@ fn rejected(work: Work, error: ClientError) -> Update {
             request,
             result: Err(error),
         },
+        Work::PromptMarks { pane, .. } => Update::PromptMarks {
+            pane,
+            result: Err(error),
+        },
         Work::References(_) => Update::ReferencesSynced(Err(error)),
         Work::Discard(session, _) => Update::Discarded {
             session,
@@ -1100,6 +1113,12 @@ fn perform(work: Work, client: &Client, target: &Target) -> Option<Update> {
             request,
         } => {
             return Some(search(client, pane, source, request));
+        }
+        Work::PromptMarks { pane, channel } => {
+            return Some(Update::PromptMarks {
+                pane,
+                result: client.prompt_marks(channel),
+            });
         }
         Work::Attach {
             pane,

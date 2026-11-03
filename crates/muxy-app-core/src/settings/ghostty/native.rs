@@ -304,6 +304,7 @@ impl TerminalSettings {
             "selection-clear-on-copy" => next.options.selection_clear_on_copy = flag()?,
             "bold-is-bright" => next.options.bold_is_bright = flag()?,
             "mouse-reporting" => next.options.mouse_reporting = flag()?,
+            "prompt-rail" => next.options.prompt_rail = flag()?,
             "scroll-on-keystroke" => next.options.scroll_on_keystroke = flag()?,
             "scroll-on-output" => next.options.scroll_on_output = flag()?,
             "scroll-precision" => next.options.scroll_precision = number()?,

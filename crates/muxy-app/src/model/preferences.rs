@@ -820,6 +820,8 @@ impl AppModel {
                 if !changed_size {
                     pane.terminal.font_size = zoom;
                 }
+                // Picks the rail back up if it was just turned on.
+                pane.refresh_prompt_marks(cx);
                 cx.notify();
             });
         }

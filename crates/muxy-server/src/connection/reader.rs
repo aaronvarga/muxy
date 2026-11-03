@@ -467,6 +467,7 @@ fn ordered_request(
             max_rows,
         } => ReplyBody::HistoryPage(registry.saved_history_page(session, before, max_rows)?),
 
+        RequestBody::PromptMarks(channel) => live_prompt_marks(outbox, channel)?,
         RequestBody::Search {
             source,
             query,
@@ -572,6 +573,22 @@ fn live_history(
         )
     })??;
     Ok(ReplyBody::HistoryPage(page))
+}
+
+fn live_prompt_marks(outbox: &Arc<Outbox>, channel: ChannelId) -> Result<ReplyBody, ServerError> {
+    let handle = outbox
+        .handle(channel)
+        .ok_or_else(|| ServerError::new(ErrorCode::UnknownChannel, "unknown channel"))?;
+    let (reply, marks) = mpsc::channel();
+    handle.send(SessionCommand::PromptMarks(reply))?;
+    Ok(ReplyBody::PromptMarks(
+        marks.recv_timeout(Duration::from_secs(5)).map_err(|_| {
+            ServerError::new(
+                ErrorCode::HistoryUnavailable,
+                "prompt marks did not complete",
+            )
+        })??,
+    ))
 }
 
 fn live_search(

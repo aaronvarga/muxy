@@ -23,6 +23,7 @@ pub(super) const KEYS: &[&str] = &[
     "copy-on-select",
     "mouse-reporting",
     "mouse-scroll-multiplier",
+    "prompt-rail",
     "scroll-to-bottom",
     "window-padding-x",
     "window-padding-y",
@@ -80,6 +81,8 @@ pub struct TerminalOptions {
     pub bold_is_bright: bool,
     pub copy_on_select: Option<bool>,
     pub mouse_reporting: bool,
+    /// Shows the stack of prompt ticks on the pane's right edge.
+    pub prompt_rail: bool,
     pub scroll_precision: f32,
     pub scroll_discrete: f32,
     pub scroll_on_keystroke: bool,
@@ -112,6 +115,7 @@ impl Default for TerminalOptions {
             bold_is_bright: false,
             copy_on_select: None,
             mouse_reporting: true,
+            prompt_rail: true,
             scroll_precision: 1.0,
             scroll_discrete: 1.0,
             scroll_on_keystroke: true,
@@ -207,6 +211,7 @@ impl TerminalOptions {
                     .unwrap_or_default(),
             ),
             ("mouse-reporting", self.mouse_reporting.to_string()),
+            ("prompt-rail", self.prompt_rail.to_string()),
             (
                 "mouse-scroll-multiplier",
                 format!(
@@ -262,6 +267,7 @@ impl TerminalOptions {
                 | "bold-is-bright"
                 | "copy-on-select"
                 | "mouse-reporting"
+                | "prompt-rail"
                 | "window-padding-balance"
         )
     }
@@ -349,6 +355,7 @@ impl TerminalOptions {
                 })?;
             }
             "mouse-reporting" => self.mouse_reporting = boolean(value, true)?,
+            "prompt-rail" => self.prompt_rail = boolean(value, true)?,
             "mouse-scroll-multiplier" => self.read_scroll(value)?,
             "scroll-to-bottom" => {
                 self.scroll_on_keystroke = true;

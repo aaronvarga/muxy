@@ -347,6 +347,8 @@ impl AppModel {
                         if let Some(size) = zoom {
                             pane.terminal.font_size = size;
                         }
+                        // Picks the rail back up if it was just turned on.
+                        pane.refresh_prompt_marks(cx);
                         cx.notify();
                     });
                 }
@@ -2004,6 +2006,7 @@ impl AppModel {
             }
             PaneEvent::History(request) => model.fetch_history(id, *request, cx),
             PaneEvent::Search(request) => model.search(id, request.clone(), cx),
+            PaneEvent::PromptMarks => model.prompt_marks(id, cx),
             PaneEvent::Viewport(size) => model.viewport(id, *size, cx),
             PaneEvent::Input(channel, bytes) => {
                 crate::diagnostics::event(
@@ -2331,6 +2334,22 @@ impl AppModel {
         );
     }
 
+    fn prompt_marks(&mut self, pane: PaneId, cx: &mut Context<Self>) {
+        let Some(server) = self.pane_server(pane) else {
+            return;
+        };
+        if self.quitting != Quitting::Idle || !self.ready(server) {
+            return;
+        }
+        let Some((_, channel)) = self
+            .attachment(pane, cx)
+            .filter(|(owner, _)| *owner == server)
+        else {
+            return;
+        };
+        self.send(server, Work::PromptMarks { pane, channel }, cx);
+    }
+
     fn receive_connected(
         &mut self,
         server: ServerId,
@@ -2449,6 +2468,12 @@ impl AppModel {
                 request,
                 result,
             } => self.receive_search(pane, &request, result, cx),
+            Update::PromptMarks { pane, result } => {
+                if let Some(pane) = self.terminal(&pane) {
+                    pane.view
+                        .update(cx, |pane, cx| pane.receive_prompt_marks(result, cx));
+                }
+            }
             Update::Connected(sessions) => {
                 if local {
                     self.updates.sessions = sessions.len();
