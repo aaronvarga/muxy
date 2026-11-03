@@ -220,6 +220,8 @@ pub enum ShortcutId {
     ToggleComposer,
     ComposerSubmit,
     ComposerInsert,
+    ComposerNewline,
+    ComposerComplete,
     ComposerClose,
     NewBrowserTab,
     BrowserFocusAddress,
@@ -1415,6 +1417,18 @@ pub const ALL: &[Shortcut] = &[
     Shortcut {
         id: "composer.insert",
         keys: platform_keys!(&["cmd-shift-enter"], &["ctrl-shift-enter"]),
+        contexts: &[Some("Composer")],
+        key_contexts: &[&[Some("Composer")]],
+    },
+    Shortcut {
+        id: "composer.newline",
+        keys: &["shift-enter"],
+        contexts: &[Some("Composer")],
+        key_contexts: &[&[Some("Composer")]],
+    },
+    Shortcut {
+        id: "composer.complete",
+        keys: &["tab"],
         contexts: &[Some("Composer")],
         key_contexts: &[&[Some("Composer")]],
     },

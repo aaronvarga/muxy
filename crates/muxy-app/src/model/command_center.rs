@@ -102,7 +102,6 @@ impl AppModel {
         }
         self.dismiss_overlay(cx);
         self.dismiss_composer(false, cx);
-        self.close_voice(cx);
         self.cancel_titlebar_drag(cx);
         self.command_center.active = true;
         self.refresh_existing_sessions(cx);

@@ -676,14 +676,14 @@ fn pane_content(id: muxy_app_core::PaneId, model: &AppModel, cx: &Context<AppMod
             && pane.view.read(cx).displayed_grid().is_none()
     });
     let Some(server) = offline else {
-        return pane.element();
+        return model.dock_composer(id, pane.element(), cx);
     };
-    div()
+    model.dock_composer(id, div()
         .relative()
         .size_full()
         .child(pane.element())
         .child(offline_notice(id, server, model, cx))
-        .into_any_element()
+        .into_any_element(), cx)
 }
 
 /// A terminal of another computer's server that has nothing to show yet: the

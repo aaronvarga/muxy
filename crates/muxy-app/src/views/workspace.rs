@@ -157,6 +157,8 @@ fn workspace_bindings(keymap: &impl muxy_core::shortcuts::ShortcutSettings) -> V
     commands::bind_shortcuts(&mut registry);
     registry.register(ShortcutId::ComposerSubmit, &super::composer::Submit);
     registry.register(ShortcutId::ComposerInsert, &super::composer::Insert);
+    registry.register(ShortcutId::ComposerNewline, &super::composer::Newline);
+    registry.register(ShortcutId::ComposerComplete, &super::composer::Complete);
     registry.register(ShortcutId::ComposerClose, &super::composer::Close);
     for (index, id) in ShortcutId::TABS.into_iter().enumerate() {
         registry.register(id, &SelectTab { index });
@@ -375,6 +377,8 @@ impl AppModel {
 impl AppModel {
     fn prepare_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let _span = crate::profiler::span(crate::profiler::Metric::WorkspacePrepare);
+        self.sync_docked_composer(cx);
+        self.sync_composer_skills(cx);
         let overlay = self.overlay.is_some();
         let elsewhere = self.tab_windows.key_window().is_some() && !overlay;
         if elsewhere && self.focus_owner.wants_active_pane() {

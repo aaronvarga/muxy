@@ -551,6 +551,54 @@ fn auto_columns_tracks_sessions_in_full_height_panes_and_saves_selection(cx: &mu
 }
 
 #[gpui::test]
+fn auto_columns_folds_a_collapsed_terminal_into_a_narrow_full_height_column(
+    cx: &mut TestAppContext,
+) {
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.command_center_layout = GridLayout::AutoColumns;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1400.0), px(900.0)));
+    view.update(cx, |model, cx| {
+        model.receive(
+            local(
+                1,
+                Update::Connected((1..=3).map(|id| session(home, id).info).collect()),
+            ),
+            cx,
+        );
+        acknowledge_catalog(model, cx);
+        model.open_command_center(cx);
+        model.receive_session_page(
+            home,
+            Ok(listing((1..=3).map(|id| session(home, id)).collect())),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    let tile = |cx: &mut VisualTestContext, index: usize| {
+        let selected = view.read_with(cx, |model, _| {
+            model.active_pane() == Some(model.command_center.tiles[index].pane)
+        });
+        cx.debug_bounds(format!("command-center-tile-{index}-None-focused-{selected}").leak())
+            .expect("tile")
+    };
+    let before = tile(cx, 1);
+    preferences::click_preference(cx, "command-center-collapse-0-false");
+    cx.run_until_parked();
+    let [strip, second, third] = [0, 1, 2].map(|index| tile(cx, index));
+    assert!(strip.size.width < px(80.0));
+    assert!((strip.size.height - second.size.height).abs() < px(1.0));
+    assert!(second.left() > strip.right());
+    assert!(second.size.width > before.size.width);
+    assert_eq!(second.size, third.size);
+    preferences::click_preference(cx, "command-center-collapse-0-true");
+    cx.run_until_parked();
+    assert_eq!(tile(cx, 1).size, before.size);
+}
+
+#[gpui::test]
 fn larger_layout_presets_can_be_selected_and_saved_with_fewer_terminals(cx: &mut TestAppContext) {
     let state = AppState::bootstrap().expect("state");
     let home = state.home().id;
