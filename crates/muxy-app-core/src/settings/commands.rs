@@ -14,10 +14,12 @@ pub struct CustomCommand {
     /// Kept out of the commands bar; the palette and shortcut still run it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
-    /// Listed in the status bar's Commands menu, which types it into the
-    /// selected terminal instead of opening a split.
+    /// Listed in Quick Commands in the status bar and composer. Selection
+    /// inserts text without executing it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub status_bar: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<crate::ProjectId>,
 }
 
 impl CustomCommand {
@@ -28,7 +30,12 @@ impl CustomCommand {
             command,
             hidden: false,
             status_bar: false,
+            project: None,
         }
+    }
+
+    pub fn available_in(&self, project: crate::ProjectId) -> bool {
+        self.project.is_none_or(|scope| scope == project)
     }
 
     pub fn shortcut_id(&self) -> String {

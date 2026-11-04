@@ -6,6 +6,8 @@ use muxy_ui::tr;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Command {
+    InsertQuick(usize),
+    ManageQuickCommands,
     Broadcast,
     Insert,
     ClearAfter,
@@ -56,6 +58,14 @@ impl Composer {
 
     pub(crate) fn menu_action(&mut self, command: Command, cx: &mut Context<Self>) {
         match command {
+            Command::InsertQuick(index) => {
+                cx.emit(super::ComposerEvent::QuickCommand(index));
+                return;
+            }
+            Command::ManageQuickCommands => {
+                cx.emit(super::ComposerEvent::ManageQuickCommands);
+                return;
+            }
             Command::Insert => {
                 self.submit(false, cx);
                 return;

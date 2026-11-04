@@ -86,14 +86,21 @@ impl Composer {
             .justify_center()
             .size(box_size)
             .when(id == "composer-more", |button| button.w(m.control_small()))
-            .when(id == "composer-more", |button| {
-                let anchor = self.menu_anchor.clone();
-                button.relative().child(
-                    gpui::canvas(move |bounds, _, _| anchor.set(bounds), |_, (), _, _| {})
-                        .absolute()
-                        .size_full(),
-                )
-            })
+            .when(
+                matches!(id, "composer-more" | "composer-commands"),
+                |button| {
+                    let anchor = if id == "composer-commands" {
+                        self.commands_anchor.clone()
+                    } else {
+                        self.menu_anchor.clone()
+                    };
+                    button.relative().child(
+                        gpui::canvas(move |bounds, _, _| anchor.set(bounds), |_, (), _, _| {})
+                            .absolute()
+                            .size_full(),
+                    )
+                },
+            )
             .rounded(m.radius_xl())
             .child(SymbolGlyph::new(symbol, glyph_size, color))
             .tooltip(muxy_ui::components::tooltip(
@@ -393,6 +400,14 @@ impl Composer {
                 tr_key!("Attach File"),
                 Control::Toolbar,
                 |_, _, cx| cx.emit(ComposerEvent::Attach),
+                cx,
+            ),
+            self.glyph_button(
+                "composer-commands",
+                "terminal",
+                tr_key!("Quick Commands"),
+                Control::Toolbar,
+                |_, _, cx| cx.emit(ComposerEvent::QuickCommands),
                 cx,
             ),
             self.glyph_button(

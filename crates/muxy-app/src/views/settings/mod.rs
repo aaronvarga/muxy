@@ -97,7 +97,7 @@ impl Category {
             Self::Appearance => tr_key!("Appearance"),
             Self::Terminal => tr_key!("Terminal"),
             Self::Keyboard => tr_key!("Keyboard"),
-            Self::Commands => tr_key!("Commands"),
+            Self::Commands => tr_key!("Quick Commands"),
             Self::Browser => tr_key!("Browser"),
             Self::Servers => tr_key!("Servers"),
             Self::Extensions => tr_key!("Extensions"),
@@ -128,6 +128,7 @@ pub(crate) enum SettingsEvent {
 
 #[derive(Clone)]
 pub(crate) struct Snapshot {
+    pub(crate) projects: Vec<(muxy_app_core::ProjectId, String)>,
     pub(crate) settings: Settings,
     pub(crate) capabilities: muxy_core::capability::Capabilities,
     pub(crate) quick_shortcut_status: String,
@@ -303,6 +304,7 @@ impl SettingsView {
                 PickerKind::ExtensionSidebar,
                 PickerKind::FileOpener,
                 PickerKind::AppLanguage,
+                PickerKind::CommandProject,
             ]
             .into_iter()
             .chain(pickers::FontSlot::ALL.map(PickerKind::Font))

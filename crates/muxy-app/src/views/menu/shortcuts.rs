@@ -38,6 +38,8 @@ impl Command {
             Self::AddProject(server) if server == model.state.current_project().server_id => {
                 Some(ShortcutId::AddProject)
             }
+            Self::NewTab => Some(ShortcutId::NewTab),
+            Self::NewBrowserTab => Some(ShortcutId::NewBrowserTab),
             Self::AgentsPanel(_) => Some(ShortcutId::ToggleAgentsPanel),
             Self::TerminalCopy(_) => Some(ShortcutId::Copy),
             Self::TerminalPaste(_) => Some(ShortcutId::Paste),

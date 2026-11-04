@@ -11,9 +11,11 @@ use gpui::{
 };
 use muxy_app_core::{Direction, PaneId, Tab, TabGroup, TabId, TabSide};
 
+use super::menu::{Command, Item, MenuIcon};
+use super::overlays::Overlay;
 use super::sidebar::{client_button, client_press};
 use super::tab_sidebar::tab_description;
-use super::titlebar;
+use super::{tab_menu, titlebar};
 use crate::model::AppModel;
 use crate::views::move_drag;
 use muxy_ui::components::IconGlyph;
@@ -230,6 +232,8 @@ pub(super) fn new_tab_button(
         || SharedString::from("new-tab"),
         |anchor| SharedString::from(format!("new-tab-{anchor}")),
     );
+    let bounds = muxy_ui::popover::PopoverAnchor::default();
+    let recorded = bounds.clone();
     let tooltip = model.tooltip(tr!("New Tab"), ShortcutId::NewTab);
     titlebar::icon_button(id, Icon::Plus, tooltip, model)
         .aria_label(tr!("New Tab"))
@@ -238,6 +242,7 @@ pub(super) fn new_tab_button(
         } else {
             "new-tab-button"
         })
+        .relative()
         .ml(model.metrics.spacing2())
         .debug_selector(move || {
             if anchor.is_some() {
@@ -247,13 +252,64 @@ pub(super) fn new_tab_button(
             }
             .into()
         })
-        .on_click(cx.listener(move |model, _, _, cx| {
-            cx.stop_propagation();
-            match anchor {
-                Some(anchor) => model.new_tab_adjacent(anchor, TabSide::Right, cx),
-                None => model.new_tab(cx),
-            }
-        }))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(
+            cx.listener(move |model, event: &gpui::ClickEvent, window, cx| {
+                cx.stop_propagation();
+                let items = new_tab_items(anchor, model);
+                let button = bounds.get();
+                let position =
+                    button.map_or_else(|| event.position(), |button| button.bottom_left());
+                model.open_menu(items, position, window, cx);
+                if let Some(Overlay::Menu(menu)) = &mut model.overlay {
+                    menu.drops_from = button;
+                }
+            }),
+        )
+        .child(
+            gpui::canvas(
+                move |button, _, _| recorded.set(Some(button)),
+                |_, (), _, _| {},
+            )
+            .absolute()
+            .inset_0(),
+        )
+}
+
+/// The new tab button's choices: a terminal, a browser tab, or a custom
+/// command in its own tab.
+fn new_tab_items(anchor: Option<TabId>, model: &AppModel) -> Vec<Item> {
+    let terminal = match anchor {
+        Some(anchor) => Command::Tab(anchor, tab_menu::Action::New(TabSide::Right)),
+        None => Command::NewTab,
+    };
+    let browser = Item::action(tr!("New Browser Tab"), Command::NewBrowserTab)
+        .icon(MenuIcon::Glyph(Icon::Globe));
+    let mut items = vec![
+        Item::action(tr!("New Terminal Tab"), terminal).icon(MenuIcon::Glyph(Icon::Terminal)),
+        if model.browser_enabled() {
+            browser
+        } else {
+            browser.disabled()
+        },
+    ];
+    for (index, command) in model.available_commands() {
+        let icon = super::commands_bar::agent(command)
+            .map_or(MenuIcon::Glyph(Icon::Terminal), MenuIcon::Agent);
+        let item = Item::action(command.name.clone(), Command::RunCommandInTab(index)).icon(icon);
+        let item = if items.len() == 2 {
+            item.separated()
+        } else {
+            item
+        };
+        items.push(if command.command.trim().is_empty() {
+            item.disabled()
+        } else {
+            item
+        });
+    }
+    items.push(Item::action(tr!("Manage Quick Commands…"), Command::ManageCommands).separated());
+    items
 }
 
 pub(super) fn existing_terminals_button(

@@ -288,6 +288,7 @@ fn import_commands(
                 command: value["command"].as_str().ok_or("Missing command")?.into(),
                 hidden: false,
                 status_bar: false,
+                project: None,
             };
             command.validate()?;
             if !prefix {

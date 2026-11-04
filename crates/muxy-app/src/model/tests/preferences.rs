@@ -441,7 +441,7 @@ fn sidebar_icon_slider_resizes_sidebar_live_and_saves(cx: &mut TestAppContext) {
     use muxy_app_core::settings::{Appearance, SIDEBAR_ICON_SIZE};
     let (boot, _) = stub_boot(AppState::bootstrap().expect("state"));
     let path = boot.state_path.with_file_name("settings.toml");
-    let (model, settings) = settings_window(boot, cx);
+    let (model, settings) = settings_tab(boot, cx);
     let collapsed = model.read_with(settings, |model, _| model.sidebar_width());
     click_preference(settings, "settings-category-Appearance");
     click_preference(settings, "settings-disclosure-Appearance");
@@ -638,7 +638,7 @@ fn command_reordering_persists_ids_shortcuts_and_hidden_entries(cx: &mut TestApp
         .expect("binding");
     let path = boot.state_path.with_file_name("settings.toml");
     boot.settings.save_commands(&path).expect("save commands");
-    let (model, cx) = settings_window(boot, cx);
+    let (model, cx) = settings_tab(boot, cx);
     model.update(cx, |model, cx| {
         requests.try_iter().for_each(drop);
         model.change_preference(Change::MoveCommand(original[2].id.clone(), false), cx);
@@ -1258,4 +1258,40 @@ fn reloading_keeps_a_cli_change_and_an_unsaved_field_of_the_same_section(cx: &mu
             muxy_app_core::settings::Settings::load(&profile.settings_path()).expect("load");
         assert_eq!(saved.window, model.settings.window);
     });
+}
+
+#[gpui::test]
+fn quick_command_project_picker_saves_scope_with_the_command(cx: &mut TestAppContext) {
+    use muxy_app_core::settings::Settings;
+    let directory = tempfile::tempdir().expect("project directory");
+    let mut state = AppState::bootstrap().expect("state");
+    let project = state
+        .add_project(ServerId::local(), directory.path().into())
+        .expect("project");
+    let (boot, _) = stub_boot(state);
+    let path = boot.state_path.with_file_name("settings.toml");
+    let (model, cx) = settings_tab(boot, cx);
+    click_preference(cx, "settings-category-Quick Commands");
+    click_preference(cx, "settings-add-command");
+    cx.simulate_input("Project build");
+    click_preference(cx, "settings-picker-command-project");
+    cx.simulate_input(
+        directory
+            .path()
+            .file_name()
+            .expect("folder name")
+            .to_str()
+            .expect("UTF-8"),
+    );
+    cx.simulate_keystrokes("enter");
+    click_preference(cx, "settings-save-command");
+    model.read_with(cx, |model, _| {
+        assert_eq!(model.settings.commands.len(), 1);
+        assert_eq!(model.settings.commands[0].name, "Project build");
+        assert_eq!(model.settings.commands[0].project, Some(project));
+    });
+    assert_eq!(
+        Settings::load(&path).expect("saved commands").commands[0].project,
+        Some(project)
+    );
 }

@@ -49,6 +49,7 @@ fn command_placements_survive_saving_and_older_files_load() {
     let mut command = command();
     command.hidden = true;
     command.status_bar = true;
+    command.project = Some(muxy_app_core::ProjectId::new());
     let settings = Settings {
         commands: vec![command.clone()],
         ..Settings::default()
@@ -63,4 +64,17 @@ fn command_placements_survive_saving_and_older_files_load() {
     .unwrap();
     let old = &Settings::load(&path).unwrap().commands[0];
     assert!(!old.hidden && !old.status_bar);
+    assert_eq!(old.project, None);
+}
+
+#[test]
+fn project_commands_stay_in_their_project() {
+    let project = muxy_app_core::ProjectId::new();
+    let other = muxy_app_core::ProjectId::new();
+    let mut command = command();
+    assert!(command.available_in(project));
+    assert!(command.available_in(other));
+    command.project = Some(project);
+    assert!(command.available_in(project));
+    assert!(!command.available_in(other));
 }

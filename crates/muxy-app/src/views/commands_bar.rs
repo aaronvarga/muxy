@@ -13,7 +13,6 @@ use crate::model::AppModel;
 /// A row below the tabs with a button per custom command, each running it in
 /// a split beside the active pane, and a menu choosing which commands it shows.
 pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElement> {
-    let commands = &model.settings.commands;
     if !model.appearance.commands_bar_visible {
         return None;
     }
@@ -68,10 +67,10 @@ pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Opti
             .text_color(theme.fg_muted)
             .child(menu)
             .children(
-                commands
-                    .iter()
-                    .filter(|command| !command.hidden)
-                    .map(|command| {
+                model
+                    .available_commands()
+                    .filter(|(_, command)| !command.hidden)
+                    .map(|(_, command)| {
                         let id = command.id.clone();
                         let element = SharedString::from(format!("commands-bar-{id}"));
                         let icon = agent(command).map_or_else(
@@ -133,10 +132,7 @@ pub(super) fn agent(command: &muxy_app_core::settings::CustomCommand) -> Option<
 
 fn menu_items(model: &AppModel) -> Vec<Item> {
     let mut items: Vec<_> = model
-        .settings
-        .commands
-        .iter()
-        .enumerate()
+        .available_commands()
         .map(|(index, command)| {
             Item::action(command.name.clone(), Command::ToggleCommandInBar(index))
                 .checked_if(!command.hidden)
@@ -147,7 +143,7 @@ fn menu_items(model: &AppModel) -> Vec<Item> {
             .checked_if(true)
             .separated(),
     );
-    items.push(Item::action(tr!("Manage Commands…"), Command::ManageCommands).separated());
+    items.push(Item::action(tr!("Manage Quick Commands…"), Command::ManageCommands).separated());
     items
 }
 
