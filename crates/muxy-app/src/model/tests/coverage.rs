@@ -196,7 +196,7 @@ pub(super) fn openers(project: ProjectId) -> [(&'static str, Open); 21] {
         ),
         (
             "project icons",
-            Box::new(move |model, window, cx| model.open_project_icons(project, at, window, cx)),
+            Box::new(move |model, window, cx| model.open_project_icons(project, window, cx)),
         ),
         ("commands", Box::new(AppModel::toggle_command_palette)),
         (
