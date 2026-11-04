@@ -170,3 +170,60 @@ fn progress_border_matches_session_activity_without_resizing_and_survives_collap
         );
     });
 }
+
+#[gpui::test]
+fn clicking_another_command_center_session_focuses_its_docked_composer(cx: &mut TestAppContext) {
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.command_center_layout = GridLayout::TwoByOne;
+    boot.settings.composer.presentation = muxy_app_core::settings::ComposerPresentation::Docked;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1200.0), px(700.0)));
+    view.update(cx, |model, cx| {
+        model.receive(
+            local(
+                1,
+                Update::Connected(vec![session(home, 1).info, session(home, 2).info]),
+            ),
+            cx,
+        );
+        acknowledge_catalog(model, cx);
+        model.open_command_center(cx);
+        model.receive_session_page(
+            home,
+            Ok(listing(vec![session(home, 1), session(home, 2)])),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    let focus = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        view.update_in(cx, |model, window, cx| {
+            let pane = model.active_pane().expect("pane");
+            let composer = model.composer.view.clone().expect("composer");
+            (
+                pane,
+                gpui::Focusable::focus_handle(composer.read(cx), cx).contains_focused(window, cx),
+                model
+                    .terminal(&pane)
+                    .expect("terminal")
+                    .view
+                    .read(cx)
+                    .focus
+                    .is_focused(window),
+            )
+        })
+    };
+    let second = view.read_with(cx, |model, _| model.command_center.tiles[1].pane);
+    let tile = cx
+        .debug_bounds("command-center-terminal-1")
+        .expect("second session");
+    let terminal = gpui::point(tile.center().x, tile.top() + px(40.0));
+    cx.simulate_click(terminal, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(focus(&view, cx), (second, true, false));
+    // Another click in the now-active terminal keeps the keyboard there.
+    cx.simulate_click(terminal, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(focus(&view, cx), (second, false, true));
+}

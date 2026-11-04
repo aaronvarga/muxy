@@ -300,7 +300,14 @@ impl AppModel {
             surface.view.read(cx).native.focus();
             return;
         }
-        if let Some(pane) = self.active_pane().and_then(|id| self.grids.get(&id)) {
+        // A session's docked composer takes the keyboard when the session does.
+        if let Some(view) = &self.composer.view
+            && !self.composer.release
+            && self.composer.pane.is_some()
+            && self.composer.pane == self.active_pane()
+        {
+            view.focus_handle(cx).focus(window);
+        } else if let Some(pane) = self.active_pane().and_then(|id| self.grids.get(&id)) {
             pane.focus(window, cx);
         } else {
             self.focus.focus(window);
@@ -937,6 +944,14 @@ impl AppModel {
                 None => self.focus_active(window, cx),
             }
             self.focus_requested = false;
+            // A new session's composer appears only once it attaches.
+            self.composer.awaiting = self.active_pane().filter(|pane| {
+                self.composer_docked()
+                    && !self.composer.release
+                    && self.composer.pane != Some(*pane)
+                    && self.grids.contains_key(pane)
+            });
+            self.composer.release = false;
         }
         if self.overlay.is_some() || self.close_prompt.is_some() {
             self.cancel_titlebar_drag(cx);

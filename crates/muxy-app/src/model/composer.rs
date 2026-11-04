@@ -41,12 +41,16 @@ pub(crate) struct ComposerRuntime {
     pub(crate) closing: Option<Entity<Composer>>,
     exit: Option<Task<()>>,
     key: Option<DraftId>,
-    pub(super) pane: Option<PaneId>,
+    pub(crate) pane: Option<PaneId>,
     store: Arc<Mutex<ComposerStore>>,
     subscription: Option<Subscription>,
     save: Option<Task<()>>,
     submission: Option<Task<()>>,
     pub(super) preferences_dirty: bool,
+    /// Escape left the docked composer, so the next focus goes to the terminal.
+    pub(crate) release: bool,
+    /// A focused session whose composer appears once its terminal attaches.
+    pub(crate) awaiting: Option<PaneId>,
     /// The agent and folder the open composer's skills come from.
     skills_source: Option<SkillSource>,
     skill_cache: HashMap<SkillSource, Arc<Vec<Skill>>>,
@@ -68,6 +72,8 @@ impl ComposerRuntime {
             save: None,
             submission: None,
             preferences_dirty: false,
+            release: false,
+            awaiting: None,
             skills_source: None,
             skill_cache: HashMap::new(),
             skill_scan: None,
@@ -195,6 +201,9 @@ impl AppModel {
         if !self.composer_docked() {
             return;
         }
+        if self.composer.awaiting != self.active_pane() {
+            self.composer.awaiting = None;
+        }
         let desired = self.active_pane().and_then(|pane| self.session_draft(pane));
         if self.composer.key == desired
             && self.composer.view.is_some() == desired.is_some()
@@ -210,6 +219,10 @@ impl AppModel {
             self.open_composer(cx);
         }
         self.focus_requested = requested;
+        if self.composer.view.is_some() && self.composer.awaiting == self.composer.pane {
+            self.composer.awaiting = None;
+            self.focus_requested = true;
+        }
     }
 
     /// A click in a session's dock makes that session active and types into it.
@@ -317,6 +330,7 @@ impl AppModel {
             self.sync_docked_composer(cx);
             if let Some(view) = &self.composer.view {
                 if view.focus_handle(cx).is_focused(window) {
+                    self.composer.release = true;
                     self.focus_requested = true;
                 } else {
                     self.blur_webviews(cx);
@@ -392,6 +406,7 @@ impl AppModel {
             ComposerEvent::Changed => model.composer_changed(cx),
             // Docked composers stay; Escape hands the keyboard back to the session.
             ComposerEvent::Close if model.composer_docked() => {
+                model.composer.release = true;
                 model.focus_requested = true;
                 cx.notify();
             }

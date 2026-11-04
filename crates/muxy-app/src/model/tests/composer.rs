@@ -350,6 +350,10 @@ fn focused_terminal_and_composer_are_text_inputs(cx: &mut TestAppContext) {
     });
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "One docked composer session walkthrough"
+)]
 #[gpui::test]
 fn docked_composer_keeps_a_draft_per_session_and_sends_to_the_clicked_session(
     cx: &mut TestAppContext,
@@ -448,6 +452,25 @@ fn docked_composer_keeps_a_draft_per_session_and_sends_to_the_clicked_session(
         cx.run_until_parked();
     }
     assert_eq!(composer_text(&view, cx), "for first");
+    // Switching sessions puts the keyboard in the new session's composer, and
+    // Escape hands it to that session's terminal.
+    let composer_focused = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        view.update_in(cx, |model, window, cx| {
+            let pane = model.active_pane().expect("pane");
+            let terminal = model.terminal(&pane).expect("terminal");
+            let composer = model.composer.view.clone().expect("composer");
+            (
+                gpui::Focusable::focus_handle(composer.read(cx), cx).contains_focused(window, cx),
+                terminal.view.read(cx).focus.is_focused(window),
+            )
+        })
+    };
+    view.update(cx, |model, cx| model.focus_pane(second, cx));
+    cx.run_until_parked();
+    assert_eq!(composer_focused(&view, cx), (true, false));
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert_eq!(composer_focused(&view, cx), (false, true));
 }
 
 #[gpui::test]
@@ -524,4 +547,54 @@ fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
         delivery(&requests).0,
         b"\x15/release-notes x /pl $ima\r".to_vec()
     );
+}
+
+#[gpui::test]
+fn new_tabs_and_splits_focus_their_docked_composer_once_attached(cx: &mut TestAppContext) {
+    let (mut boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    boot.settings.composer.presentation = muxy_app_core::settings::ComposerPresentation::Docked;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1000.0), px(600.0)));
+    view.update(cx, |model, cx| {
+        model.receive((ServerId::local(), 1, Update::Connected(vec![])), cx);
+        acknowledge_catalog(model, cx);
+    });
+    for (session, split) in [(42, false), (43, true)] {
+        view.update(cx, |model, cx| {
+            if split {
+                model.split_pane(Direction::Right, cx);
+            } else {
+                model.new_tab(cx);
+            }
+        });
+        // The session attaches after the new pane has already taken focus.
+        cx.run_until_parked();
+        view.update(cx, |model, cx| {
+            let pane = model.active_pane().expect("pane");
+            let mut attachment = attachment();
+            attachment.channel = muxy_protocol::ChannelId(u32::try_from(session).expect("id"));
+            model.receive(
+                (
+                    ServerId::local(),
+                    1,
+                    Update::Attached {
+                        pane,
+                        session: SessionId::new(session).expect("ID"),
+                        attachment,
+                        created: true,
+                    },
+                ),
+                cx,
+            );
+        });
+        cx.run_until_parked();
+        view.update_in(cx, |model, window, cx| {
+            let composer = model.composer.view.clone().expect("composer");
+            assert_eq!(model.composer.pane, model.active_pane());
+            assert!(
+                gpui::Focusable::focus_handle(composer.read(cx), cx).contains_focused(window, cx),
+                "split: {split}"
+            );
+        });
+    }
 }
