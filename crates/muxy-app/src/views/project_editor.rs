@@ -18,11 +18,14 @@ use crate::model::AppModel;
 pub(crate) enum Field {
     Name,
     Icon,
+    /// One to four characters drawn in place of an icon.
+    IconText,
 }
 
 #[derive(Clone, Copy)]
 enum Target {
     Project(ProjectId),
+    ProjectIconText(ProjectId),
     Tab(TabId),
     Workspace(WorkspaceId),
     NewWorkspace(Option<ProjectId>),
@@ -94,8 +97,17 @@ impl AppModel {
         };
         if matches!(field, Field::Icon) {
             if muxy_ui::symbols::PROJECT_ICONS {
-                self.open_project_icons(id, position, window, cx);
+                self.open_project_icons(id, window, cx);
             }
+            return;
+        }
+        if matches!(field, Field::IconText) {
+            let text = project
+                .icon
+                .clone()
+                .filter(|icon| muxy_protocol::icon_text_length(icon).is_some())
+                .unwrap_or_default();
+            self.open_metadata_editor(Target::ProjectIconText(id), text, position, window, cx);
             return;
         }
         let text = project.name.clone();
@@ -224,6 +236,18 @@ impl AppModel {
         let saved = match target {
             Target::Tab(id) => self.edit_tab(|state| state.set_tab_title(id, Some(text)), cx),
             Target::Project(id) => self.edit_project(|state| state.rename_project(id, &text), cx),
+            // Empty text removes the icon, restoring the default letter.
+            Target::ProjectIconText(id) if text.is_empty() => {
+                self.edit_project(|state| state.set_project_icon(id, None), cx)
+            }
+            Target::ProjectIconText(id) if muxy_protocol::icon_text_length(&text).is_some() => {
+                !self.icon_needs_newer_server(id, &text)
+                    && self.edit_project(|state| state.set_project_icon(id, Some(text)), cx)
+            }
+            Target::ProjectIconText(_) => {
+                self.error = Some(tr!("Enter 1 to 4 characters.").to_string());
+                false
+            }
             Target::Workspace(id) => {
                 self.edit_workspaces(|state| state.rename_workspace(id, &text), cx)
             }
@@ -310,6 +334,7 @@ pub(crate) fn render(
             muxy_ui::popover::header(theme, m).child(match editor.target {
                 Target::Tab(_) => tr!("Rename Tab"),
                 Target::Project(_) => tr!("Rename Project"),
+                Target::ProjectIconText(_) => tr!("Icon Text"),
                 Target::Workspace(_) => tr!("Rename Workspace"),
                 Target::NewWorkspace(_) => tr!("New Workspace"),
                 Target::NewFolderGroup => tr!("New Folder Group"),

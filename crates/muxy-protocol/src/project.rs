@@ -304,11 +304,22 @@ fn validate_name(name: &str) -> Result<(), ErrorCode> {
     }
 }
 
+/// A project icon may be up to this many characters of text, like `API`.
+pub const MAX_ICON_TEXT: usize = 4;
+
+/// How many characters a text icon shows, or `None` when `value` can't be one.
+pub fn icon_text_length(value: &str) -> Option<usize> {
+    let count = value.graphemes(true).count();
+    (!value.trim().is_empty()
+        && value.trim() == value
+        && (1..=MAX_ICON_TEXT).contains(&count)
+        && !value.starts_with("sf:"))
+    .then_some(count)
+}
+
 fn validate_icon(icon: Option<&str>) -> Result<(), ErrorCode> {
     if icon.is_some_and(|value| {
-        value.len() > 128
-            || value.trim().is_empty()
-            || (value.graphemes(true).count() != 1 && !is_project_symbol(value))
+        value.len() > 128 || (icon_text_length(value).is_none() && !is_project_symbol(value))
     }) {
         Err(ErrorCode::BadRequest)
     } else {
@@ -592,5 +603,20 @@ mod folder_group_tests {
             root
         ));
         assert!(!is_inside_folder_group(Path::new("/etc"), root));
+    }
+}
+
+#[cfg(test)]
+mod icon_tests {
+    use super::*;
+
+    #[test]
+    fn icons_are_symbols_or_up_to_four_characters_of_text() {
+        for valid in ["🚀", "A", "API", "WXYZ", "sf:star"] {
+            assert_eq!(validate_icon(Some(valid)), Ok(()), "{valid}");
+        }
+        for invalid in ["", " ", "ABCDE", " AB", "sf:", "sf:X"] {
+            assert!(validate_icon(Some(invalid)).is_err(), "{invalid}");
+        }
     }
 }

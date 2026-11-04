@@ -1165,3 +1165,141 @@ fn folder_group_menu_waits_for_the_hover_delay_and_passing_over_does_not_open_it
     cx.executor().advance_clock(delay);
     assert!(menu_open(&view, cx));
 }
+
+#[gpui::test]
+fn typed_text_up_to_four_characters_becomes_the_project_icon(cx: &mut TestAppContext) {
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update_in(cx, |model, window, cx| {
+        model.open_project_editor(
+            home,
+            crate::views::project_editor::Field::Icon,
+            point(px(40.0), px(40.0)),
+            window,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    if !muxy_ui::symbols::PROJECT_ICONS {
+        return;
+    }
+    connect_text_icons(&view, cx);
+    cx.simulate_input("APIS2");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| assert_eq!(model.state.home().icon, None));
+    cx.simulate_keystrokes("backspace");
+    cx.run_until_parked();
+    preferences::click_preference(cx, "project-text-icon");
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.home().icon.as_deref(), Some("APIS"));
+    });
+}
+
+#[gpui::test]
+fn icon_text_menu_sets_up_to_four_characters_and_clears_when_empty(cx: &mut TestAppContext) {
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    let open = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        view.update_in(cx, |model, window, cx| {
+            model.open_project_editor(
+                home,
+                crate::views::project_editor::Field::IconText,
+                point(px(40.0), px(40.0)),
+                window,
+                cx,
+            );
+        });
+        cx.run_until_parked();
+    };
+    open(&view, cx);
+    // A server without text icons would reject the request, so it never goes out.
+    cx.simulate_input("APIS");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.home().icon, None);
+        assert!(model.overlay.is_some());
+    });
+    connect_text_icons(&view, cx);
+    cx.simulate_input("2");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.home().icon, None);
+        assert!(
+            model.overlay.is_some(),
+            "five characters keep the editor open"
+        );
+    });
+    cx.simulate_keystrokes("backspace enter");
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.home().icon.as_deref(), Some("APIS"));
+    });
+    // Reopening shows the current text; clearing it restores the default letter.
+    open(&view, cx);
+    cx.simulate_keystrokes("backspace enter");
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| assert_eq!(model.state.home().icon, None));
+}
+
+fn connect_text_icons(view: &Entity<AppModel>, cx: &mut VisualTestContext) {
+    view.update(cx, |model, cx| {
+        model.servers.local.connection = ConnectionState::Ready;
+        let features = muxy_protocol::FEATURES.to_vec();
+        model.receive(
+            local(
+                1,
+                Update::ServerInfo(muxy_protocol::ServerInfo::current(), features),
+            ),
+            cx,
+        );
+    });
+}
+
+#[gpui::test]
+fn icon_picker_searches_and_files_the_whole_system_catalog(cx: &mut TestAppContext) {
+    if !muxy_ui::symbols::PROJECT_ICONS {
+        return;
+    }
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update_in(cx, |model, window, cx| {
+        model.open_project_editor(
+            home,
+            crate::views::project_editor::Field::Icon,
+            point(px(40.0), px(40.0)),
+            window,
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    // Not among the picks bundled with the app, so it comes from the system.
+    preferences::click_preference(cx, "symbol-category-weather");
+    cx.simulate_input("bolt rain");
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        let Some(Overlay::ProjectIcons(picker)) = &model.overlay else {
+            panic!("picker closed");
+        };
+        assert_eq!(
+            picker.matches.len(),
+            4,
+            "weather symbols named bolt and rain"
+        );
+    });
+    preferences::click_preference(cx, "project-symbol-cloud.bolt.rain.fill");
+    view.read_with(cx, |model, _| {
+        assert_eq!(
+            model.state.home().icon.as_deref(),
+            Some("sf:cloud.bolt.rain.fill")
+        );
+    });
+}

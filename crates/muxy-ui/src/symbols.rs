@@ -779,14 +779,174 @@ pub const SYMBOLS: [Symbol; 192] = [
     },
 ];
 
-pub fn matching(query: &str) -> Vec<&'static Symbol> {
-    let query = query.trim().to_lowercase();
-    SYMBOLS
-        .iter()
-        .filter(|symbol| {
-            query.is_empty()
-                || symbol.name.to_lowercase().contains(&query)
-                || symbol.symbol.to_lowercase().contains(&query)
-        })
-        .collect()
+/// One symbol of the full catalog.
+#[derive(Debug)]
+pub struct Entry {
+    pub symbol: String,
+    /// Lowercase words to search: the name's parts, Apple's keywords and our
+    /// name for it.
+    search: String,
+    categories: Vec<String>,
+}
+
+/// Every SF Symbol this Mac offers, in Apple's order after our own picks, and
+/// the categories Apple files them under.
+#[derive(Debug, Default)]
+pub struct Catalog {
+    pub entries: Vec<Entry>,
+    /// `(key, icon symbol)` for each category, `all` excluded.
+    pub categories: Vec<(String, String)>,
+}
+
+static CATALOG: std::sync::OnceLock<Catalog> = std::sync::OnceLock::new();
+
+/// The catalog once something has read it.
+pub fn loaded() -> Option<&'static Catalog> {
+    CATALOG.get()
+}
+
+/// The catalog, read from the system on first use. Without it (an older or
+/// newer macOS that moved the files, or another platform) it is `SYMBOLS`.
+/// Reading it takes a moment, so call it off the main thread first.
+pub fn catalog() -> &'static Catalog {
+    CATALOG.get_or_init(|| {
+        let mut catalog = Catalog::default();
+        let mut seen = std::collections::HashSet::new();
+        for symbol in &SYMBOLS {
+            if seen.insert(symbol.symbol.to_owned()) {
+                catalog.entries.push(Entry {
+                    symbol: symbol.symbol.to_owned(),
+                    search: format!(
+                        "{} {}",
+                        symbol.name.to_lowercase(),
+                        symbol.symbol.replace('.', " ")
+                    ),
+                    categories: Vec::new(),
+                });
+            }
+        }
+        #[cfg(target_os = "macos")]
+        system::extend(&mut catalog, &mut seen);
+        catalog
+    })
+}
+
+impl Catalog {
+    /// Indexes of the entries in `category` (every one when `None`) whose
+    /// search words contain each word of `query`.
+    pub fn matching(&self, query: &str, category: Option<&str>) -> Vec<usize> {
+        let query = query.trim().to_lowercase();
+        let words: Vec<_> = query.split_whitespace().collect();
+        self.entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                category.is_none_or(|category| entry.categories.iter().any(|key| key == category))
+                    && words.iter().all(|word| entry.search.contains(word))
+            })
+            .map(|(index, _)| index)
+            .collect()
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod system {
+    use std::collections::{HashMap, HashSet};
+    use std::path::Path;
+
+    const RESOURCES: &str = "/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources";
+    /// Script variants SF Symbols shows as localizations of one symbol.
+    const LOCALES: [&str; 27] = [
+        "ar", "bn", "el", "gu", "he", "hi", "ja", "km", "kn", "ko", "ml", "mni", "mr", "my", "or",
+        "pa", "rtl", "ru", "sat", "si", "sr", "ta", "te", "th", "uk", "vi", "zh",
+    ];
+
+    #[derive(serde::Deserialize)]
+    struct Category {
+        key: String,
+        icon: String,
+    }
+
+    fn read<T: serde::de::DeserializeOwned>(name: &str) -> Option<T> {
+        plist::from_file(Path::new(RESOURCES).join(name)).ok()
+    }
+
+    pub(super) fn extend(catalog: &mut super::Catalog, seen: &mut HashSet<String>) {
+        let Some(order) = read::<Vec<String>>("symbol_order.plist") else {
+            return;
+        };
+        let restricted: HashMap<String, String> =
+            read("symbol_restrictions.strings").unwrap_or_default();
+        let mut keywords: HashMap<String, Vec<String>> =
+            read("symbol_search.plist").unwrap_or_default();
+        let mut categories: HashMap<String, Vec<String>> =
+            read("symbol_categories.plist").unwrap_or_default();
+        let listed: HashSet<&str> = order.iter().map(String::as_str).collect();
+        for entry in &mut catalog.entries {
+            entry.categories = categories.remove(&entry.symbol).unwrap_or_default();
+            if let Some(words) = keywords.remove(&entry.symbol) {
+                entry.search = format!("{} {}", entry.search, words.join(" ").to_lowercase());
+            }
+        }
+        for symbol in &order {
+            let localized = symbol
+                .rsplit_once('.')
+                .is_some_and(|(base, suffix)| LOCALES.contains(&suffix) && listed.contains(base));
+            if localized || restricted.contains_key(symbol) || !seen.insert(symbol.clone()) {
+                continue;
+            }
+            let words = keywords.remove(symbol).unwrap_or_default();
+            catalog.entries.push(super::Entry {
+                search: format!(
+                    "{} {}",
+                    symbol.replace('.', " "),
+                    words.join(" ").to_lowercase()
+                ),
+                categories: categories.remove(symbol).unwrap_or_default(),
+                symbol: symbol.clone(),
+            });
+        }
+        catalog.categories = read::<Vec<Category>>("categories.plist")
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|category| category.key != "all")
+            .map(|category| (category.key, category.icon))
+            .collect();
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_catalog_lists_the_systems_symbols_without_script_variants() {
+        let started = std::time::Instant::now();
+        let catalog = catalog();
+        eprintln!(
+            "catalog: {} symbols in {:?}",
+            catalog.entries.len(),
+            started.elapsed()
+        );
+        assert!(catalog.entries.len() > 5000, "{}", catalog.entries.len());
+        assert_eq!(
+            catalog.entries[0].symbol, SYMBOLS[0].symbol,
+            "our picks lead"
+        );
+        let names: Vec<_> = catalog
+            .entries
+            .iter()
+            .map(|entry| entry.symbol.as_str())
+            .collect();
+        assert!(names.contains(&"0.circle") && !names.contains(&"0.circle.ar"));
+        assert!(!catalog.categories.is_empty());
+        let weather = catalog.matching("sun", Some("weather"));
+        assert!(
+            weather
+                .iter()
+                .any(|index| catalog.entries[*index].symbol == "sun.max")
+        );
+        // Apple's keywords find symbols whose names don't say it.
+        assert!(!catalog.matching("move", None).is_empty());
+    }
 }

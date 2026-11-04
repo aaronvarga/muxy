@@ -1328,6 +1328,22 @@ pub(crate) fn project_tile(
         if let Some(symbol) = icon.strip_prefix("sf:") {
             SymbolGlyph::new(symbol.to_owned(), m.font_title_large() * scale, foreground)
                 .into_any_element()
+        } else if let Some(count) = icon
+            .chars()
+            .any(char::is_alphanumeric)
+            .then(|| muxy_protocol::icon_text_length(icon))
+            .flatten()
+        {
+            // Typed text shrinks with its length so up to four characters fit.
+            let fraction = [0.56, 0.44, 0.34, 0.27][count.clamp(1, 4) - 1];
+            div()
+                .text_size(size * fraction)
+                .line_height(size)
+                .font_weight(FontWeight::BOLD)
+                .text_color(foreground)
+                .whitespace_nowrap()
+                .child(icon.clone())
+                .into_any_element()
         } else {
             div()
                 .text_size(m.font_title_large() * scale)

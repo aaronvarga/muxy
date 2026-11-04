@@ -49,11 +49,11 @@ pub use graphics::{
 
 mod project;
 pub use project::{
-    CATALOG_PAGE_SIZE, CatalogPage, ClientId, DeviceId, FolderEntry, FolderEntryId,
+    CATALOG_PAGE_SIZE, CatalogPage, ClientId, DeviceId, FolderEntry, FolderEntryId, MAX_ICON_TEXT,
     MAX_PROJECT_FOLDERS, MAX_PROJECT_LOGO_BYTES, MAX_PROJECTS, OperationId, PROJECT_COLORS,
     ProjectDescriptor, ProjectId, ProjectIntent, ProjectKind, ProjectMutation, ProjectPatch,
-    ProjectSession, ProjectSessions, ServerIdentity, SessionStatus, is_inside_folder_group,
-    is_project_symbol, overlaps,
+    ProjectSession, ProjectSessions, ServerIdentity, SessionStatus, icon_text_length,
+    is_inside_folder_group, is_project_symbol, overlaps,
 };
 
 mod remote;
