@@ -1,6 +1,9 @@
 //! Skills and commands a coding agent offers, read from the same folders the
 //! agent reads, so Composer can complete them. The agents expose no listing
 //! API, so this is a close approximation, not the agent's own list.
+//!
+//! shortcut: built-in commands are a hand-kept list (Claude Code 2.1, Codex
+//! 0.166); refresh them when either agent adds or renames commands.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -17,6 +20,120 @@ pub enum Agent {
     Claude,
     Codex,
 }
+
+const CLAUDE_BUILTINS: &[(&str, &str)] = &[
+    ("/add-dir", "Add a new working directory"),
+    ("/clear", "Start a new session with empty context"),
+    (
+        "/compact",
+        "Free up context by summarizing the conversation so far",
+    ),
+    ("/config", "Open settings"),
+    ("/context", "Visualize current context usage"),
+    ("/copy", "Copy Claude's last response to clipboard"),
+    (
+        "/doctor",
+        "Diagnose and verify your Claude Code installation",
+    ),
+    ("/effort", "Set effort level for model usage"),
+    ("/exit", "Exit the REPL"),
+    (
+        "/export",
+        "Export the current conversation to a file or clipboard",
+    ),
+    ("/fast", "Toggle fast mode"),
+    ("/feedback", "Send feedback to Anthropic or report a bug"),
+    ("/help", "Show help and available commands"),
+    ("/hooks", "View hook configurations for tool events"),
+    ("/ide", "Manage IDE integrations and show status"),
+    (
+        "/init",
+        "Initialize a new CLAUDE.md file with codebase documentation",
+    ),
+    ("/login", "Sign in with your Anthropic account"),
+    ("/logout", "Sign out from your Anthropic account"),
+    ("/mcp", "Manage MCP servers"),
+    ("/memory", "Edit CLAUDE.md files and memory settings"),
+    ("/model", "Set the AI model"),
+    ("/output-style", "List output styles or switch to one"),
+    (
+        "/permissions",
+        "Manage allow and deny tool permission rules",
+    ),
+    ("/plan", "Enable plan mode or view the current session plan"),
+    ("/plugin", "Manage Claude Code plugins"),
+    ("/release-notes", "View release notes"),
+    ("/rename", "Rename the current conversation"),
+    ("/resume", "Resume a previous conversation"),
+    ("/review", "Review a pull request"),
+    (
+        "/rewind",
+        "Restore the code and/or conversation to a previous point",
+    ),
+    (
+        "/security-review",
+        "Complete a security review of the pending changes",
+    ),
+    ("/skills", "List available skills"),
+    (
+        "/status",
+        "Show version, model, account and connectivity status",
+    ),
+    ("/statusline", "Set up the status line"),
+    (
+        "/tasks",
+        "View and manage everything running in the background",
+    ),
+    ("/terminal-setup", "Set up terminal key bindings"),
+    ("/theme", "Change the theme"),
+    (
+        "/usage",
+        "Show session cost, plan usage, and activity stats",
+    ),
+];
+
+const CODEX_BUILTINS: &[(&str, &str)] = &[
+    ("/clear", "Clear the terminal and start a new chat"),
+    (
+        "/compact",
+        "Summarize conversation to prevent hitting the context limit",
+    ),
+    ("/copy", "Copy the last response or part of it"),
+    ("/diff", "Show git diff (including untracked files)"),
+    ("/exit", "Exit Codex"),
+    ("/export", "Export the conversation as markdown"),
+    ("/feedback", "Send logs to maintainers"),
+    ("/fork", "Fork the current chat"),
+    (
+        "/init",
+        "Create an AGENTS.md file with instructions for Codex",
+    ),
+    ("/logout", "Log out of Codex"),
+    ("/mcp", "List configured MCP tools"),
+    ("/mention", "Mention a file"),
+    ("/model", "Choose what model and reasoning effort to use"),
+    ("/new", "Start a new chat during a conversation"),
+    ("/permissions", "Choose what Codex is allowed to do"),
+    ("/plan", "Switch to Plan mode"),
+    ("/ps", "List background terminals"),
+    ("/rename", "Rename the current thread"),
+    ("/resume", "Resume a saved chat"),
+    ("/review", "Review my current changes and find issues"),
+    (
+        "/skills",
+        "Use skills to improve how Codex performs specific tasks",
+    ),
+    (
+        "/status",
+        "Show current session configuration and token usage",
+    ),
+    (
+        "/statusline",
+        "Configure which items appear in the status line",
+    ),
+    ("/theme", "Choose a syntax highlighting theme"),
+    ("/usage", "View account usage"),
+];
 
 /// Every skill and command `agent` offers in `project`, sorted and unique.
 pub fn discover(agent: Agent, home: &Path, project: Option<&Path>) -> Vec<Skill> {
@@ -61,6 +178,13 @@ pub fn discover(agent: Agent, home: &Path, project: Option<&Path>) -> Vec<Skill>
                 skills(&path.join("skills"), "$", &format!("{plugin}:"), &mut add);
             }
         }
+    }
+    let builtins = match agent {
+        Agent::Claude => CLAUDE_BUILTINS,
+        Agent::Codex => CODEX_BUILTINS,
+    };
+    for (text, description) in builtins {
+        add((*text).to_owned(), (*description).to_owned());
     }
     found
         .into_iter()
@@ -290,8 +414,13 @@ mod tests {
             r#"{"enabledPlugins": {"art@market": true, "secret@market": false}}"#,
         );
         let skills = discover(Agent::Claude, home.path(), Some(project.path()));
+        assert!(skills.iter().any(|skill| skill.text == "/clear"));
         let listed: Vec<_> = skills
             .iter()
+            .filter(|skill| {
+                skill.text == "/review"
+                    || !CLAUDE_BUILTINS.iter().any(|(text, _)| *text == skill.text)
+            })
             .map(|skill| (skill.text.as_str(), skill.description.as_str()))
             .collect();
         assert_eq!(
@@ -329,7 +458,8 @@ mod tests {
         let texts: Vec<_> = discover(Agent::Codex, home.path(), None)
             .into_iter()
             .map(|skill| skill.text)
+            .filter(|text| text == "/model" || !CODEX_BUILTINS.iter().any(|(b, _)| b == text))
             .collect();
-        assert_eq!(texts, ["$docs:pdf", "$imagegen", "/prompts:plan"]);
+        assert_eq!(texts, ["$docs:pdf", "$imagegen", "/model", "/prompts:plan"]);
     }
 }

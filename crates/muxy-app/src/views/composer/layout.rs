@@ -523,6 +523,15 @@ impl Composer {
         )
     }
 
+    /// Focuses the input from a click anywhere in the editor area around it.
+    fn focus_input(
+        cx: &mut Context<Self>,
+    ) -> impl Fn(&gpui::MouseDownEvent, &mut Window, &mut gpui::App) + 'static {
+        cx.listener(|view, _, window, cx| {
+            gpui::Focusable::focus_handle(&view.input, cx).focus(window);
+        })
+    }
+
     /// The docked composer: a strip of `dock_height` along a session's bottom.
     fn docked_row(&self, cx: &mut Context<Self>) -> AnyElement {
         let m = self.metrics;
@@ -543,6 +552,8 @@ impl Composer {
                 div()
                     .id("composer-editor")
                     .debug_selector(|| "composer-editor".into())
+                    .cursor_text()
+                    .on_mouse_down(MouseButton::Left, Self::focus_input(cx))
                     .flex()
                     .flex_col()
                     .flex_1()
@@ -702,6 +713,8 @@ impl Composer {
                     div()
                         .id("composer-editor")
                         .debug_selector(|| "composer-editor".into())
+                        .cursor_text()
+                        .on_mouse_down(MouseButton::Left, Self::focus_input(cx))
                         .flex()
                         .flex_col()
                         .flex_1()

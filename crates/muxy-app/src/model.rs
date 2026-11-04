@@ -2280,7 +2280,13 @@ impl AppModel {
             PaneEvent::Focused => {
                 model.blur_webviews(cx);
                 if !model.is_quick_terminal(id) {
+                    // Clicking into another session hands the keyboard to its
+                    // composer; a click in the active session's terminal keeps it.
+                    let switched = model.active_pane() != Some(id);
                     model.focus_pane(id, cx);
+                    if !switched && model.focus_owner.wants_active_pane() {
+                        model.focus_owner.settle();
+                    }
                 }
             }
             PaneEvent::History(request) => model.fetch_history(id, *request, cx),

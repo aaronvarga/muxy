@@ -276,7 +276,14 @@ impl AppModel {
             surface.view.read(cx).native.focus();
             return;
         }
-        if let Some(pane) = self.active_pane().and_then(|id| self.grids.get(&id)) {
+        // A session's docked composer takes the keyboard when the session does.
+        if let Some(view) = &self.composer.view
+            && !self.composer.release
+            && self.composer.pane.is_some()
+            && self.composer.pane == self.active_pane()
+        {
+            view.focus_handle(cx).focus(window);
+        } else if let Some(pane) = self.active_pane().and_then(|id| self.grids.get(&id)) {
             pane.focus(window, cx);
         } else {
             self.focus.focus(window);
@@ -390,7 +397,17 @@ impl AppModel {
         }
         match self.focus_owner.take(overlay) {
             Some(Next::Element(focus)) => focus.focus(window),
-            Some(Next::ActivePane) => self.focus_active(window, cx),
+            Some(Next::ActivePane) => {
+                self.focus_active(window, cx);
+                // A new session's composer appears only once it attaches.
+                self.composer.awaiting = self.active_pane().filter(|pane| {
+                    self.composer_docked()
+                        && !self.composer.release
+                        && self.composer.pane != Some(*pane)
+                        && self.grids.contains_key(pane)
+                });
+                self.composer.release = false;
+            }
             // With no pane, the workspace keeps the keyboard for its shortcuts.
             None if !overlay && self.active_pane().is_none() && window.focused(cx).is_none() => {
                 self.focus_active(window, cx);
