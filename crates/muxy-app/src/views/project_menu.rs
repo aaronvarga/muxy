@@ -214,6 +214,10 @@ fn icon_items(project: &Project) -> Vec<Item> {
             Command::EditProject(id, Field::Icon),
         ));
     }
+    items.push(Item::action(
+        tr!("Set Icon Text…"),
+        Command::EditProject(id, Field::IconText),
+    ));
     items.push(Item::action(tr!("Set Logo…"), Command::ProjectLogo(id)));
     if project.logo.is_some() {
         items.push(Item::action(

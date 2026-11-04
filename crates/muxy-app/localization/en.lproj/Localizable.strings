@@ -131,6 +131,7 @@
 "About" = "About";
 "About %@" = "About %@";
 "About a minute" = "About a minute";
+"Accessibility" = "Accessibility";
 "Action" = "Action";
 "Actions for %@" = "Actions for %@";
 "Active" = "Active";
@@ -185,6 +186,7 @@
 "Agents use the muxy command to load and reload the extensions they build. Muxy will link it at ~/.local/bin/muxy." = "Agents use the muxy command to load and reload the extensions they build. Muxy will link it at ~/.local/bin/muxy.";
 "All" = "All";
 "All Projects" = "All Projects";
+"All Symbols" = "All Symbols";
 "All extensions are up to date." = "All extensions are up to date.";
 "All of them at a glance" = "All of them at a glance";
 "All running terminal sessions on %@ will end. Saved terminal output and settings will remain." = "All running terminal sessions on %@ will end. Saved terminal output and settings will remain.";
@@ -287,6 +289,7 @@
 "Automatic updates require an installed release of %@" = "Automatic updates require an installed release of %@";
 "A–Z" = "A–Z";
 "Automatically Show Subfolders" = "Automatically Show Subfolders";
+"Automotive" = "Automotive";
 "Back" = "Back";
 "Back to Extensions" = "Back to Extensions";
 "Background" = "Background";
@@ -384,6 +387,7 @@
 "Calendar" = "Calendar";
 "Camera" = "Camera";
 "Camera Fill" = "Camera Fill";
+"Camera & Photos" = "Camera & Photos";
 "Can't reach the computer in this link (%@). Both computers must be on the same network or VPN. On macOS, also allow Muxy in System Settings → Privacy & Security → Local Network, then pair again." = "Can't reach the computer in this link (%@). Both computers must be on the same network or VPN. On macOS, also allow Muxy in System Settings → Privacy & Security → Local Network, then pair again.";
 "Cancel" = "Cancel";
 "Cancel Recording" = "Cancel Recording";
@@ -542,6 +546,7 @@
 "Commands" = "Commands";
 "Commands and file or Git changes ask for permission when used." = "Commands and file or Git changes ask for permission when used.";
 "Commands run in the new worktree. Review project commands before enabling them." = "Commands run in the new worktree. Review project commands before enabling them.";
+"Commerce" = "Commerce";
 "Commit" = "Commit";
 "Commit message" = "Commit message";
 "Commit prompt" = "Commit prompt";
@@ -553,6 +558,7 @@
 "Committing" = "Committing";
 "Compact" = "Compact";
 "Completed" = "Completed";
+"Communication" = "Communication";
 "Composer" = "Composer";
 "Composer font" = "Composer font";
 "Composer image storage is unavailable" = "Composer image storage is unavailable";
@@ -599,6 +605,8 @@
 "Continue" = "Continue";
 "Continue with Agent…" = "Continue with Agent…";
 "Controls the scale of the app interface." = "Controls the scale of the app interface.";
+"Connectivity" = "Connectivity";
+"Connects To" = "Connects To";
 "Cookies" = "Cookies";
 "Copied image is larger than 25 MiB" = "Copied image is larger than 25 MiB";
 "Copied the path" = "Copied the path";
@@ -803,6 +811,7 @@
 "Draft changed while preparing the image. Paste again." = "Draft changed while preparing the image. Paste again.";
 "Draft · Open" = "Draft · Open";
 "Drag to reposition, scroll to zoom" = "Drag to reposition, scroll to zoom";
+"Draw" = "Draw";
 "Draw terminal text with a heavier stroke." = "Draw terminal text with a heavier stroke.";
 "Each marketplace.screenshots entry must be a file path." = "Each marketplace.screenshots entry must be a file path.";
 "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar." = "Each profile keeps its own cookies, cache, history, and logins. Pick a profile per tab from the browser toolbar.";
@@ -818,6 +827,7 @@
 "Edit Remote Server" = "Edit Remote Server";
 "Edit in %@" = "Edit in %@";
 "Edit with Agent…" = "Edit with Agent…";
+"Editing" = "Editing";
 "Editors & IDEs" = "Editors & IDEs";
 "Edit…" = "Edit…";
 "Enable" = "Enable";
@@ -831,6 +841,7 @@
 "End All Sessions and Quit" = "End All Sessions and Quit";
 "English" = "English";
 "English is built in. Additional languages can be provided by enabled extensions." = "English is built in. Additional languages can be provided by enabled extensions.";
+"Enter 1 to 4 characters." = "Enter 1 to 4 characters.";
 "Enter a branch name." = "Enter a branch name.";
 "Enter a commit message of up to 10,000 characters" = "Enter a commit message of up to 10,000 characters";
 "Enter a group name" = "Enter a group name";
@@ -915,6 +926,7 @@
 "Flag" = "Flag";
 "Flag Fill" = "Flag Fill";
 "Float Pane" = "Float Pane";
+"Fitness" = "Fitness";
 "Float Panel" = "Float Panel";
 "Focus Address Bar" = "Focus Address Bar";
 "Focus Current Project" = "Focus Current Project";
@@ -959,6 +971,7 @@
 "Gauge" = "Gauge";
 "Gear" = "Gear";
 "Gear Fill" = "Gear Fill";
+"Gaming" = "Gaming";
 "General" = "General";
 "Get Started" = "Get Started";
 "Get a notification when an agent needs you or finishes. Click it to jump right there." = "Get a notification when an agent needs you or finishes. Click it to jump right there.";
@@ -991,6 +1004,7 @@
 "Hammer Fill" = "Hammer Fill";
 "Group by Project" = "Group by Project";
 "Has an update" = "Has an update";
+"Health" = "Health";
 "Height" = "Height";
 "Height in pixels for a new workspace window when no saved bounds exist." = "Height in pixels for a new workspace window when no saved bounds exist.";
 "Hexagon" = "Hexagon";
@@ -1024,7 +1038,9 @@
 "How much of the macOS background effect shows through the theme color, from 0 to 100. Collapsed sidebars stay solid." = "How much of the macOS background effect shows through the theme color, from 0 to 100. Collapsed sidebars stay solid.";
 "How opaque the cursor is." = "How opaque the cursor is.";
 "Huge" = "Huge";
+"Human" = "Human";
 "Icon" = "Icon";
+"Icon Text" = "Icon Text";
 "Icons" = "Icons";
 "Identity file" = "Identity file";
 "Identity file (automatic)" = "Identity file (automatic)";
@@ -1054,6 +1070,7 @@
 "Include unstaged changes" = "Include unstaged changes";
 "Increase Font Size" = "Increase Font Size";
 "Increase font size" = "Increase font size";
+"Indices" = "Indices";
 "Indigo" = "Indigo";
 "Inline file path" = "Inline file path";
 "Input" = "Input";
@@ -1174,6 +1191,7 @@
 "Loading session history…" = "Loading session history…";
 "Loading settings" = "Loading settings";
 "Loading setup commands…" = "Loading setup commands…";
+"Loading symbols…" = "Loading symbols…";
 "Loading terminals…" = "Loading terminals…";
 "Loading this computer's server settings…" = "Loading this computer's server settings…";
 "Loading…" = "Loading…";
@@ -1207,11 +1225,14 @@
 "Manage scheduled update…" = "Manage scheduled update…";
 "Manage servers clients remote ssh pairing paired mobile phones computers port qr" = "Manage servers clients remote ssh pairing paired mobile phones computers port qr";
 "Manual Order" = "Manual Order";
+"Maps" = "Maps";
 "Mark each agent with the color of the project it runs in." = "Mark each agent with the color of the project it runs in.";
 "Maroon" = "Maroon";
+"Math" = "Math";
 "Maximize" = "Maximize";
 "Maximize Pane" = "Maximize Pane";
 "Menu" = "Menu";
+"Media" = "Media";
 "Medium" = "Medium";
 "Merge" = "Merge";
 "Merge %@ into %@ and push the updated branch?" = "Merge %@ into %@ and push the updated branch?";
@@ -1273,6 +1294,7 @@
 "Music Note" = "Music Note";
 "Music Note List" = "Music Note List";
 "Muxy %@" = "Muxy %@";
+"Multicolor" = "Multicolor";
 "Muxy %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there." = "Muxy %@ is downloaded from GitHub and installed in ~/.local/bin on %@. It needs curl and glibc 2.35 or newer there.";
 "Muxy %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain." = "Muxy %@ requires a server restart. You can update automatically when all terminal sessions end, or end them now. Terminal panes will close. App-only panes and settings will remain.";
 "Muxy %@ will install and restart the app when all terminal sessions end. Currently %lld sessions are running, including idle shells and detached sessions." = "Muxy %@ will install and restart the app when all terminal sessions end. Currently %lld sessions are running, including idle shells and detached sessions.";
@@ -1306,6 +1328,7 @@
 "Name" = "Name";
 "Name (A–Z)" = "Name (A–Z)";
 "Name (Z–A)" = "Name (Z–A)";
+"Nature" = "Nature";
 "Navy" = "Navy";
 "Needs input" = "Needs input";
 "Needs your attention" = "Needs your attention";
@@ -1407,6 +1430,7 @@
 "Notifications pending" = "Notifications pending";
 "Notifications refused" = "Notifications refused";
 "OK" = "OK";
+"Objects & Tools" = "Objects & Tools";
 "Off" = "Off";
 "Off. Nothing is sent to muxy.app, and phones can't turn notifications on for this computer." = "Off. Nothing is sent to muxy.app, and phones can't turn notifications on for this computer.";
 "Off. Nothing is sent to muxy.app. Paused phones resume when you turn this on, for %lld more days." = "Off. Nothing is sent to muxy.app. Paused phones resume when you turn this on, for %lld more days.";
@@ -1560,6 +1584,7 @@
 "Privacy" = "Privacy";
 "Productivity" = "Productivity";
 "Profile name" = "Profile name";
+"Privacy & Security" = "Privacy & Security";
 "Profiles" = "Profiles";
 "Profiles keep cookies and logins apart. New tabs use the default profile." = "Profiles keep cookies and logins apart. New tabs use the default profile.";
 "Project" = "Project";
@@ -1719,6 +1744,7 @@
 "Restart the Server on %@?" = "Restart the Server on %@?";
 "Restart the app to install the update. Your terminal sessions will keep running. You can update the server afterward." = "Restart the app to install the update. Your terminal sessions will keep running. You can update the server afterward.";
 "Restart the server from Settings to use the imported default shell." = "Restart the server from Settings to use the imported default shell.";
+"Restart the server to use icon text longer than one character." = "Restart the server to use icon text longer than one character.";
 "Restarting or stopping this server ends all terminal sessions on %@, including sessions in other projects and clients." = "Restarting or stopping this server ends all terminal sessions on %@, including sessions in other projects and clients.";
 "Restarting or stopping this server ends all terminal sessions on this computer, including sessions in other projects and clients." = "Restarting or stopping this server ends all terminal sessions on this computer, including sessions in other projects and clients.";
 "Restarting server…" = "Restarting server…";
@@ -1868,6 +1894,7 @@
 "Session exited · Saved output unavailable" = "Session exited · Saved output unavailable";
 "Session exited · Signal %lld" = "Session exited · Signal %lld";
 "Sessions" = "Sessions";
+"Set Icon Text…" = "Set Icon Text…";
 "Set Logo…" = "Set Logo…";
 "Set Up Proxy…" = "Set Up Proxy…";
 "Set up the essentials" = "Set up the essentials";
@@ -1875,6 +1902,7 @@
 "Settings…" = "Settings…";
 "Setup commands" = "Setup commands";
 "Setup hooks unavailable: %@. You can create without hooks." = "Setup hooks unavailable: %@. You can create without hooks.";
+"Shapes" = "Shapes";
 "Shell for new sessions. Leave empty to use $SHELL, falling back to /bin/zsh." = "Shell for new sessions. Leave empty to use $SHELL, falling back to /bin/zsh.";
 "Shell integration" = "Shell integration";
 "Shield" = "Shield";
@@ -2031,6 +2059,7 @@
 "Test Connection" = "Test Connection";
 "Testing connection…" = "Testing connection…";
 "Text" = "Text";
+"Text Formatting" = "Text Formatting";
 "Text color" = "Text color";
 "Text to send. Write special keys as escapes, such as \\e for Escape or \\x01 for Control-A." = "Text to send. Write special keys as escapes, such as \\e for Escape or \\x01 for Control-A.";
 "That browser is no longer available" = "That browser is no longer available";
@@ -2169,6 +2198,8 @@
 "Timer" = "Timer";
 "Tips turned off" = "Tips turned off";
 "To pair a phone or another computer, open Settings → Servers, turn on Allow clients, and click Show Pairing Code, or run muxy mobile enable and then muxy mobile pair." = "To pair a phone or another computer, open Settings → Servers, turn on Allow clients, and click Show Pairing Code, or run muxy mobile enable and then muxy mobile pair.";
+"Time" = "Time";
+"To pair a phone or another computer, open the Devices tab, turn on Allow other devices, and click Show Pairing Code, or run muxy mobile enable and then muxy mobile pair." = "To pair a phone or another computer, open the Devices tab, turn on Allow other devices, and click Show Pairing Code, or run muxy mobile enable and then muxy mobile pair.";
 "Toggle Agent Sessions" = "Toggle Agent Sessions";
 "Toggle Agents Panel" = "Toggle Agents Panel";
 "Toggle Composer" = "Toggle Composer";
@@ -2187,6 +2218,7 @@
 "Trackpad scroll speed" = "Trackpad scroll speed";
 "Transparency of the terminal background." = "Transparency of the terminal background.";
 "Transparent" = "Transparent";
+"Transportation" = "Transportation";
 "Trust & Test" = "Trust & Test";
 "Try Again" = "Try Again";
 "Try a different name or clear your search." = "Try a different name or clear your search.";
@@ -2278,9 +2310,11 @@
 "Use existing branch" = "Use existing branch";
 "Use for the whole app" = "Use for the whole app";
 "Use the filter at the top of the expanded sidebar to show one workspace or Focus Current Project. Right-click a project → Workspaces to add it to one." = "Use the filter at the top of the expanded sidebar to show one workspace or Focus Current Project. Right-click a project → Workspaces to add it to one.";
+"Use “%@” as Icon" = "Use “%@” as Icon";
 "User" = "User";
 "Value" = "Value";
 "Version" = "Version";
+"Variable" = "Variable";
 "Version %@ is available." = "Version %@ is available.";
 "Version %@ isn't newer than the published %@. Bump the version in package.json." = "Version %@ isn't newer than the published %@. Bump the version in package.json.";
 "Vertical padding (points)" = "Vertical padding (points)";
@@ -2307,11 +2341,13 @@
 "Watch agents, answer their questions, and type from your phone. It connects straight to your computer, with no cloud and no account." = "Watch agents, answer their questions, and type from your phone. It connects straight to your computer, with no cloud and no account.";
 "Waveform" = "Waveform";
 "Waveform Path" = "Waveform Path";
+"Weather" = "Weather";
 "Web Inspector" = "Web Inspector";
 "Web content process terminated" = "Web content process terminated";
 "Welcome Tour" = "Welcome Tour";
 "Welcome to Muxy" = "Welcome to Muxy";
 "When a server lacks Muxy, the app offers to install it there." = "When a server lacks Muxy, the app offers to install it there.";
+"What’s New" = "What’s New";
 "When closing tabs or panes" = "When closing tabs or panes";
 "Whole word" = "Whole word";
 "Width" = "Width";

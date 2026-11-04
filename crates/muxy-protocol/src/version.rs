@@ -45,6 +45,8 @@ impl Feature {
     pub const PROJECT_FOLDERS: Self = Self(0x8001);
     /// Fork capability: folder groups with saved terminal launchers.
     pub const FOLDER_GROUPS: Self = Self(0x8002);
+    /// Fork capability: project icons can be up to `MAX_ICON_TEXT` characters.
+    pub const TEXT_ICONS: Self = Self(0x8003);
 }
 
 /// Features this build's server supports.
@@ -56,4 +58,5 @@ pub const FEATURES: &[Feature] = &[
     Feature::PUSH_NOTIFICATIONS,
     Feature::PROJECT_FOLDERS,
     Feature::FOLDER_GROUPS,
+    Feature::TEXT_ICONS,
 ];

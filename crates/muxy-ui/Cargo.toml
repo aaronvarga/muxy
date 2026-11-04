@@ -22,6 +22,9 @@ async-channel = "2"
 raw-window-handle = "0.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# Already built for polybrowser; reads the system's SF Symbols catalog.
+plist = "1.10"
+serde = { version = "1", features = ["derive"] }
 polybrowser = { git = "https://github.com/saeedvaziry/polybrowser", branch = "main", default-features = false, features = ["webkit", "devtools"] }
 objc2-javascript-core = { version = "=0.3.2", default-features = false, features = ["std", "JSBase", "JSContextRef", "JSObjectRef", "JSStringRef", "JSValueRef"] }
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "WKWebView", "WKWebViewConfiguration", "WKUserContentController", "WKUserScript", "WKContentWorld", "WKScriptMessage", "WKScriptMessageHandlerWithReply", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKUIDelegate", "WKWindowFeatures", "WKURLSchemeHandler", "WKURLSchemeTask", "WKSnapshotConfiguration"] }
