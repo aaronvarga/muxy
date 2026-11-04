@@ -303,6 +303,9 @@ impl Item {
                 )),
                 None => slot,
             },
+            Some(MenuIcon::Agent(agent)) => slot.child(crate::views::tab_activity::provider_icon(
+                *agent, size, model,
+            )),
             None => slot,
         }
     }

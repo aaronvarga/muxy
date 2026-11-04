@@ -199,6 +199,7 @@
 "Automatic updates require an installed release of %@" = "Automatic updates require an installed release of %@";
 "Automatically Show Subfolders" = "Automatically Show Subfolders";
 "Automotive" = "Automotive";
+"Available in the status bar and composer. Inserts text without running it." = "Available in the status bar and composer. Inserts text without running it.";
 "Back" = "Back";
 "Background" = "Background";
 "Background color" = "Background color";
@@ -385,7 +386,6 @@
 "Command Line Tool Installed" = "Command Line Tool Installed";
 "Command Palette…" = "Command Palette…";
 "Command-click a web link in a terminal to open it in a browser tab instead of your system browser." = "Command-click a web link in a terminal to open it in a browser tab instead of your system browser.";
-"Commands" = "Commands";
 "Commands and file or Git changes ask for permission when used." = "Commands and file or Git changes ask for permission when used.";
 "Commands run in the new worktree. Review project commands before enabling them." = "Commands run in the new worktree. Review project commands before enabling them.";
 "Commerce" = "Commerce";
@@ -916,11 +916,11 @@
 "MUXY TIP" = "MUXY TIP";
 "Magenta" = "Magenta";
 "Make Default" = "Make Default";
-"Manage Commands…" = "Manage Commands…";
 "Manage Devices…" = "Manage Devices…";
 "Manage Entries" = "Manage Entries";
 "Manage Extensions" = "Manage Extensions";
 "Manage Profiles…" = "Manage Profiles…";
+"Manage Quick Commands…" = "Manage Quick Commands…";
 "Manage extension" = "Manage extension";
 "Manage extensions marketplace installed unpacked" = "Manage extensions marketplace installed unpacked";
 "Manage scheduled update…" = "Manage scheduled update…";
@@ -1232,6 +1232,7 @@
 "Pushing" = "Pushing";
 "Put the user and port either in the host or in their own fields" = "Put the user and port either in the host or in their own fields";
 "Query is too long" = "Query is too long";
+"Quick Commands" = "Quick Commands";
 "Quick Terminal" = "Quick Terminal";
 "Quick Terminal panel unavailable" = "Quick Terminal panel unavailable";
 "Quick Terminal requires an X11 desktop session. Wayland dropdown placement, hiding and activation are not supported by the window backend yet." = "Quick Terminal requires an X11 desktop session. Wayland dropdown placement, hiding and activation are not supported by the window backend yet.";
@@ -1381,6 +1382,7 @@
 "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file." = "Save settings, themes, extension preferences, projects, workspaces, and terminal layouts to a .muxy file.";
 "Saved Folders" = "Saved Folders";
 "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes." = "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes.";
+"Scope" = "Scope";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
 "Scroll to Bottom" = "Scroll to Bottom";
@@ -1401,6 +1403,7 @@
 "Search options…" = "Search options…";
 "Search or enter address" = "Search or enter address";
 "Search projects, folders or enter a path…" = "Search projects, folders or enter a path…";
+"Search projects…" = "Search projects…";
 "Search providers…" = "Search providers…";
 "Search servers…" = "Search servers…";
 "Search sessions…" = "Search sessions…";
@@ -1482,8 +1485,8 @@
 "Show how long ago each completed or idle agent finished working." = "Show how long ago each completed or idle agent finished working.";
 "Show idle time" = "Show idle time";
 "Show in File Manager" = "Show in File Manager";
+"Show in Quick Commands" = "Show in Quick Commands";
 "Show in commands bar" = "Show in commands bar";
-"Show in status bar" = "Show in status bar";
 "Show or Hide Projects" = "Show or Hide Projects";
 "Show project colors" = "Show project colors";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
@@ -1628,7 +1631,6 @@
 "The signed app has an unexpected %@" = "The signed app has an unexpected %@";
 "The signed beta build number does not match the update feed" = "The signed beta build number does not match the update feed";
 "The staged update metadata changed. Check for updates again." = "The staged update metadata changed. Check for updates again.";
-"The status bar's Commands menu types it into the selected terminal without running it." = "The status bar's Commands menu types it into the selected terminal without running it.";
 "The terminal closed before sending." = "The terminal closed before sending.";
 "The typeface used to render text in every terminal pane." = "The typeface used to render text in every terminal pane.";
 "The update download is incomplete or has an unexpected size" = "The update download is incomplete or has an unexpected size";

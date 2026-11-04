@@ -17,7 +17,12 @@ pub(super) fn matching(pane: &SettingsView) -> Vec<usize> {
         .filter_map(|(index, command)| {
             pane.matches(
                 Category::Commands,
-                &format!("Custom commands {} {}", command.name, command.command),
+                &format!(
+                    "Quick Commands {} {} {}",
+                    command.name,
+                    command.command,
+                    project_label(pane, command.project)
+                ),
             )
             .then_some(index)
         })
@@ -65,6 +70,13 @@ fn editor(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
         ))
         .child(form::row(
             pane.layout_style(),
+            &tr!("Scope"),
+            None,
+            pane.picker(super::PickerKind::CommandProject, &project_label(pane, pane.command_editor.as_ref().and_then(|command| command.project)), cx),
+            pane.compact,
+        ))
+        .child(form::row(
+            pane.layout_style(),
             &tr!("Show in commands bar"),
             Some(tr!("A button below the tabs runs it in a new split.").as_str()),
             draft_toggle(pane, "command-in-bar", |command| !command.hidden, |command| command.hidden = !command.hidden, cx),
@@ -72,8 +84,8 @@ fn editor(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
         ))
         .child(form::row(
             pane.layout_style(),
-            &tr!("Show in status bar"),
-            Some(tr!("The status bar's Commands menu types it into the selected terminal without running it.").as_str()),
+            &tr!("Show in Quick Commands"),
+            Some(tr!("Available in the status bar and composer. Inserts text without running it.").as_str()),
             draft_toggle(pane, "command-in-status-bar", |command| command.status_bar, |command| command.status_bar = !command.status_bar, cx),
             pane.compact,
         ))
@@ -248,12 +260,30 @@ pub(super) fn row(pane: &SettingsView, index: usize, cx: &mut Context<SettingsVi
                 move || format!("settings-move-{direction}-{id}")
             })
         }));
+    let detail = format!(
+        "{} · {}",
+        project_label(pane, command.project),
+        command.command
+    );
     pane.text_row(
         &id,
         &command.name,
-        Some(&command.command),
+        Some(&detail),
         controls.into_any_element(),
         pane.compact,
+    )
+}
+
+fn project_label(pane: &SettingsView, project: Option<muxy_app_core::ProjectId>) -> String {
+    project.map_or_else(
+        || tr!("All Projects").to_string(),
+        |id| {
+            pane.snapshot
+                .projects
+                .iter()
+                .find(|(project, _)| *project == id)
+                .map_or_else(|| id.to_string(), |(_, name)| name.clone())
+        },
     )
 }
 

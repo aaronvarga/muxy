@@ -1245,3 +1245,56 @@ fn extra_folder_selection_is_scoped_to_its_picker_and_cannot_leak_into_new_tabs(
             .any(|(_, work)| matches!(work, Work::Attach { session: None, .. }))
     );
 }
+
+#[gpui::test]
+fn the_new_tab_button_offers_a_terminal_a_browser_and_custom_commands(cx: &mut TestAppContext) {
+    let mut state = AppState::bootstrap().expect("state");
+    let project = state
+        .add_project(ServerId::local(), std::env::temp_dir())
+        .expect("project");
+    state.open_terminal_tab(project).expect("tab");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.commands = vec![muxy_app_core::settings::CustomCommand::new(
+        "Claude".into(),
+        "claude".into(),
+    )];
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1200.0), px(600.0)));
+    cx.run_until_parked();
+
+    let open_menu = |cx: &mut VisualTestContext| {
+        let plus = cx.debug_bounds("new-tab-button").expect("new tab button");
+        cx.simulate_click(plus.center(), Modifiers::default());
+        cx.run_until_parked();
+    };
+    open_menu(cx);
+    let plus = cx.debug_bounds("new-tab-button").expect("new tab button");
+    view.read_with(cx, |model, _| {
+        let Some(Overlay::Menu(menu)) = &model.overlay else {
+            panic!("the menu opened");
+        };
+        assert_eq!(menu.drops_from, Some(plus), "drops from the button");
+        assert_eq!(model.state.current_project().tabs.len(), 1, "no tab yet");
+    });
+    assert!(cx.debug_bounds("menu-label-New Browser Tab").is_some());
+
+    let claude = cx.debug_bounds("menu-label-Claude").expect("command row");
+    cx.simulate_click(claude.center(), Modifiers::default());
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        let tabs = &model.state.current_project().tabs;
+        assert_eq!(tabs.len(), 2);
+        assert_eq!(tabs[1].custom_title.as_deref(), Some("Claude"));
+    });
+
+    open_menu(cx);
+    let terminal = cx
+        .debug_bounds("menu-label-New Terminal Tab")
+        .expect("terminal row");
+    cx.simulate_click(terminal.center(), Modifiers::default());
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.current_project().tabs.len(), 3);
+        assert!(model.overlay.is_none());
+    });
+}

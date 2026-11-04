@@ -1129,10 +1129,8 @@ fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
     let m = model.metrics;
     let missing = model.state.current_project().status() == muxy_app_core::ProjectStatus::Missing;
     let has_commands = model
-        .settings
-        .commands
-        .iter()
-        .any(|command| !command.hidden);
+        .available_commands()
+        .any(|(_, command)| !command.hidden);
     let cards = (!missing && has_commands).then(|| command_cards(model, cx));
     div()
         .bg(theme.bg)
@@ -1203,11 +1201,9 @@ fn command_cards(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
         .max_w(m.scaled(720.0))
         .children(
             model
-                .settings
-                .commands
-                .iter()
-                .filter(|command| !command.hidden)
-                .map(|command| {
+                .available_commands()
+                .filter(|(_, command)| !command.hidden)
+                .map(|(_, command)| {
                     let id = command.id.clone();
                     let group = gpui::SharedString::from(format!("empty-command-{id}"));
                     let icon = super::commands_bar::agent(command).map_or_else(

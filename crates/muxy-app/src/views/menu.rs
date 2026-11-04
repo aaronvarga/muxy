@@ -137,6 +137,10 @@ pub(crate) enum Command {
     ManageCommands,
     /// Types the custom command at this index into the active terminal.
     RunCommandInPane(usize),
+    /// Runs the custom command at this index in a new tab.
+    RunCommandInTab(usize),
+    NewTab,
+    NewBrowserTab,
     /// Swaps a pane with its neighbor in a direction.
     MovePane(muxy_app_core::PaneId, muxy_app_core::Direction),
     /// Shows or hides the titlebar button at this index of the titlebar menu.
@@ -165,6 +169,7 @@ pub(crate) enum MenuIcon {
     Glyph(muxy_ui::icon::Icon),
     /// The project's sidebar tile: its logo, icon or initial.
     Project(muxy_app_core::ProjectId),
+    Agent(muxy_protocol::AgentProvider),
 }
 
 impl std::fmt::Debug for MenuIcon {
@@ -173,6 +178,7 @@ impl std::fmt::Debug for MenuIcon {
             Self::Image(_) => f.write_str("Image"),
             Self::Glyph(icon) => f.debug_tuple("Glyph").field(icon).finish(),
             Self::Project(id) => f.debug_tuple("Project").field(id).finish(),
+            Self::Agent(agent) => f.debug_tuple("Agent").field(agent).finish(),
         }
     }
 }
@@ -1027,6 +1033,18 @@ impl AppModel {
                     self.run_custom_command_in_pane(&id, cx);
                 }
             }
+            Command::RunCommandInTab(index) => {
+                if let Some(id) = self
+                    .settings
+                    .commands
+                    .get(index)
+                    .map(|command| command.id.clone())
+                {
+                    self.run_custom_command(&id, cx);
+                }
+            }
+            Command::NewTab => self.new_tab(cx),
+            Command::NewBrowserTab => self.new_browser_tab(cx),
             Command::BrowserInspect(pane) => {
                 if let Some(view) = self.browser_view(pane)
                     && let Err(error) = view.read(cx).native.browser().open_devtools()

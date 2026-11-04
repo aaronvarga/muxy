@@ -390,6 +390,9 @@ pub fn remap_project_settings(
 ) -> crate::settings::Settings {
     let ids = imported.match_restore_projects(restored);
     let remap = |id: ProjectId| ids.get(&id).copied().unwrap_or(id);
+    for command in &mut settings.commands {
+        command.project = command.project.map(remap);
+    }
     settings.worktrees.projects = remap_keys(settings.worktrees.projects, |id| remap(*id));
     settings.appearance.worktree_recent = settings
         .appearance

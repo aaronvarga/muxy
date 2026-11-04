@@ -6,6 +6,8 @@ use muxy_ui::tr;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Command {
+    InsertQuick(usize),
+    ManageQuickCommands,
     Pause,
     CancelVoice,
     Broadcast,
@@ -75,6 +77,14 @@ impl Composer {
 
     pub(crate) fn menu_action(&mut self, command: Command, cx: &mut Context<Self>) {
         match command {
+            Command::InsertQuick(index) => {
+                cx.emit(super::ComposerEvent::QuickCommand(index));
+                return;
+            }
+            Command::ManageQuickCommands => {
+                cx.emit(super::ComposerEvent::ManageQuickCommands);
+                return;
+            }
             Command::Pause => {
                 self.pause_voice(cx);
                 return;

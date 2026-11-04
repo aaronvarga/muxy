@@ -169,6 +169,13 @@ impl AppModel {
         let mut settings = self.settings.clone();
         settings.appearance = self.appearance.clone();
         Snapshot {
+            projects: self
+                .state
+                .projects()
+                .iter()
+                .filter(|project| !project.is_folder_group())
+                .map(|project| (project.id, project.name.clone()))
+                .collect(),
             quick_shortcut_status: self.quick_shortcut_status(),
             capabilities: self.capabilities.clone(),
             settings,

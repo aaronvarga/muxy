@@ -594,3 +594,39 @@ fn configuration_errors_in_settings_can_be_dismissed(cx: &mut TestAppContext) {
         assert!(!view.errors.contains_key("configuration"));
     });
 }
+
+#[gpui::test]
+fn quick_command_project_picker_saves_scope_with_the_command(cx: &mut TestAppContext) {
+    use muxy_app_core::settings::Settings;
+    let directory = tempfile::tempdir().expect("project directory");
+    let mut state = AppState::bootstrap().expect("state");
+    let project = state
+        .add_project(ServerId::local(), directory.path().into())
+        .expect("project");
+    let (boot, _) = stub_boot(state);
+    let path = boot.state_path.with_file_name("settings.toml");
+    let (model, cx) = settings_window(boot, cx);
+    click_preference(cx, "settings-category-Quick Commands");
+    click_preference(cx, "settings-add-command");
+    cx.simulate_input("Project build");
+    click_preference(cx, "settings-picker-command-project");
+    cx.simulate_input(
+        directory
+            .path()
+            .file_name()
+            .expect("folder name")
+            .to_str()
+            .expect("UTF-8"),
+    );
+    cx.simulate_keystrokes("enter");
+    click_preference(cx, "settings-save-command");
+    model.read_with(cx, |model, _| {
+        assert_eq!(model.settings.commands.len(), 1);
+        assert_eq!(model.settings.commands[0].name, "Project build");
+        assert_eq!(model.settings.commands[0].project, Some(project));
+    });
+    assert_eq!(
+        Settings::load(&path).expect("saved commands").commands[0].project,
+        Some(project)
+    );
+}

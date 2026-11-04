@@ -248,6 +248,9 @@ impl SettingsWindow {
             super::PickerKind::ExtensionSidebar => self.open_sidebar_picker(request, window, cx),
             super::PickerKind::FileOpener => self.open_file_opener_picker(request, window, cx),
             super::PickerKind::AppLanguage => self.open_app_language_picker(request, window, cx),
+            super::PickerKind::CommandProject => {
+                self.open_command_project_picker(request, window, cx);
+            }
         }
         cx.notify();
     }
@@ -293,6 +296,80 @@ impl SettingsWindow {
                 _ => (),
             },
         ));
+        picker.focus_handle(cx).focus(window);
+        self.overlay = Some(SettingsOverlay::Providers {
+            picker,
+            source: request,
+        });
+    }
+
+    fn open_command_project_picker(
+        &mut self,
+        request: PickerRequest,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let view = self.view.read(cx);
+        let current = view
+            .command_editor
+            .as_ref()
+            .and_then(|command| command.project)
+            .map(|id| id.to_string())
+            .unwrap_or_default();
+        let choices: Vec<_> = std::iter::once((String::new(), tr!("All Projects").to_string()))
+            .chain(
+                view.snapshot
+                    .projects
+                    .iter()
+                    .map(|(id, name)| (id.to_string(), name.clone())),
+            )
+            .map(|(id, name)| {
+                let mut row = PickerRow::new(id.clone(), name);
+                row.current = id == current;
+                PickerItem::Row(row)
+            })
+            .collect();
+        let (theme, metrics) = (view.theme.clone(), view.metrics);
+        let picker = cx.new(|cx| {
+            Picker::new(
+                PickerConfig::popover("command-project", tr!("Search projects…")),
+                theme,
+                metrics,
+                cx,
+            )
+        });
+        picker.update(cx, |picker, cx| {
+            picker.set_items(choices.clone(), cx);
+            let _ = picker.select_row(&current, cx);
+        });
+        self.overlay_subscription =
+            Some(
+                cx.subscribe_in(&picker, window, move |root, picker, event, window, cx| match event {
+                    PickerEvent::Confirmed(selection) => {
+                        root.view.update(cx, |view, cx| {
+                            if let Some(command) = &mut view.command_editor {
+                                let project = if selection.id.is_empty() {
+                                    None
+                                } else if let Ok(project) = selection.id.parse() {
+                                    Some(project)
+                                } else {
+                                    return;
+                                };
+                                command.project = project;
+                                cx.notify();
+                            }
+                        });
+                        root.dismiss_overlay(window, cx);
+                    }
+                    PickerEvent::QueryChanged { query, .. } => {
+                        let query = query.to_lowercase();
+                        let items = choices.iter().filter(|item| matches!(item, PickerItem::Row(row) if row.title.to_lowercase().contains(&query))).cloned().collect();
+                        picker.update(cx, |picker, cx| picker.set_items(items, cx));
+                    }
+                    PickerEvent::Dismissed => root.dismiss_overlay(window, cx),
+                    _ => (),
+                }),
+            );
         picker.focus_handle(cx).focus(window);
         self.overlay = Some(SettingsOverlay::Providers {
             picker,

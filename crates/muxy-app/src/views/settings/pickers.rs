@@ -47,6 +47,7 @@ pub(crate) enum PickerKind {
     ExtensionSidebar,
     FileOpener,
     AppLanguage,
+    CommandProject,
 }
 
 impl PickerKind {
@@ -73,6 +74,7 @@ impl PickerKind {
             Self::ExtensionSidebar => "extension-sidebar",
             Self::FileOpener => "file-opener",
             Self::AppLanguage => "app-language",
+            Self::CommandProject => "command-project",
         }
     }
 }

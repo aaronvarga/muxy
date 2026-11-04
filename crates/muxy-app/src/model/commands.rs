@@ -13,6 +13,17 @@ pub(crate) struct RunCustomCommand {
 }
 
 impl AppModel {
+    pub(crate) fn available_commands(
+        &self,
+    ) -> impl Iterator<Item = (usize, &muxy_app_core::settings::CustomCommand)> {
+        let project = self.custom_command_project();
+        self.settings
+            .commands
+            .iter()
+            .enumerate()
+            .filter(move |(_, command)| command.available_in(project))
+    }
+
     pub(super) fn custom_bindings(&self) -> impl Iterator<Item = (RunCustomCommand, &KeyChord)> {
         self.settings.commands.iter().filter_map(|command| {
             self.settings
@@ -47,12 +58,26 @@ impl AppModel {
             })
     }
 
+    fn custom_command_project(&self) -> muxy_app_core::ProjectId {
+        if self.command_center.active
+            && let Some(tile) = self
+                .active_pane()
+                .and_then(|pane| self.command_center.tile(pane))
+        {
+            return tile.session.info.project;
+        }
+        self.state.current_project().id
+    }
+
     fn can_run_custom_command(&self) -> bool {
         self.quitting == Quitting::Idle
             && self.close_prompt.is_none()
             && self.close_request.is_none()
             && self.pending_close.is_none()
-            && self.state.current_project().status() == ProjectStatus::Available
+            && self
+                .state
+                .project(self.custom_command_project())
+                .is_some_and(|project| project.status() == ProjectStatus::Available)
     }
 
     pub(crate) fn run_custom_command(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -64,12 +89,9 @@ impl AppModel {
         if !self.can_run_custom_command() || self.overlay.is_some() {
             return;
         }
-        let Some(command) = self
-            .settings
-            .commands
-            .iter()
-            .find(|command| command.id == id)
-        else {
+        let Some(command) = self.settings.commands.iter().find(|command| {
+            command.id == id && command.available_in(self.custom_command_project())
+        }) else {
             return;
         };
         if let Err(error) = command.validate() {
@@ -123,7 +145,7 @@ impl AppModel {
             .settings
             .commands
             .iter()
-            .find(|command| command.id == id)
+            .find(|command| command.id == id && command.available_in(self.custom_command_project()))
             .cloned()
         else {
             return;
@@ -149,12 +171,9 @@ impl AppModel {
         if !self.can_run_command_in_pane() {
             return;
         }
-        let Some(command) = self
-            .settings
-            .commands
-            .iter()
-            .find(|command| command.id == id)
-        else {
+        let Some(command) = self.settings.commands.iter().find(|command| {
+            command.id == id && command.available_in(self.custom_command_project())
+        }) else {
             return;
         };
         if let Err(error) = command.validate() {
@@ -172,7 +191,7 @@ impl AppModel {
     }
 
     pub(crate) fn register_custom_commands(&self, registry: &mut Registry<Handler>) {
-        for command in &self.settings.commands {
+        for (_, command) in self.available_commands() {
             let id = command.id.clone();
             let handler: Handler = std::rc::Rc::new(move |model, _, cx| {
                 model.run_custom_command(&id, cx);

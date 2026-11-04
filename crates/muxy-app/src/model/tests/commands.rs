@@ -146,3 +146,95 @@ fn commands_are_typed_into_the_active_terminal_without_submitting(cx: &mut TestA
         Work::Input(actual, bytes) if actual == channel && bytes == b"\x15cargo test"
     )));
 }
+
+#[gpui::test]
+fn project_commands_are_filtered_and_cannot_run_from_another_project(cx: &mut TestAppContext) {
+    let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        use muxy_app_core::settings::CustomCommand;
+        let global = CustomCommand::new("Global".into(), "echo global".into());
+        let mut local = CustomCommand::new("Local".into(), "echo local".into());
+        local.project = Some(model.state.current_project().id);
+        let mut foreign = CustomCommand::new("Other".into(), "echo other".into());
+        foreign.project = Some(ProjectId::new());
+        let id = foreign.id.clone();
+        let shortcut = foreign.shortcut_id();
+        model.settings.commands = vec![global, local, foreign];
+        assert_eq!(
+            model
+                .available_commands()
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+        assert!(
+            model
+                .command_registry(true, cx)
+                .command(&shortcut)
+                .is_none()
+        );
+        let before = model.state.clone();
+        model.run_custom_command(&id, cx);
+        model.run_custom_command_in_split(&id, cx);
+        model.run_custom_command_in_pane(&id, cx);
+        assert_eq!(model.state, before);
+    });
+}
+
+#[gpui::test]
+fn quick_commands_follow_the_focused_command_center_project(cx: &mut TestAppContext) {
+    use super::command_center::{listing, session};
+    use muxy_app_core::settings::CustomCommand;
+    let (mut state, home, project, first, second) = projects::two_projects();
+    state
+        .set_pane_session(first, Some(SessionId::new(731).expect("session")))
+        .expect("session");
+    state
+        .set_pane_session(second, Some(SessionId::new(732).expect("session")))
+        .expect("session");
+    state.select_project(home).expect("first project");
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        model.receive(
+            local(
+                1,
+                Update::Connected(vec![session(home, 731).info, session(project, 732).info]),
+            ),
+            cx,
+        );
+        acknowledge_catalog(model, cx);
+        model.open_command_center(cx);
+        model.receive_session_page(home, Ok(listing(vec![session(home, 731)])), cx);
+        model.receive_session_page(project, Ok(listing(vec![session(project, 732)])), cx);
+        let pane = model
+            .command_center
+            .tiles
+            .iter()
+            .find(|tile| tile.session.info.project == project)
+            .expect("project tile")
+            .pane;
+        model.command_center.visible = model
+            .command_center
+            .tiles
+            .iter()
+            .map(|tile| tile.pane)
+            .collect();
+        model.command_center.focused = Some(pane);
+        assert_eq!(model.state.current_project().id, home);
+        assert_eq!(model.active_pane(), Some(pane));
+        let mut home_command = CustomCommand::new("Home".into(), "echo home".into());
+        home_command.project = Some(home);
+        let mut project_command = CustomCommand::new("Project".into(), "echo project".into());
+        project_command.project = Some(project);
+        model.settings.commands = vec![home_command, project_command];
+        assert_eq!(
+            model
+                .available_commands()
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>(),
+            [1]
+        );
+    });
+}

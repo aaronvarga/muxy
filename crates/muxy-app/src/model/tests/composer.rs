@@ -598,3 +598,38 @@ fn new_tabs_and_splits_focus_their_docked_composer_once_attached(cx: &mut TestAp
         });
     }
 }
+
+#[gpui::test]
+fn quick_commands_insert_into_draft_without_sending_and_reject_other_projects(
+    cx: &mut TestAppContext,
+) {
+    let (view, cx, requests) = attached_composer(cx);
+    requests.try_iter().for_each(drop);
+    cx.simulate_input("before ");
+    view.update(cx, |model, cx| {
+        use muxy_app_core::settings::CustomCommand;
+        let mut local = CustomCommand::new("Build".into(), "cargo build".into());
+        local.status_bar = true;
+        local.project = Some(model.state.current_project().id);
+        let mut foreign = CustomCommand::new("Other".into(), "rm other".into());
+        foreign.project = Some(ProjectId::new());
+        model.settings.commands = vec![local, foreign];
+        model.insert_quick_command(1, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(composer_text(&view, cx), "before ");
+    view.update(cx, |model, cx| model.insert_quick_command(0, cx));
+    cx.run_until_parked();
+    assert_eq!(composer_text(&view, cx), "before cargo build");
+    assert!(
+        !requests
+            .try_iter()
+            .any(|(_, work)| matches!(work, Work::Input(..) | Work::WriteInput { .. }))
+    );
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-z"
+    } else {
+        "ctrl-z"
+    });
+    assert_eq!(composer_text(&view, cx), "before ");
+}

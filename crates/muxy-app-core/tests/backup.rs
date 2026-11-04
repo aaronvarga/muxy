@@ -230,6 +230,10 @@ fn matching_project_directories_keep_local_identity_and_remap_project_preference
         state.project(current_id).unwrap().tabs[1].id
     );
     let mut settings = Settings::default();
+    let mut command =
+        muxy_app_core::settings::CustomCommand::new("Build".into(), "cargo build".into());
+    command.project = Some(backup_id);
+    settings.commands.push(command);
     settings.appearance.hidden_worktrees.insert(backup_id);
     settings.appearance.project_recent = vec![backup_id, backup.home().id];
     settings
@@ -243,6 +247,7 @@ fn matching_project_directories_keep_local_identity_and_remap_project_preference
     )
     .unwrap();
     let settings: Settings = toml::from_str(&source).unwrap();
+    assert_eq!(settings.commands[0].project, Some(current_id));
     assert!(settings.appearance.hidden_worktrees.contains(&current_id));
     assert_eq!(
         settings.appearance.project_recent,

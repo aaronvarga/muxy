@@ -41,6 +41,9 @@ pub(crate) enum ComposerEvent {
     Image(Vec<u8>),
     Close,
     Menu,
+    QuickCommands,
+    QuickCommand(usize),
+    ManageQuickCommands,
     Preferences(ComposerSettings),
 }
 
@@ -65,6 +68,7 @@ pub(crate) struct Composer {
     floating_dimensions: Option<gpui::Size<gpui::Pixels>>,
     size_motion: Option<layout::SizeMotion>,
     /// Where the button that opens the menu was last drawn.
+    pub(crate) commands_anchor: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     pub(crate) menu_anchor: std::rc::Rc<std::cell::Cell<gpui::Bounds<gpui::Pixels>>>,
     pub(crate) visibility: muxy_ui::motion::VisibilityMotion,
     input_style: InputStyle,
@@ -157,6 +161,7 @@ impl Composer {
             floating_dimensions: None,
             size_motion: None,
             menu_anchor: std::rc::Rc::default(),
+            commands_anchor: std::rc::Rc::default(),
             visibility: muxy_ui::motion::VisibilityMotion::showing(
                 TRANSITION,
                 cx.background_executor().clone(),

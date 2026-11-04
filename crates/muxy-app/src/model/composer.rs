@@ -415,7 +415,12 @@ impl AppModel {
             ComposerEvent::Attach => model.choose_composer_files(cx),
             ComposerEvent::Files(paths) => model.attach_composer_files(paths.clone(), cx),
             ComposerEvent::Image(bytes) => model.attach_composer_image(bytes.clone(), cx),
-            ComposerEvent::Menu => model.composer_menu(cx),
+            ComposerEvent::Menu => model.composer_menu(false, cx),
+            ComposerEvent::QuickCommands => model.composer_menu(true, cx),
+            ComposerEvent::QuickCommand(index) => model.insert_quick_command(*index, cx),
+            ComposerEvent::ManageQuickCommands => {
+                model.show_settings_at(crate::views::settings::Category::Commands, cx);
+            }
             ComposerEvent::Preferences(settings) => {
                 if model.settings.composer.presentation != settings.presentation
                     && let Some(view) = &model.composer.view
@@ -817,12 +822,56 @@ impl AppModel {
             .into_any_element()
     }
 
-    fn composer_menu(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn insert_quick_command(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some((_, command)) = self
+            .available_commands()
+            .find(|(candidate, _)| *candidate == index)
+        else {
+            return;
+        };
+        if command.validate().is_err() || command.command.trim().is_empty() {
+            return;
+        }
+        let text = command.command.clone();
+        if let Some(view) = &self.composer.view {
+            view.update(cx, |view, cx| {
+                if !view.sending && !view.recording() {
+                    view.input
+                        .update(cx, |input, cx| input.insert_at_selection(&text, cx));
+                }
+            });
+        }
+    }
+
+    fn composer_menu(&mut self, quick: bool, cx: &mut Context<Self>) {
         let Some(view) = &self.composer.view else {
             return;
         };
-        let choices = view.read(cx).menu_items();
-        let button = view.read(cx).menu_anchor.get();
+        let choices = if quick {
+            use crate::views::composer::menu::Command;
+            let enabled = !view.read(cx).sending && !view.read(cx).recording();
+            let mut choices: Vec<_> = self
+                .available_commands()
+                .filter(|(_, command)| command.status_bar)
+                .map(|(index, command)| {
+                    let mut item = muxy_ui::native_menu::Item::new(command.name.clone());
+                    item.enabled = enabled && !command.command.trim().is_empty();
+                    (item, Command::InsertQuick(index))
+                })
+                .collect();
+            let mut manage =
+                muxy_ui::native_menu::Item::new(muxy_ui::tr!("Manage Quick Commands…"));
+            manage.separator = !choices.is_empty();
+            choices.push((manage, Command::ManageQuickCommands));
+            choices
+        } else {
+            view.read(cx).menu_items()
+        };
+        let button = if quick {
+            view.read(cx).commands_anchor.get()
+        } else {
+            view.read(cx).menu_anchor.get()
+        };
         let Ok(shown) = self.window.update(cx, |_, window, cx| {
             muxy_ui::native_menu::show(
                 choices.iter().map(|(item, _)| item.clone()).collect(),

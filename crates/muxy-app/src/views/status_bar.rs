@@ -256,8 +256,6 @@ fn path_chip(model: &AppModel, cx: &mut Context<AppModel>) -> impl IntoElement {
         )
 }
 
-/// Opens a menu of the custom commands shown in the status bar, which run in
-/// the active terminal, unlike the commands bar, which runs them in a split.
 fn composer_chip(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     let m = model.metrics;
     let theme = &model.theme;
@@ -296,12 +294,11 @@ fn composer_chip(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
         .into_any_element()
 }
 
+/// Quick Commands insert text into the active terminal without submitting it.
 fn commands_chip(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElement> {
     if !model
-        .settings
-        .commands
-        .iter()
-        .any(|command| command.status_bar)
+        .available_commands()
+        .any(|(_, command)| command.status_bar)
     {
         return None;
     }
@@ -325,10 +322,7 @@ fn commands_chip(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElem
                 cx.stop_propagation();
                 let enabled = model.can_run_command_in_pane();
                 let mut items: Vec<_> = model
-                    .settings
-                    .commands
-                    .iter()
-                    .enumerate()
+                    .available_commands()
                     .filter(|(_, command)| command.status_bar)
                     .map(|(index, command)| {
                         let item =
@@ -341,7 +335,8 @@ fn commands_chip(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElem
                     })
                     .collect();
                 items.push(
-                    Item::action(tr!("Manage Commands…"), Command::ManageCommands).separated(),
+                    Item::action(tr!("Manage Quick Commands…"), Command::ManageCommands)
+                        .separated(),
                 );
                 model.open_menu(items, event.position(), window, cx);
             }))
@@ -353,7 +348,7 @@ fn commands_chip(model: &AppModel, cx: &mut Context<AppModel>) -> Option<AnyElem
                 div()
                     .text_size(m.font_footnote())
                     .font_weight(FontWeight::MEDIUM)
-                    .child(tr!("Commands")),
+                    .child(tr!("Quick Commands")),
             )
             .child(
                 IconGlyph::new(Icon::ChevronDown, m.font_caption(), theme.fg_muted)
