@@ -1263,6 +1263,38 @@ fn connect_text_icons(view: &Entity<AppModel>, cx: &mut VisualTestContext) {
 }
 
 #[gpui::test]
+fn project_visibility_menu_hides_and_shows_projects_and_stays_open(cx: &mut TestAppContext) {
+    let mut state = AppState::bootstrap().expect("state");
+    let group = state.add_folder_group("Clients").expect("group");
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.sidebar_expanded = true;
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    let toggle = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        let row = cx.debug_bounds("menu-label-Clients").expect("Clients row");
+        cx.simulate_click(row.center(), Modifiers::none());
+        cx.run_until_parked();
+    };
+    let hidden = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        view.read_with(cx, |model, _| {
+            model
+                .state
+                .hidden_projects()
+                .any(|project| project.id == group)
+        })
+    };
+    cx.run_until_parked();
+    let button = cx
+        .debug_bounds("sidebar-project-visibility")
+        .expect("visibility button");
+    cx.simulate_click(button.center(), Modifiers::none());
+    toggle(cx);
+    assert!(hidden(&view, cx));
+    toggle(cx);
+    assert!(!hidden(&view, cx));
+}
+
+#[gpui::test]
 fn icon_picker_searches_and_files_the_whole_system_catalog(cx: &mut TestAppContext) {
     if !muxy_ui::symbols::PROJECT_ICONS {
         return;

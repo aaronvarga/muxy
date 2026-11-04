@@ -22,7 +22,7 @@ use muxy_app_core::{
 };
 
 use super::{
-    menu::{Command, Item},
+    menu::{Command, Item, MenuIcon},
     tab_sidebar,
 };
 use muxy_ui::components::{ButtonInteraction, IconGlyph, SymbolGlyph};
@@ -714,6 +714,72 @@ fn header(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
         .into_any_element()
 }
 
+/// The button below the last project that lists every project to show or hide.
+fn project_visibility_button(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
+    let m = model.metrics;
+    let wide = model.appearance.sidebar_expanded;
+    div()
+        .id("sidebar-project-visibility")
+        .debug_selector(|| "sidebar-project-visibility".into())
+        .group("sidebar-project-visibility")
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .when(wide, |button| {
+            button.size(tile_size(model) + m.spacing2() * 2.0)
+        })
+        .when(!wide, |button| button.size(collapsed_item_size(model)))
+        .rounded(m.radius_md())
+        .cursor_pointer()
+        .hover(|style| style.bg(model.theme.hover))
+        .tooltip(super::status_bar::tooltip(
+            tr!("Show or Hide Projects").to_string(),
+            model,
+        ))
+        .on_click(cx.listener(|model, event: &gpui::ClickEvent, window, cx| {
+            model.open_project_visibility_menu(event.position(), window, cx);
+        }))
+        .child(
+            IconGlyph::new(Icon::Ellipsis, m.font_body(), model.theme.fg_muted)
+                .hover_in_group("sidebar-project-visibility", model.theme.fg),
+        )
+        .into_any_element()
+}
+
+impl AppModel {
+    /// Every top-level project, checked when the sidebar shows it. Home can't
+    /// be hidden, so its row is disabled.
+    pub(crate) fn open_project_visibility_menu(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let hidden: HashSet<_> = self
+            .state
+            .hidden_projects()
+            .map(|project| project.id)
+            .collect();
+        let items = self
+            .state
+            .projects()
+            .iter()
+            .filter(|project| project.parent_id.is_none())
+            .map(|project| {
+                let item = Item::action(
+                    self.project_title(project),
+                    Command::ToggleProjectVisibility(project.id),
+                )
+                .icon(MenuIcon::Project(project.id))
+                .checked_if(!hidden.contains(&project.id));
+                if project.home { item.disabled() } else { item }
+            })
+            .collect();
+        self.open_menu(items, position, window, cx);
+    }
+}
+
 fn current_parent(model: &AppModel) -> ProjectId {
     let project = model.state.current_project();
     project.parent_id.unwrap_or(project.id)
@@ -1015,6 +1081,7 @@ fn project_list(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
                 .pb(m.spacing3())
                 .when(!wide, Styled::items_center)
                 .children(rows)
+                .child(project_visibility_button(model, cx))
                 .on_children_prepainted(move |bounds, _, _| {
                     measured.borrow_mut().0 = ids
                         .iter()

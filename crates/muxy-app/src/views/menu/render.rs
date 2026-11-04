@@ -297,6 +297,12 @@ impl Item {
                 m.icon_md(),
                 model.theme.fg_muted,
             )),
+            Some(MenuIcon::Project(id)) => match model.state.project(*id) {
+                Some(project) => slot.child(crate::views::sidebar::project_tile(
+                    project, model, size, None,
+                )),
+                None => slot,
+            },
             None => slot,
         }
     }

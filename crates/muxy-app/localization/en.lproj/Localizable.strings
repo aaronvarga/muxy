@@ -1484,6 +1484,7 @@
 "Show in File Manager" = "Show in File Manager";
 "Show in commands bar" = "Show in commands bar";
 "Show in status bar" = "Show in status bar";
+"Show or Hide Projects" = "Show or Hide Projects";
 "Show project colors" = "Show project colors";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
 "Show project names alongside their icons in the workspace sidebar." = "Show project names alongside their icons in the workspace sidebar.";

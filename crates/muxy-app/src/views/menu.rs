@@ -86,6 +86,9 @@ pub(crate) enum Command {
     RemoveProjectLogo(muxy_app_core::ProjectId),
     RemoveProject(muxy_app_core::ProjectId),
     SetProjectHidden(muxy_app_core::ProjectId, bool),
+    /// Shows or hides a project from the sidebar's project list menu, which
+    /// stays open for the next toggle.
+    ToggleProjectVisibility(muxy_app_core::ProjectId),
     AddDivider(muxy_app_core::ProjectId),
     EditDivider(muxy_app_core::DividerId),
     RemoveDivider(muxy_app_core::DividerId),
@@ -160,6 +163,8 @@ pub(crate) struct Item {
 pub(crate) enum MenuIcon {
     Image(std::sync::Arc<gpui::RenderImage>),
     Glyph(muxy_ui::icon::Icon),
+    /// The project's sidebar tile: its logo, icon or initial.
+    Project(muxy_app_core::ProjectId),
 }
 
 impl std::fmt::Debug for MenuIcon {
@@ -167,6 +172,7 @@ impl std::fmt::Debug for MenuIcon {
         match self {
             Self::Image(_) => f.write_str("Image"),
             Self::Glyph(icon) => f.debug_tuple("Glyph").field(icon).finish(),
+            Self::Project(id) => f.debug_tuple("Project").field(id).finish(),
         }
     }
 }
@@ -878,6 +884,12 @@ impl AppModel {
             Command::RemoveProject(id) => self.confirm_remove_project(id, cx),
             Command::SetProjectHidden(id, hidden) => {
                 self.edit_workspaces(|state| state.set_project_hidden(id, hidden), cx);
+            }
+            Command::ToggleProjectVisibility(id) => {
+                let hidden = self.state.hidden_projects().any(|project| project.id == id);
+                self.edit_workspaces(|state| state.set_project_hidden(id, !hidden), cx);
+                self.open_project_visibility_menu(position, window, cx);
+                return;
             }
             Command::AddDivider(id) => {
                 self.edit_workspaces(|state| state.add_divider(id).map(drop), cx);
