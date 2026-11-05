@@ -107,7 +107,11 @@ impl Composer {
             )
             .rounded(m.radius_xl())
             .when(active, |button| button.bg(theme.diff_remove))
-            .child(SymbolGlyph::new(symbol, glyph_size, color))
+            .when(enabled, Styled::cursor_pointer)
+            .child(
+                SymbolGlyph::new(symbol, glyph_size, color)
+                    .when(enabled, |glyph| glyph.hover_in_group(id, theme.accent)),
+            )
             .tooltip(move |_, cx| {
                 cx.new(|_| {
                     muxy_ui::components::Tooltip::new(
@@ -559,7 +563,9 @@ impl Composer {
             .bg(self.theme.accent)
             .child(SymbolGlyph::new("arrow.up", m.font_body(), self.theme.accent_foreground).bold())
             .when(enabled, |button| {
-                button.button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
+                button
+                    .cursor_pointer()
+                    .button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
             })
             .into_any_element()
     }

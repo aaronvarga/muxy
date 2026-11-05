@@ -498,6 +498,7 @@ fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
     view.update(cx, |model, cx| {
         let composer = model.composer.view.clone().expect("composer");
         composer.update(cx, |composer, _| {
+            composer.settings.presentation = muxy_app_core::settings::ComposerPresentation::Docked;
             composer.skills = std::sync::Arc::new(
                 ["/review", "/release-notes", "/plan", "$imagegen"]
                     .map(|text| Skill {
@@ -528,9 +529,14 @@ fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
     );
     cx.simulate_keystrokes("down enter");
     assert_eq!(composer_text(&view, cx), "/release-notes ");
-    // `/` completes only at the start; `$` anywhere; Escape hides the list.
-    cx.simulate_input("x /pl");
+    // Both triggers complete in prose; one Enter accepts without sending.
+    cx.simulate_input("x /pl tail");
+    cx.simulate_keystrokes("left left left left left");
+    assert_eq!(offered(cx), Some(vec!["/plan".into()]));
+    cx.simulate_keystrokes("enter");
+    assert_eq!(composer_text(&view, cx), "/release-notes x /plan  tail");
     assert_eq!(offered(cx), None);
+    cx.simulate_keystrokes("right right right right right");
     cx.simulate_input(" $ima");
     assert_eq!(offered(cx), Some(vec!["$imagegen".into()]));
     cx.simulate_keystrokes("escape");
@@ -545,7 +551,7 @@ fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(
         delivery(&requests).0,
-        b"\x15/release-notes x /pl $ima\r".to_vec()
+        b"\x15/release-notes x /plan  tail $ima\r".to_vec()
     );
 }
 

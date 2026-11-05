@@ -85,11 +85,19 @@ pub(crate) fn is_read(action: &FilesAction) -> bool {
 }
 
 impl Registry {
-    /// The folder a request runs in: the project's, or one of its extra
-    /// folders, named exactly.
+    /// The folder a request runs in: the project's, an automatic group's
+    /// source, or one of its extra folders, named exactly.
     pub(crate) fn files_root(&self, request: &FilesRequest) -> Result<PathBuf> {
         let project = self.catalog.project(request.project)?;
         if project.kind == Some(muxy_protocol::ProjectKind::FolderGroup) {
+            if project.auto_subfolders
+                && request
+                    .root
+                    .as_ref()
+                    .is_none_or(|root| *root == project.directory)
+            {
+                return Ok(path(&project.directory).to_owned());
+            }
             return match &request.root {
                 Some(root)
                     if (project.auto_subfolders
