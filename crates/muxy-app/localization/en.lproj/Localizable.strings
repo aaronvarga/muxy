@@ -270,7 +270,9 @@
 "Cancel scheduled update" = "Cancel scheduled update";
 "Cancelled" = "Cancelled";
 "Cannot read the development build at %@: %@. Run scripts/build-linux-dev.sh in this checkout, then retry installation." = "Cannot read the development build at %@: %@. Run scripts/build-linux-dev.sh in this checkout, then retry installation.";
+"Capture Screenshot" = "Capture Screenshot";
 "Case" = "Case";
+"Change Home Folder…" = "Change Home Folder…";
 "Change Theme…" = "Change Theme…";
 "Changes apply immediately. Press Return or leave a field to save text." = "Changes apply immediately. Press Return or leave a field to save text.";
 "Character spacing" = "Character spacing";
@@ -290,6 +292,7 @@
 "Choose Folder" = "Choose Folder";
 "Choose Folder…" = "Choose Folder…";
 "Choose Font…" = "Choose Font…";
+"Choose Home Folder" = "Choose Home Folder";
 "Choose Icon…" = "Choose Icon…";
 "Choose Logo" = "Choose Logo";
 "Choose Muxy backup or 1.x settings.json" = "Choose Muxy backup or 1.x settings.json";
@@ -379,6 +382,7 @@
 "Colors for Quick Terminal when macOS uses light appearance. Same as App follows the app's light theme." = "Colors for Quick Terminal when macOS uses light appearance. Same as App follows the app's light theme.";
 "Colors for the interface and terminals when macOS uses dark appearance." = "Colors for the interface and terminals when macOS uses dark appearance.";
 "Colors for the interface and terminals when macOS uses light appearance." = "Colors for the interface and terminals when macOS uses light appearance.";
+"Color…" = "Color…";
 "Combine programming symbols when the selected font supports ligatures." = "Combine programming symbols when the selected font supports ligatures.";
 "Command" = "Command";
 "Command Center" = "Command Center";
@@ -648,6 +652,7 @@
 "English is built in. Additional languages can be provided by enabled extensions." = "English is built in. Additional languages can be provided by enabled extensions.";
 "Enter 1 to 4 characters." = "Enter 1 to 4 characters.";
 "Enter a branch name." = "Enter a branch name.";
+"Enter a color as #RRGGBB." = "Enter a color as #RRGGBB.";
 "Enter a commit message of up to 10,000 characters" = "Enter a commit message of up to 10,000 characters";
 "Enter a group name" = "Enter a group name";
 "Enter a path on %@…" = "Enter a path on %@…";
@@ -686,6 +691,7 @@
 "Extension webviews are not available on this platform yet." = "Extension webviews are not available on this platform yet.";
 "Extensions" = "Extensions";
 "Extensions changed while reloading. Try again." = "Extensions changed while reloading. Try again.";
+"Fade colored project backgrounds without fading symbols, text, or logos." = "Fade colored project backgrounds without fading symbols, text, or logos.";
 "Fallback fonts" = "Fallback fonts";
 "File" = "File";
 "File Manager" = "File Manager";
@@ -737,6 +743,7 @@
 "Forget %lld Servers?" = "Forget %lld Servers?";
 "Forward" = "Forward";
 "From 1024 to 65535. Press Return to save." = "From 1024 to 65535. Press Return to save.";
+"Full" = "Full";
 "Gaming" = "Gaming";
 "General" = "General";
 "Global X11 shortcuts cannot cover a Wayland desktop." = "Global X11 shortcuts cannot cover a Wayland desktop.";
@@ -753,6 +760,7 @@
 "Health" = "Health";
 "Height" = "Height";
 "Height in pixels for a new workspace window when no saved bounds exist." = "Height in pixels for a new workspace window when no saved bounds exist.";
+"Hex color" = "Hex color";
 "Hidden" = "Hidden";
 "Hide" = "Hide";
 "Hide %@" = "Hide %@";
@@ -1197,6 +1205,7 @@
 "Points to change the font size by, such as 1." = "Points to change the font size by, such as 1.";
 "Port" = "Port";
 "Preparing on-device dictation…" = "Preparing on-device dictation…";
+"Presets" = "Presets";
 "Press Return after inserting standalone voice dictation into the terminal." = "Press Return after inserting standalone voice dictation into the terminal.";
 "Press a key…" = "Press a key…";
 "Press a shortcut…" = "Press a shortcut…";
@@ -1211,10 +1220,12 @@
 "Profiles keep cookies and logins apart. New tabs use the default profile." = "Profiles keep cookies and logins apart. New tabs use the default profile.";
 "Project" = "Project";
 "Project %lld" = "Project %lld";
+"Project Color" = "Project Color";
 "Project Focused" = "Project Focused";
 "Project edit is pending: %@" = "Project edit is pending: %@";
 "Project editor" = "Project editor";
 "Project folder is missing" = "Project folder is missing";
+"Project icon background opacity" = "Project icon background opacity";
 "Project is unavailable" = "Project is unavailable";
 "Project server" = "Project server";
 "Proxy" = "Proxy";
@@ -1330,6 +1341,7 @@
 "Restart the Server on %@?" = "Restart the Server on %@?";
 "Restart the app to install the update. Your terminal sessions will keep running. You can update the server afterward." = "Restart the app to install the update. Your terminal sessions will keep running. You can update the server afterward.";
 "Restart the server from Settings to use the imported default shell." = "Restart the server from Settings to use the imported default shell.";
+"Restart the server to change the Home folder." = "Restart the server to change the Home folder.";
 "Restart the server to use icon text longer than one character." = "Restart the server to use icon text longer than one character.";
 "Restarting or stopping this server ends all terminal sessions on %@, including sessions in other projects and clients." = "Restarting or stopping this server ends all terminal sessions on %@, including sessions in other projects and clients.";
 "Restarting or stopping this server ends all terminal sessions on this device, including sessions in other projects and clients." = "Restarting or stopping this server ends all terminal sessions on this device, including sessions in other projects and clients.";
@@ -1383,6 +1395,7 @@
 "Saved Folders" = "Saved Folders";
 "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes." = "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes.";
 "Scope" = "Scope";
+"Screenshot failed" = "Screenshot failed";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
 "Scroll to Bottom" = "Scroll to Bottom";
@@ -1778,6 +1791,7 @@
 "Use bright ANSI colors for bold text in the first eight palette colors." = "Use bright ANSI colors for bold text in the first eight palette colors.";
 "Use existing branch" = "Use existing branch";
 "Use for the whole app" = "Use for the whole app";
+"Use macOS Home Folder" = "Use macOS Home Folder";
 "Use the filter at the top of the expanded sidebar to show one workspace or Focus Current Project. Right-click a project → Workspaces to add it to one." = "Use the filter at the top of the expanded sidebar to show one workspace or Focus Current Project. Right-click a project → Workspaces to add it to one.";
 "Use “%@” as Icon" = "Use “%@” as Icon";
 "User" = "User";

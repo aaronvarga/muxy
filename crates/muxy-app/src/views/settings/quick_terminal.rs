@@ -297,6 +297,13 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) {
         let fraction = controls::fraction_at(bounds, position);
+        if id == "project-icon-opacity" {
+            let opacity = Some((fraction * 100.0).round() as u8);
+            if opacity != self.snapshot.settings.appearance.project_icon_opacity {
+                cx.emit(SettingsEvent::Change(Change::ProjectIconOpacity(opacity)));
+            }
+            return;
+        }
         if id == "sidebar-icon-size" {
             let (min, _, max) = muxy_app_core::settings::SIDEBAR_ICON_SIZE;
             let size = min + (fraction * f32::from(max - min)).round() as u8;

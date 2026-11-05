@@ -630,3 +630,43 @@ fn quick_command_project_picker_saves_scope_with_the_command(cx: &mut TestAppCon
         Some(project)
     );
 }
+
+#[gpui::test]
+fn project_icon_background_opacity_slider_persists_and_reset_restores_the_theme(
+    cx: &mut TestAppContext,
+) {
+    let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
+    let path = boot.state_path.with_file_name("settings.toml");
+    let (model, settings) = settings_window(boot, cx);
+    click_preference(settings, "settings-category-Appearance");
+    click_preference(settings, "settings-disclosure-Appearance");
+    click_preference(settings, "settings-subcategory-Interface");
+    let bounds = settings
+        .debug_bounds("project-icon-opacity-slider")
+        .expect("opacity slider");
+    settings.simulate_click(bounds.center(), Modifiers::none());
+    settings.run_until_parked();
+    model.read_with(settings, |model, _| {
+        let opacity = model
+            .appearance
+            .project_icon_opacity
+            .expect("custom opacity");
+        assert!((40..=60).contains(&opacity));
+        assert_eq!(
+            muxy_app_core::settings::Appearance::load(&path)
+                .expect("saved opacity")
+                .project_icon_opacity,
+            Some(opacity)
+        );
+    });
+    click_preference(settings, "project-icon-opacity-reset");
+    model.read_with(settings, |model, _| {
+        assert_eq!(model.appearance.project_icon_opacity, None);
+    });
+    assert_eq!(
+        muxy_app_core::settings::Appearance::load(&path)
+            .expect("reset opacity")
+            .project_icon_opacity,
+        None
+    );
+}

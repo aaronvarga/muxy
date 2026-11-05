@@ -1364,11 +1364,12 @@ pub(super) fn remote_marker(project: &Project, model: &AppModel) -> Option<AnyEl
 }
 
 pub(crate) fn project_color(project: &Project, model: &AppModel) -> gpui::Rgba {
-    if project.home && project.server_id.is_local() {
-        model.theme.accent.to_rgb()
-    } else {
-        parse_hex(project.color.as_str()).unwrap_or(gpui::rgb(0x80_80_80))
+    if let Some(super::overlays::Overlay::ProjectEditor(editor)) = &model.overlay
+        && let Some(color) = editor.color_preview(project.id)
+    {
+        return color;
     }
+    parse_hex(project.color.as_str()).unwrap_or(gpui::rgb(0x80_80_80))
 }
 
 pub(crate) fn project_tile(
@@ -1380,7 +1381,11 @@ pub(crate) fn project_tile(
     let m = model.metrics;
     let id = project.id;
     let scale = f32::from(size) / f32::from(m.icon_xxl());
-    let (background, foreground) = tile_colors(project_color(project, model), &model.theme);
+    let (background, foreground) = tile_colors(
+        project_color(project, model),
+        &model.theme,
+        model.appearance.project_icon_opacity,
+    );
     let glyph = if let Some((_, logo)) = model.project_logos.get(&project.id) {
         gpui::img(logo.clone())
             .size(size)
@@ -1446,18 +1451,29 @@ pub(crate) fn project_tile(
         .into_any_element()
 }
 
-fn tile_colors(color: gpui::Rgba, theme: &muxy_ui::theme::Theme) -> (Hsla, Hsla) {
+fn tile_colors(
+    color: gpui::Rgba,
+    theme: &muxy_ui::theme::Theme,
+    opacity: Option<u8>,
+) -> (Hsla, Hsla) {
     const TINT: f32 = 0.2;
     const MARK_LIGHTNESS: f32 = 0.75;
     if theme.bg.l >= 0.5 {
-        return (color.into(), contrasting_foreground(color).into());
+        let mut background = Hsla::from(color);
+        if let Some(opacity) = opacity {
+            background.a = f32::from(opacity.min(100)) / 100.0;
+        }
+        return (background, contrasting_foreground(color).into());
     }
     let color = Hsla::from(color);
     let mark = Hsla {
         l: color.l.max(MARK_LIGHTNESS),
         ..color
     };
-    (color.opacity(TINT), mark)
+    (
+        color.opacity(opacity.map_or(TINT, |value| f32::from(value.min(100)) / 100.0)),
+        mark,
+    )
 }
 
 #[cfg(test)]
@@ -1470,14 +1486,28 @@ mod tests {
     }
 
     #[test]
+    fn project_background_opacity_does_not_fade_the_foreground() {
+        for background in ["#19171f", "#ffffff"] {
+            let theme = theme(background);
+            let red = gpui::rgb(0xe5_48_4d);
+            let (_, expected_mark) = tile_colors(red, &theme, None);
+            for opacity in [0, 45, 100] {
+                let (color, mark) = tile_colors(red, &theme, Some(opacity));
+                assert!((color.a - f32::from(opacity) / 100.0).abs() < f32::EPSILON);
+                assert_eq!(mark, expected_mark);
+            }
+        }
+    }
+
+    #[test]
     fn dark_themes_tint_tiles_and_lighten_their_marks() {
         let red = gpui::rgb(0xe5_48_4d);
-        let (background, mark) = tile_colors(red, &theme("#19171f"));
+        let (background, mark) = tile_colors(red, &theme("#19171f"), None);
         assert!((background.a - 0.2).abs() < f32::EPSILON);
         assert!((background.h - Hsla::from(red).h).abs() < 0.001);
         assert!(mark.l >= 0.75 && (mark.a - 1.0).abs() < f32::EPSILON);
 
-        let (background, mark) = tile_colors(red, &theme("#ffffff"));
+        let (background, mark) = tile_colors(red, &theme("#ffffff"), None);
         assert_eq!(background, Hsla::from(red));
         assert_eq!(mark, Hsla::from(contrasting_foreground(red)));
     }

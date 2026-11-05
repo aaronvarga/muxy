@@ -413,6 +413,7 @@ impl AppModel {
             ComposerEvent::Close => model.close_composer(cx),
             ComposerEvent::Submit(enter) => model.submit_composer(*enter, cx),
             ComposerEvent::Attach => model.choose_composer_files(cx),
+            ComposerEvent::Screenshot => model.capture_composer_screenshot(cx),
             ComposerEvent::Files(paths) => model.attach_composer_files(paths.clone(), cx),
             ComposerEvent::Image(bytes) => model.attach_composer_image(bytes.clone(), cx),
             ComposerEvent::Menu => model.composer_menu(false, cx),
@@ -619,12 +620,7 @@ impl AppModel {
 
     fn choose_composer_files(&mut self, cx: &mut Context<Self>) {
         let key = self.composer.key.clone();
-        let result = cx.prompt_for_paths(gpui::PathPromptOptions {
-            files: true,
-            directories: true,
-            multiple: true,
-            prompt: Some(tr!("Attach")),
-        });
+        let result = self.prompt_composer_files(cx);
         cx.spawn(async move |model, cx| {
             let result = result.await;
             let _ = model.update(cx, |model, cx| {
@@ -632,10 +628,100 @@ impl AppModel {
                     return;
                 }
                 match result {
-                    Ok(Ok(Some(paths))) => model.attach_composer_files(paths, cx),
-                    Ok(Ok(None)) => {}
-                    Ok(Err(error)) => model.composer_error(error.to_string(), cx),
-                    Err(error) => model.composer_error(error.to_string(), cx),
+                    Ok(Some(paths)) => model.attach_composer_files(paths, cx),
+                    Ok(None) => {}
+                    Err(error) => model.composer_error(error, cx),
+                }
+            });
+        })
+        .detach();
+    }
+
+    /// Asks for files to attach, starting in the composer's local project folder.
+    fn prompt_composer_files(
+        &self,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Option<Vec<PathBuf>>, String>> {
+        // gpui's own picker cannot start in a folder; only the macOS dialog can.
+        #[cfg(target_os = "macos")]
+        {
+            let project = self
+                .composer
+                .pane
+                .and_then(|pane| self.pane_project(pane))
+                .and_then(|(_, project)| self.state.project(project))
+                .unwrap_or_else(|| self.state.current_project());
+            if project.server_id.is_local() {
+                let (sender, receiver) = async_channel::bounded(1);
+                let dialog = muxy_ui::dialog::choose_paths(
+                    cx,
+                    &tr!("Attach"),
+                    &project.directory,
+                    move |paths| {
+                        let _ = sender.try_send(paths);
+                    },
+                );
+                return cx.spawn(async move |_, _| {
+                    let _dialog = dialog.map_err(|error| error.to_string())?;
+                    receiver
+                        .recv()
+                        .await
+                        .map_err(|error| error.to_string())?
+                        .map_err(|error| error.to_string())
+                });
+            }
+        }
+        let result = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: true,
+            directories: true,
+            multiple: true,
+            prompt: Some(tr!("Attach")),
+        });
+        cx.spawn(async move |_, _| {
+            result
+                .await
+                .map_err(|error| error.to_string())?
+                .map_err(|error| error.to_string())
+        })
+    }
+
+    /// Lets the user drag out a screen region with the system picker and
+    /// attaches it like a pasted image. Escape in the picker attaches nothing.
+    fn capture_composer_screenshot(&mut self, cx: &mut Context<Self>) {
+        let key = self.composer.key.clone();
+        cx.spawn(async move |model, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let path = std::env::temp_dir()
+                        .join(format!("muxy-screenshot-{}.png", std::process::id()));
+                    let _ = std::fs::remove_file(&path);
+                    let status = std::process::Command::new("/usr/sbin/screencapture")
+                        .args(["-i", "-x"])
+                        .arg(&path)
+                        .status()
+                        .map_err(|error| error.to_string())?;
+                    // A cancelled selection exits cleanly without writing the file.
+                    let bytes = match std::fs::read(&path) {
+                        Ok(bytes) => Some(bytes),
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                        Err(error) => return Err(error.to_string()),
+                    };
+                    let _ = std::fs::remove_file(&path);
+                    if bytes.is_none() && !status.success() {
+                        return Err(tr!("Screenshot failed").to_string());
+                    }
+                    Ok(bytes)
+                })
+                .await;
+            let _ = model.update(cx, |model, cx| {
+                if model.composer.key != key {
+                    return;
+                }
+                match result {
+                    Ok(Some(bytes)) => model.attach_composer_image(bytes, cx),
+                    Ok(None) => {}
+                    Err(error) => model.composer_error(error, cx),
                 }
             });
         })
