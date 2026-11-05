@@ -42,6 +42,8 @@ impl Feature {
     pub const FOLDER_GROUPS: Self = Self(0x8002);
     /// Fork capability: project icons can be up to `MAX_ICON_TEXT` characters.
     pub const TEXT_ICONS: Self = Self(0x8003);
+    /// Fork capability: change the built-in Home project's starting folder.
+    pub const HOME_DIRECTORY: Self = Self(0x8004);
 }
 
 /// Features this build's server supports.
@@ -52,4 +54,5 @@ pub const FEATURES: &[Feature] = &[
     Feature::PROJECT_FOLDERS,
     Feature::FOLDER_GROUPS,
     Feature::TEXT_ICONS,
+    Feature::HOME_DIRECTORY,
 ];

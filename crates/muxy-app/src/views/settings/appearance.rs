@@ -124,6 +124,11 @@ pub(super) fn rows(
     if category == Category::Appearance && pane.matches(category, tr_key!("Sidebar icon size")) {
         rows.push(sidebar_icon_size(pane, cx));
     }
+    if category == Category::Appearance
+        && pane.matches(category, tr_key!("Project icon background opacity"))
+    {
+        rows.push(project_icon_opacity(pane, cx));
+    }
     if category == Category::Appearance && pane.matches(category, tr_key!("Sidebar vibrancy")) {
         rows.push(pane.row(
             "sidebar-vibrancy",
@@ -496,6 +501,54 @@ fn sidebar_icon_size(pane: &SettingsView, cx: &mut Context<SettingsView>) -> Any
                     cx.emit(SettingsEvent::Change(Change::SidebarIconSize(default)));
                 }),
             ))
+            .into_any_element(),
+    )
+}
+
+fn project_icon_opacity(pane: &SettingsView, cx: &mut Context<SettingsView>) -> AnyElement {
+    let opacity = pane.snapshot.settings.appearance.project_icon_opacity;
+    let value = opacity
+        .unwrap_or(if pane.theme.bg.l < 0.5 { 20 } else { 100 })
+        .min(100);
+    pane.row(
+        "project-icon-opacity",
+        tr_key!("Project icon background opacity"),
+        div()
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .child(
+                div()
+                    .debug_selector(|| "project-icon-opacity-slider".into())
+                    .child(controls::slider(
+                        pane.style(),
+                        "project-icon-opacity",
+                        f32::from(value),
+                        (0.0, 100.0),
+                        cx.listener(|view, grab: &controls::Grab, _, cx| {
+                            view.quick_slider = Some(("project-icon-opacity", grab.bounds));
+                            view.move_quick_slider(
+                                "project-icon-opacity",
+                                grab.bounds,
+                                grab.position,
+                                cx,
+                            );
+                        }),
+                    )),
+            )
+            .child(format!("{value}%"))
+            .child(
+                controls::button(
+                    pane.style(),
+                    "project-icon-opacity-reset",
+                    &tr!("Reset"),
+                    opacity.is_some(),
+                    cx.listener(|_: &mut SettingsView, _, _, cx| {
+                        cx.emit(SettingsEvent::Change(Change::ProjectIconOpacity(None)));
+                    }),
+                )
+                .debug_selector(|| "project-icon-opacity-reset".into()),
+            )
             .into_any_element(),
     )
 }

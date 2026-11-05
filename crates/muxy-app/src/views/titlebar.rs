@@ -109,10 +109,10 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
         .flex_none()
         .items_center()
         .when(cfg!(target_os = "linux"), Styled::h_full)
-        .children(project_apps)
         .when(notifications, |bar| {
             bar.child(notifications_button(model, cx))
         })
+        .children(project_apps)
         .on_mouse_down(
             MouseButton::Right,
             cx.listener(|model, event: &gpui::MouseDownEvent, window, cx| {

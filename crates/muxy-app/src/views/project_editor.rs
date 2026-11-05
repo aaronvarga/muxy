@@ -1,7 +1,9 @@
+mod colors;
 pub(crate) mod folder_entry;
 pub(crate) mod icons;
 pub(crate) mod logo;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, AppContext, Context, Entity, Focusable, InteractiveElement, IntoElement,
     ParentElement, Pixels, Point, StatefulInteractiveElement, Styled, Window, div, px, size,
@@ -20,12 +22,14 @@ pub(crate) enum Field {
     Icon,
     /// One to four characters drawn in place of an icon.
     IconText,
+    Color,
 }
 
 #[derive(Clone, Copy)]
 enum Target {
     Project(ProjectId),
     ProjectIconText(ProjectId),
+    ProjectColor(ProjectId),
     Tab(TabId),
     Workspace(WorkspaceId),
     NewWorkspace(Option<ProjectId>),
@@ -43,6 +47,10 @@ pub(crate) struct Editor {
     input: Entity<TextInput>,
     position: Point<Pixels>,
     error: Option<String>,
+    color_presets: Vec<(String, String)>,
+    full_color: bool,
+    hsv: [f32; 3],
+    color_drag: Option<bool>,
 }
 
 impl AppModel {
@@ -108,6 +116,11 @@ impl AppModel {
                 .filter(|icon| muxy_protocol::icon_text_length(icon).is_some())
                 .unwrap_or_default();
             self.open_metadata_editor(Target::ProjectIconText(id), text, position, window, cx);
+            return;
+        }
+        if matches!(field, Field::Color) {
+            let text = project.color.to_string();
+            self.open_metadata_editor(Target::ProjectColor(id), text, position, window, cx);
             return;
         }
         let text = project.name.clone();
@@ -204,7 +217,13 @@ impl AppModel {
         cx: &mut Context<Self>,
     ) {
         let input = cx.new(|cx| {
-            TextInput::new(InputStyle::field(&self.theme, &self.metrics), cx).with_text(text)
+            TextInput::new(InputStyle::field(&self.theme, &self.metrics), cx)
+                .with_text(text.clone())
+                .with_placeholder(if matches!(target, Target::ProjectColor(_)) {
+                    "#RRGGBB"
+                } else {
+                    ""
+                })
         });
         input.update(cx, TextInput::select_all_text);
         input.focus_handle(cx).focus(window);
@@ -214,6 +233,11 @@ impl AppModel {
             InputEvent::Changed => {
                 if let Some(Overlay::ProjectEditor(editor)) = &mut model.overlay {
                     editor.error = None;
+                    if let Some(color) =
+                        muxy_ui::theme::parse_hex(editor.input.read(cx).text().trim())
+                    {
+                        editor.hsv = colors::to_hsv(color, editor.hsv[0]);
+                    }
                 }
                 cx.notify();
             }
@@ -223,6 +247,17 @@ impl AppModel {
             input,
             position,
             error: None,
+            full_color: false,
+            hsv: colors::to_hsv(
+                muxy_ui::theme::parse_hex(&text).unwrap_or(gpui::rgb(0)),
+                0.0,
+            ),
+            color_drag: None,
+            color_presets: if matches!(target, Target::ProjectColor(_)) {
+                colors::presets()
+            } else {
+                Vec::new()
+            },
         }));
         cx.notify();
     }
@@ -236,6 +271,14 @@ impl AppModel {
         let saved = match target {
             Target::Tab(id) => self.edit_tab(|state| state.set_tab_title(id, Some(text)), cx),
             Target::Project(id) => self.edit_project(|state| state.rename_project(id, &text), cx),
+            Target::ProjectColor(id) => {
+                if let Ok(color) = text.parse::<muxy_app_core::Color>() {
+                    self.edit_project(|state| state.set_project_color(id, color), cx)
+                } else {
+                    self.error = Some(tr!("Enter a color as #RRGGBB.").to_string());
+                    false
+                }
+            }
             // Empty text removes the icon, restoring the default letter.
             Target::ProjectIconText(id) if text.is_empty() => {
                 self.edit_project(|state| state.set_project_icon(id, None), cx)
@@ -317,17 +360,18 @@ pub(crate) fn render(
 ) -> AnyElement {
     let m = model.metrics;
     let theme = &model.theme;
+    let color_editor = matches!(editor.target, Target::ProjectColor(_));
+    let width = m.scaled(if color_editor { 536.0 } else { 320.0 });
     let origin = clamp(
         editor.position,
-        size(m.scaled(320.0), m.scaled(220.0)),
+        size(width, m.scaled(if color_editor { 540.0 } else { 220.0 })),
         window.viewport_size(),
     );
     muxy_ui::popover::surface(theme, m)
         .absolute()
         .left(origin.x)
         .top(origin.y)
-        .w(m.scaled(320.0)
-            .min((window.viewport_size().width - px(16.0)).max(px(0.0))))
+        .w(width.min((window.viewport_size().width - px(16.0)).max(px(0.0))))
         .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .child(model.webview_occlusion())
         .child(
@@ -335,6 +379,7 @@ pub(crate) fn render(
                 Target::Tab(_) => tr!("Rename Tab"),
                 Target::Project(_) => tr!("Rename Project"),
                 Target::ProjectIconText(_) => tr!("Icon Text"),
+                Target::ProjectColor(_) => tr!("Project Color"),
                 Target::Workspace(_) => tr!("Rename Workspace"),
                 Target::NewWorkspace(_) => tr!("New Workspace"),
                 Target::NewFolderGroup => tr!("New Folder Group"),
@@ -346,6 +391,15 @@ pub(crate) fn render(
         )
         .child(
             muxy_ui::popover::body(m)
+                .id("project-editor-body")
+                .when(color_editor, |body| {
+                    body.max_h(
+                        (window.viewport_size().height - m.scaled(150.0)).max(m.scaled(100.0)),
+                    )
+                    .overflow_y_scroll()
+                    .child(colors::picker(editor, model, cx))
+                    .child(div().text_size(m.font_footnote()).child(tr!("Hex color")))
+                })
                 .child(muxy_ui::controls::text_field(
                     muxy_ui::controls::Style { theme, metrics: &m },
                     "project-editor",
@@ -371,6 +425,7 @@ pub(crate) fn render(
                 .child(
                     div()
                         .id("save-project-editor")
+                        .debug_selector(|| "save-project-editor".into())
                         .cursor_pointer()
                         .flex()
                         .items_center()

@@ -160,7 +160,7 @@ fn project_stripe(entry: &Entry, model: &AppModel) -> Option<AnyElement> {
             .w(m.scaled(3.0))
             .h(m.icon_sm())
             .rounded_full()
-            .bg(super::sidebar::project_color(root, model))
+            .bg(super::sidebar::project_color(root))
             .into_any_element(),
     )
 }
