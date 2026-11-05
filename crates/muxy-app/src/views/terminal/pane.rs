@@ -1841,6 +1841,38 @@ mod tests {
     }
 
     #[gpui::test]
+    fn native_text_commits_invalidate_the_cached_terminal_without_waiting_for_output(
+        cx: &mut TestAppContext,
+    ) {
+        use gpui::EntityInputHandler;
+        let (pane, cx) = cx.add_window_view(|window, cx| {
+            let mut pane = TerminalPane::new(
+                Palette::new(true),
+                muxy_app_core::settings::TerminalSettings::default(),
+                cx,
+            );
+            prepare_mouse(&mut pane);
+            pane.focus.focus(window);
+            pane
+        });
+        cx.run_until_parked();
+        let invalidated = std::rc::Rc::new(std::cell::Cell::new(false));
+        let observed = invalidated.clone();
+        let _subscription = cx.update(|_, cx| cx.observe(&pane, move |_, _| observed.set(true)));
+        for text in ["a", "日本", "😀"] {
+            invalidated.set(false);
+            pane.update_in(cx, |pane, window, cx| {
+                pane.replace_text_in_range(None, text, window, cx);
+            });
+            cx.run_until_parked();
+            assert!(
+                invalidated.get(),
+                "native commit must invalidate cached input paint"
+            );
+        }
+    }
+
+    #[gpui::test]
     fn keyboard_dispatch_respects_option_settings_and_text_input(cx: &mut TestAppContext) {
         let (pane, cx) = cx.add_window_view(|window, cx| {
             let mut pane = TerminalPane::new(

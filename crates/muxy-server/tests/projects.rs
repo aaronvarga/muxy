@@ -87,6 +87,12 @@ fn folder_groups_persist_entries_and_reject_entries_on_ordinary_projects() -> Re
             .is_err()
     );
     registry.mutate_project(&patch(group.id, entries.clone()))?;
+    let mut files = muxy_protocol::FilesRequest {
+        project: group.id,
+        root: None,
+        action: muxy_protocol::FilesAction::List(ServerPath(Vec::new())),
+    };
+    assert!(registry.files(&files).is_err());
     let parent = fixture.0.join("clients");
     let child = parent.join("Acme");
     fs::create_dir_all(&child)?;
@@ -110,12 +116,22 @@ fn folder_groups_persist_entries_and_reject_entries_on_ordinary_projects() -> Re
             .is_err()
     );
     assert!(!fixture.0.join(".git").exists());
-    let mut files = muxy_protocol::FilesRequest {
-        project: group.id,
-        root: None,
-        action: muxy_protocol::FilesAction::List(ServerPath(Vec::new())),
-    };
+    for root in [
+        None,
+        Some(ServerPath(parent.as_os_str().as_bytes().to_vec())),
+    ] {
+        files.root = root;
+        assert!(
+            matches!(registry.files(&files)?, muxy_protocol::FilesReply::Entries(entries)
+            if entries.len() == 1 && entries[0].name.0 == b"Acme" && entries[0].is_directory)
+        );
+    }
+    files.root = Some(ServerPath(b"/".to_vec()));
     assert!(registry.files(&files).is_err());
+    files.root = None;
+    files.action = muxy_protocol::FilesAction::List(ServerPath(b"..".to_vec()));
+    assert!(registry.files(&files).is_err());
+    files.action = muxy_protocol::FilesAction::List(ServerPath(Vec::new()));
     files.root = Some(ordinary.directory.clone());
     assert!(registry.files(&files).is_ok());
     files.root = Some(ServerPath(child.as_os_str().as_bytes().to_vec()));
@@ -133,14 +149,7 @@ fn folder_groups_persist_entries_and_reject_entries_on_ordinary_projects() -> Re
         .ok_or("group")?;
     assert!(saved.auto_subfolders);
     assert_eq!(saved.directory.0, parent.as_os_str().as_bytes());
-    assert_eq!(
-        page.projects
-            .iter()
-            .find(|project| project.id == group.id)
-            .ok_or("group")?
-            .folder_entries,
-        entries
-    );
+    assert_eq!(saved.folder_entries, entries);
     assert!(
         page.projects
             .iter()

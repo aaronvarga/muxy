@@ -386,8 +386,7 @@ impl Composer {
 const COMPLETIONS: usize = 8;
 
 impl Composer {
-    /// The word being completed and the skills it matches, best first. `/`
-    /// completes only at the start of the message, as agents read it there.
+    /// The word being completed and the skills it matches, best first.
     pub(crate) fn completion(
         &self,
         cx: &gpui::App,
@@ -411,8 +410,7 @@ impl Composer {
             .map_or(0, |(index, character)| index + character.len_utf8());
         let word = &text[start..];
         let trigger = word.chars().next()?;
-        if !(trigger == '$' || trigger == '/' && start == 0) || self.skill_dismissed == Some(start)
-        {
+        if !matches!(trigger, '$' | '/') || self.skill_dismissed == Some(start) {
             return None;
         }
         let query = word[1..].to_lowercase();
