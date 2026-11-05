@@ -533,7 +533,7 @@ impl ProjectPicker {
                 action.disabled(disabled)
             })
             .collect();
-        if self.purpose == Purpose::AddProject && self.remote.is_none() {
+        if matches!(self.purpose, Purpose::AddProject | Purpose::AddFolder(_)) && self.remote.is_none() {
             actions.push(PickerAction::new("finder", crate::opener::browse_label()));
         }
         actions
@@ -548,6 +548,32 @@ impl ProjectPicker {
             InputMode::Path => self.session.path_state().directory_path,
         };
         cx.emit(PickerEvent::ChooseFolder { directory });
+    }
+
+    /// Picks a folder with the system dialog, then adds it like a typed path.
+    fn choose_folder(cx: &mut Context<Self>) {
+        let result = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some(tr!("Choose Folder")),
+        });
+        cx.spawn(async move |picker, cx| {
+            let Ok(Ok(Some(paths))) = result.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            let _ = picker.update(cx, |_, cx| {
+                cx.emit(PickerEvent::Confirm {
+                    path: path_service::standardize(&path.to_string_lossy()),
+                    create_if_missing: false,
+                    home_terminal: false,
+                });
+            });
+        })
+        .detach();
     }
 
     fn activate(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -927,7 +953,8 @@ impl AppModel {
                         model.confirm_project_path(path, *create_if_missing, cx);
                     }
                     PickerEvent::ChooseFolder { directory } => {
-                        model.choose_project_folder(PathBuf::from(directory), cx);
+                        let purpose = picker.read(cx).purpose;
+                        model.choose_project_folder(purpose, PathBuf::from(directory), cx);
                     }
                     PickerEvent::Dismiss => model.dismiss_overlay(cx),
                 }),
@@ -1183,7 +1210,12 @@ impl AppModel {
         }
     }
 
-    fn choose_project_folder(&mut self, directory: PathBuf, cx: &mut Context<Self>) {
+    fn choose_project_folder(
+        &mut self,
+        purpose: Purpose,
+        directory: PathBuf,
+        cx: &mut Context<Self>,
+    ) {
         if self.dialogs.is_open() {
             return;
         }
@@ -1192,7 +1224,10 @@ impl AppModel {
             self.window,
             async move |_, cx| folder_prompt(directory, cx).await,
             |model, response, cx| match response {
-                Ok(Some(path)) => model.open_project_path(path, true, cx),
+                Ok(Some(path)) => match purpose {
+                    Purpose::AddFolder(project) => model.push_project_folder(project, path, cx),
+                    _ => model.open_project_path(path, true, cx),
+                },
                 Ok(None) => {}
                 Err(error) => model.fail(error, cx),
             },
