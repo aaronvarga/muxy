@@ -270,6 +270,7 @@
 "Cancel scheduled update" = "Cancel scheduled update";
 "Cancelled" = "Cancelled";
 "Cannot read the development build at %@: %@. Run scripts/build-linux-dev.sh in this checkout, then retry installation." = "Cannot read the development build at %@: %@. Run scripts/build-linux-dev.sh in this checkout, then retry installation.";
+"Capture Screenshot" = "Capture Screenshot";
 "Case" = "Case";
 "Change Home Folder…" = "Change Home Folder…";
 "Change Theme…" = "Change Theme…";
@@ -1394,6 +1395,7 @@
 "Saved Folders" = "Saved Folders";
 "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes." = "Scan it with the Muxy phone app, or on another computer choose Pair with Link… in the Devices section and paste the link. The code works once and expires in 5 minutes.";
 "Scope" = "Scope";
+"Screenshot failed" = "Screenshot failed";
 "Scroll page down" = "Scroll page down";
 "Scroll page up" = "Scroll page up";
 "Scroll to Bottom" = "Scroll to Bottom";
