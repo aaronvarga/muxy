@@ -107,6 +107,15 @@ impl Composer {
             )
             .rounded(m.radius_xl())
             .when(active, |button| button.bg(theme.diff_remove))
+            .when(enabled, |button| {
+                button.cursor_pointer().hover(|style| {
+                    style.bg(if active {
+                        theme.diff_remove.opacity(0.85)
+                    } else {
+                        theme.hover
+                    })
+                })
+            })
             .child(SymbolGlyph::new(symbol, glyph_size, color))
             .tooltip(move |_, cx| {
                 cx.new(|_| {
@@ -559,7 +568,10 @@ impl Composer {
             .bg(self.theme.accent)
             .child(SymbolGlyph::new("arrow.up", m.font_body(), self.theme.accent_foreground).bold())
             .when(enabled, |button| {
-                button.button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
+                button
+                    .cursor_pointer()
+                    .hover(|style| style.opacity(0.85))
+                    .button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
             })
             .into_any_element()
     }
