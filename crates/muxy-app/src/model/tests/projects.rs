@@ -1335,3 +1335,35 @@ fn icon_picker_searches_and_files_the_whole_system_catalog(cx: &mut TestAppConte
         );
     });
 }
+
+#[gpui::test]
+fn changing_home_folder_requires_server_support_and_preserves_existing_tabs(
+    cx: &mut TestAppContext,
+) {
+    let directory = tempfile::tempdir().expect("Home folder");
+    let mut state = AppState::bootstrap().expect("state");
+    state.open_terminal_tab(state.home().id).expect("tab");
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| {
+        let old = model.state.clone();
+        model.change_home_folder(directory.path().into(), cx);
+        assert_eq!(model.state, old);
+        model.servers.local.connection = ConnectionState::Ready;
+        model.receive(
+            local(
+                1,
+                Update::ServerInfo(
+                    muxy_protocol::ServerInfo::current(),
+                    muxy_protocol::FEATURES.to_vec(),
+                ),
+            ),
+            cx,
+        );
+        model.change_home_folder(directory.path().into(), cx);
+        assert_eq!(model.state.home().directory, directory.path());
+        assert_eq!(model.state.home().tabs, old.home().tabs);
+        let saved = store::load(&model.path).expect("saved Home folder");
+        assert_eq!(saved.home().directory, directory.path());
+    });
+}

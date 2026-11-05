@@ -271,6 +271,7 @@
 "Cancelled" = "Cancelled";
 "Cannot read the development build at %@: %@. Run scripts/build-linux-dev.sh in this checkout, then retry installation." = "Cannot read the development build at %@: %@. Run scripts/build-linux-dev.sh in this checkout, then retry installation.";
 "Case" = "Case";
+"Change Home Folder…" = "Change Home Folder…";
 "Change Theme…" = "Change Theme…";
 "Changes apply immediately. Press Return or leave a field to save text." = "Changes apply immediately. Press Return or leave a field to save text.";
 "Character spacing" = "Character spacing";
@@ -290,6 +291,7 @@
 "Choose Folder" = "Choose Folder";
 "Choose Folder…" = "Choose Folder…";
 "Choose Font…" = "Choose Font…";
+"Choose Home Folder" = "Choose Home Folder";
 "Choose Icon…" = "Choose Icon…";
 "Choose Logo" = "Choose Logo";
 "Choose Muxy backup or 1.x settings.json" = "Choose Muxy backup or 1.x settings.json";
@@ -1330,6 +1332,7 @@
 "Restart the Server on %@?" = "Restart the Server on %@?";
 "Restart the app to install the update. Your terminal sessions will keep running. You can update the server afterward." = "Restart the app to install the update. Your terminal sessions will keep running. You can update the server afterward.";
 "Restart the server from Settings to use the imported default shell." = "Restart the server from Settings to use the imported default shell.";
+"Restart the server to change the Home folder." = "Restart the server to change the Home folder.";
 "Restart the server to use icon text longer than one character." = "Restart the server to use icon text longer than one character.";
 "Restarting or stopping this server ends all terminal sessions on %@, including sessions in other projects and clients." = "Restarting or stopping this server ends all terminal sessions on %@, including sessions in other projects and clients.";
 "Restarting or stopping this server ends all terminal sessions on this device, including sessions in other projects and clients." = "Restarting or stopping this server ends all terminal sessions on this device, including sessions in other projects and clients.";
@@ -1778,6 +1781,7 @@
 "Use bright ANSI colors for bold text in the first eight palette colors." = "Use bright ANSI colors for bold text in the first eight palette colors.";
 "Use existing branch" = "Use existing branch";
 "Use for the whole app" = "Use for the whole app";
+"Use macOS Home Folder" = "Use macOS Home Folder";
 "Use the filter at the top of the expanded sidebar to show one workspace or Focus Current Project. Right-click a project → Workspaces to add it to one." = "Use the filter at the top of the expanded sidebar to show one workspace or Focus Current Project. Right-click a project → Workspaces to add it to one.";
 "Use “%@” as Icon" = "Use “%@” as Icon";
 "User" = "User";

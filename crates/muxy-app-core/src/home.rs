@@ -33,7 +33,7 @@ impl AppState {
         })
     }
 
-    /// The local Home goes first, in the OS home directory. A remote server's
+    /// The local Home goes first, keeping its catalog directory. A remote server's
     /// Home comes from its catalog and goes first among its projects.
     pub(crate) fn ensure_home(&mut self) -> Result<(), AppError> {
         let directory = home_directory()?;
@@ -52,7 +52,6 @@ impl AppState {
         if let Some(index) = index {
             let mut home = self.projects.remove(index);
             home.home = true;
-            home.directory = directory;
             self.projects.insert(0, home);
         } else {
             self.projects.insert(0, new_home(directory)?);
@@ -91,6 +90,26 @@ impl AppState {
         {
             self.sync_groups(project);
         }
+        Ok(())
+    }
+
+    /// Changes the local Home's starting folder without touching existing panes.
+    pub fn set_home_directory(&mut self, directory: PathBuf) -> Result<(), AppError> {
+        if !directory.is_absolute() || !directory.is_dir() {
+            return Err(AppError::InvalidState(
+                "choose an existing absolute Home folder".into(),
+            ));
+        }
+        let id = self.home().id;
+        self.patch_project(
+            id,
+            muxy_protocol::ProjectPatch::HomeDirectory(ServerPath(
+                directory.clone().into_os_string().into_vec(),
+            )),
+        )?;
+        let home = self.project_mut(id)?;
+        home.directory = directory;
+        home.refresh_status();
         Ok(())
     }
 
