@@ -33,6 +33,7 @@ pub(crate) enum ComposerEvent {
     Changed,
     Submit(bool),
     Attach,
+    Screenshot,
     Files(Vec<std::path::PathBuf>),
     Image(Vec<u8>),
     Close,
