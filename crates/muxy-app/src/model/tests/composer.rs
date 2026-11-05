@@ -498,6 +498,7 @@ fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
     view.update(cx, |model, cx| {
         let composer = model.composer.view.clone().expect("composer");
         composer.update(cx, |composer, _| {
+            composer.settings.presentation = muxy_app_core::settings::ComposerPresentation::Docked;
             composer.skills = std::sync::Arc::new(
                 ["/review", "/release-notes", "/plan", "$imagegen"]
                     .map(|text| Skill {
@@ -526,11 +527,16 @@ fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
         offered(cx),
         Some(vec!["/review".into(), "/release-notes".into()])
     );
-    cx.simulate_keystrokes("down enter");
+    cx.simulate_keystrokes("down tab");
     assert_eq!(composer_text(&view, cx), "/release-notes ");
-    // `/` completes only at the start; `$` anywhere; Escape hides the list.
-    cx.simulate_input("x /pl");
+    // Both triggers complete in prose; Tab accepts without sending.
+    cx.simulate_input("x /pl tail");
+    cx.simulate_keystrokes("left left left left left");
+    assert_eq!(offered(cx), Some(vec!["/plan".into()]));
+    cx.simulate_keystrokes("tab");
+    assert_eq!(composer_text(&view, cx), "/release-notes x /plan  tail");
     assert_eq!(offered(cx), None);
+    cx.simulate_keystrokes("right right right right right");
     cx.simulate_input(" $ima");
     assert_eq!(offered(cx), Some(vec!["$imagegen".into()]));
     cx.simulate_keystrokes("escape");
@@ -545,8 +551,36 @@ fn agent_skills_complete_from_a_popup_without_sending(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(
         delivery(&requests).0,
-        b"\x15/release-notes x /pl $ima\r".to_vec()
+        b"\x15/release-notes x /plan  tail $ima\r".to_vec()
     );
+}
+
+#[gpui::test]
+fn enter_completes_an_inline_skill_and_sends_in_one_press(cx: &mut TestAppContext) {
+    let (view, cx, requests) = attached_composer(cx);
+    view.update(cx, |model, cx| {
+        model
+            .composer
+            .view
+            .as_ref()
+            .expect("composer")
+            .update(cx, |composer, _| {
+                composer.settings.presentation =
+                    muxy_app_core::settings::ComposerPresentation::Docked;
+                composer.skills = std::sync::Arc::new(vec![muxy_app_core::agent_skills::Skill {
+                    text: "/plan".into(),
+                    description: String::new(),
+                }]);
+            });
+    });
+    cx.simulate_input("Please /pl");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let (bytes, completion) = delivery(&requests);
+    assert_eq!(bytes, b"\x15Please /plan \r");
+    completion.try_send(Ok(())).expect("ack");
+    cx.run_until_parked();
+    assert_eq!(composer_text(&view, cx), "");
 }
 
 #[gpui::test]
