@@ -106,7 +106,8 @@ impl Composer {
                 },
             )
             .rounded(m.radius_xl())
-            .child(SymbolGlyph::new(symbol, glyph_size, color))
+            .cursor_pointer()
+            .child(SymbolGlyph::new(symbol, glyph_size, color).hover_in_group(id, theme.accent))
             .tooltip(muxy_ui::components::tooltip(
                 if id == "composer-close" {
                     muxy_ui::shortcuts::tooltip_text(translate(label), &Close, cx)
@@ -474,7 +475,9 @@ impl Composer {
             .bg(self.theme.accent)
             .child(SymbolGlyph::new("arrow.up", m.font_body(), self.theme.accent_foreground).bold())
             .when(enabled, |button| {
-                button.button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
+                button
+                    .cursor_pointer()
+                    .button_interaction(cx.listener(|view, _, _, cx| view.submit(true, cx)))
             })
             .into_any_element()
     }
@@ -667,11 +670,12 @@ impl Composer {
             ))
             .capture_action(
                 cx.listener(|view, _: &muxy_ui::text_input::InsertNewline, _, cx| {
-                    // Enter takes the highlighted suggestion, or sends;
-                    // Shift-Enter (`Newline`) adds a line.
-                    if !view.accept_completion(None, cx) {
-                        view.submit(true, cx);
-                    }
+                    view.accept_completion(None, cx);
+                    // Save completion edits before taking the submission revision.
+                    let composer = cx.entity();
+                    cx.defer(move |cx| {
+                        composer.update(cx, |view, cx| view.submit(true, cx));
+                    });
                     cx.stop_propagation();
                 }),
             )
