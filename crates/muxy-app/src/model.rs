@@ -3086,6 +3086,7 @@ mod tests {
     mod layout_drag;
     mod links;
     mod new_tab;
+    mod native_input;
     mod preferences;
     mod project_apps;
     mod project_layouts;

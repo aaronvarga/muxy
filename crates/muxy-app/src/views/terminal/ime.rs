@@ -93,9 +93,8 @@ impl EntityInputHandler for TerminalPane {
             self.keyboard.pending = None;
         }
         self.send_text(&composition.text, cx);
-        if had_composition {
-            cx.notify();
-        }
+        // Native input temporarily owns the handler; cached paint cannot replay that slot.
+        cx.notify();
     }
 
     fn replace_and_mark_text_in_range(
