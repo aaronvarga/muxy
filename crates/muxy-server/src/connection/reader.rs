@@ -523,7 +523,7 @@ fn project_request(
 
         RequestBody::ReadCatalog { after, revision } => {
             outbox.watch_catalog();
-            ReplyBody::Catalog(registry.read_catalog(after, revision)?)
+            ReplyBody::Catalog(catalog_for(outbox, registry.read_catalog(after, revision)?))
         }
         RequestBody::MutateProject(intent) => ReplyBody::ProjectMutated {
             revision: registry.mutate_project(&intent)?,
@@ -647,4 +647,27 @@ fn attach(
             None => SessionCommand::AttachWithoutResize { id, channel, sink },
         },
     )
+}
+
+/// Stock phone apps reject the whole catalog over a fork text icon, so phones get no icon instead.
+pub(super) fn catalog_for(
+    outbox: &Outbox,
+    mut page: muxy_protocol::CatalogPage,
+) -> muxy_protocol::CatalogPage {
+    if outbox
+        .device_kind()
+        .is_some_and(|kind| kind != muxy_protocol::DeviceKind::Computer)
+    {
+        for project in &mut page.projects {
+            if project
+                .icon
+                .as_deref()
+                .and_then(muxy_protocol::icon_text_length)
+                .is_some_and(|length| length > 1)
+            {
+                project.icon = None;
+            }
+        }
+    }
+    page
 }

@@ -611,6 +611,10 @@ fn folder_group_samples() -> Vec<Message> {
         },
         crate::ProjectMutation::Patch {
             project: crate::ProjectId::from_u128(1),
+            patch: crate::ProjectPatch::HomeDirectory(ServerPath(b"/tmp/home".to_vec())),
+        },
+        crate::ProjectMutation::Patch {
+            project: crate::ProjectId::from_u128(1),
             patch: crate::ProjectPatch::FolderSource {
                 directory: ServerPath(b"/tmp/clients".to_vec()),
                 auto_subfolders: true,

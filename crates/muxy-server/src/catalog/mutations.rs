@@ -67,6 +67,17 @@ impl Catalog {
                         {
                             return Err(bad("only folder groups can change their folder source"));
                         }
+                        if let ProjectPatch::HomeDirectory(directory) = patch {
+                            if *project != state.home {
+                                return Err(bad("only Home can change its starting folder"));
+                            }
+                            if !Path::new(OsStr::from_bytes(&directory.0)).is_dir() {
+                                return Err(ServerError::new(
+                                    muxy_protocol::ErrorCode::BadPath,
+                                    "Home folder does not exist",
+                                ));
+                            }
+                        }
                         if let ProjectPatch::Folders(folders) = patch {
                             state.validate_folders(&descriptor, folders)?;
                         }
