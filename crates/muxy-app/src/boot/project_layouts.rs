@@ -1,12 +1,32 @@
 use muxy_app_core::project_layouts::{Config, DIRECTORY, Descriptor, discover};
 use muxy_client::Client;
-use muxy_protocol::{ProjectId, ServerPath};
+use muxy_protocol::{FileEntry, ProjectId, ServerPath};
 
 pub(super) fn list(client: &Client, project: ProjectId) -> Result<Vec<Descriptor>, String> {
+    match entries(client, project, DIRECTORY) {
+        Ok(entries) => Ok(discover(entries)),
+        // A project without the folder simply has no layouts.
+        Err(_) if !exists(client, project, DIRECTORY) => Ok(Vec::new()),
+        Err(error) => Err(error),
+    }
+}
+
+fn entries(client: &Client, project: ProjectId, path: &str) -> Result<Vec<FileEntry>, String> {
     client
-        .list_directory(project, ServerPath::from(DIRECTORY))
-        .map(discover)
+        .list_directory(project, ServerPath::from(path))
         .map_err(|error| error.to_string())
+}
+
+/// Whether `path` is listed as a folder in its parent, checked from the project root down.
+/// The server reports a missing folder only as a generic bad path.
+fn exists(client: &Client, project: ProjectId, path: &str) -> bool {
+    let (parent, name) = path.rsplit_once('/').unwrap_or(("", path));
+    (parent.is_empty() || exists(client, project, parent))
+        && entries(client, project, parent).is_ok_and(|entries| {
+            entries
+                .iter()
+                .any(|entry| entry.is_directory && entry.name.0 == name.as_bytes())
+        })
 }
 
 pub(super) fn load(
