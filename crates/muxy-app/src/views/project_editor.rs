@@ -1,7 +1,9 @@
+mod colors;
 pub(crate) mod folder_entry;
 pub(crate) mod icons;
 pub(crate) mod logo;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, AppContext, Context, Entity, Focusable, InteractiveElement, IntoElement,
     ParentElement, Pixels, Point, StatefulInteractiveElement, Styled, Window, div, px, size,
@@ -20,12 +22,14 @@ pub(crate) enum Field {
     Icon,
     /// One to four characters drawn in place of an icon.
     IconText,
+    Color,
 }
 
 #[derive(Clone, Copy)]
 enum Target {
     Project(ProjectId),
     ProjectIconText(ProjectId),
+    ProjectColor(ProjectId),
     Tab(TabId),
     Workspace(WorkspaceId),
     NewWorkspace(Option<ProjectId>),
@@ -43,6 +47,21 @@ pub(crate) struct Editor {
     input: Entity<TextInput>,
     position: Point<Pixels>,
     error: Option<String>,
+    color_presets: Vec<(String, String)>,
+    full_color: bool,
+    color_preview: Option<gpui::Rgba>,
+    hsv: [f32; 3],
+    color_drag: Option<(bool, gpui::Bounds<Pixels>)>,
+}
+
+impl Editor {
+    pub(super) fn color_preview(&self, project: ProjectId) -> Option<gpui::Rgba> {
+        if matches!(self.target, Target::ProjectColor(id) if id == project) {
+            self.color_preview
+        } else {
+            None
+        }
+    }
 }
 
 impl AppModel {
@@ -118,6 +137,11 @@ impl AppModel {
                 .filter(|icon| muxy_protocol::icon_text_length(icon).is_some())
                 .unwrap_or_default();
             self.open_metadata_editor(Target::ProjectIconText(id), text, position, window, cx);
+            return;
+        }
+        if matches!(field, Field::Color) {
+            let text = project.color.to_string();
+            self.open_metadata_editor(Target::ProjectColor(id), text, position, window, cx);
             return;
         }
         let text = project.name.clone();
@@ -213,10 +237,19 @@ impl AppModel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let hsv = colors::to_hsv(
+            muxy_ui::theme::parse_hex(&text).unwrap_or(gpui::rgb(0)),
+            0.0,
+        );
         let input = cx.new(|cx| {
             let mut input = TextInput::new(InputStyle::field(&self.theme, &self.metrics), cx)
                 .with_accessibility_id("settings-field-project-editor")
-                .with_text(text);
+                .with_text(text)
+                .with_placeholder(if matches!(target, Target::ProjectColor(_)) {
+                    "#RRGGBB"
+                } else {
+                    ""
+                });
             input.set_accessible_name(title(target));
             input
         });
@@ -228,6 +261,16 @@ impl AppModel {
             InputEvent::Changed => {
                 if let Some(Overlay::ProjectEditor(editor)) = &mut model.overlay {
                     editor.error = None;
+                    let text = editor.input.read(cx).text().trim();
+                    if matches!(editor.target, Target::ProjectColor(_))
+                        && text.parse::<muxy_app_core::Color>().is_ok()
+                        && let Some(color) = muxy_ui::theme::parse_hex(text)
+                    {
+                        editor.color_preview = Some(color);
+                        if !text.eq_ignore_ascii_case(&colors::hex(editor.hsv)) {
+                            editor.hsv = colors::to_hsv(color, editor.hsv[0]);
+                        }
+                    }
                 }
                 cx.notify();
             }
@@ -238,6 +281,15 @@ impl AppModel {
                 input,
                 position,
                 error: None,
+                full_color: false,
+                color_preview: None,
+                hsv,
+                color_drag: None,
+                color_presets: if matches!(target, Target::ProjectColor(_)) {
+                    colors::presets()
+                } else {
+                    Vec::new()
+                },
             }),
             cx,
         );
@@ -253,6 +305,14 @@ impl AppModel {
         let saved = match target {
             Target::Tab(id) => self.edit_tab(|state| state.set_tab_title(id, Some(text)), cx),
             Target::Project(id) => self.edit_project(|state| state.rename_project(id, &text), cx),
+            Target::ProjectColor(id) => {
+                if let Ok(color) = text.parse::<muxy_app_core::Color>() {
+                    self.edit_project(|state| state.set_project_color(id, color), cx)
+                } else {
+                    self.error = Some(tr!("Enter a color as #RRGGBB.").to_string());
+                    false
+                }
+            }
             // Empty text removes the icon, restoring the default letter.
             Target::ProjectIconText(id) if text.is_empty() => {
                 self.edit_project(|state| state.set_project_icon(id, None), cx)
@@ -327,7 +387,11 @@ impl AppModel {
 }
 
 impl OverlayView for Editor {
-    fn render(
+    #[allow(
+    clippy::too_many_lines,
+    reason = "Keep the editor layout and its event handlers together"
+)]
+fn render(
         &self,
         mark: Option<Mark>,
         model: &AppModel,
@@ -347,6 +411,7 @@ fn title(target: Target) -> gpui::SharedString {
         Target::Tab(_) => tr!("Rename Tab"),
         Target::Project(_) => tr!("Rename Project"),
         Target::ProjectIconText(_) => tr!("Icon Text"),
+        Target::ProjectColor(_) => tr!("Project Color"),
         Target::Workspace(_) => tr!("Rename Workspace"),
         Target::NewWorkspace(_) => tr!("New Workspace"),
         Target::NewFolderGroup => tr!("New Folder Group"),
@@ -357,6 +422,10 @@ fn title(target: Target) -> gpui::SharedString {
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep the editor layout and its event handlers together"
+)]
 fn render(
     editor: &Editor,
     mark: Option<Mark>,
@@ -366,9 +435,11 @@ fn render(
 ) -> AnyElement {
     let m = model.metrics;
     let theme = &model.theme;
+    let color_editor = matches!(editor.target, Target::ProjectColor(_));
+    let width = m.scaled(if color_editor { 544.0 } else { 320.0 });
     let origin = clamp(
         editor.position,
-        size(m.scaled(320.0), m.scaled(220.0)),
+        size(width, m.scaled(if color_editor { 540.0 } else { 220.0 })),
         window.viewport_size(),
     );
     muxy_ui::popover::surface(theme, m)
@@ -379,13 +450,51 @@ fn render(
         .absolute()
         .left(origin.x)
         .top(origin.y)
-        .w(m.scaled(320.0)
-            .min((window.viewport_size().width - px(16.0)).max(px(0.0))))
+        .w(width.min((window.viewport_size().width - px(16.0)).max(px(0.0))))
         .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_key_down(cx.listener(|model, event: &gpui::KeyDownEvent, _, cx| {
+            if event.keystroke.key == "escape" {
+                model.dismiss_overlay(cx);
+                cx.stop_propagation();
+            }
+        }))
+        .on_mouse_move(cx.listener(|model, event: &gpui::MouseMoveEvent, _, cx| {
+            if event.pressed_button == Some(gpui::MouseButton::Left)
+                && let Some(Overlay::ProjectEditor(editor)) = &model.overlay
+                && let Some((hue, bounds)) = editor.color_drag
+            {
+                model.move_project_color(hue, bounds, event.position, cx);
+            }
+        }))
+        .on_mouse_up(
+            gpui::MouseButton::Left,
+            cx.listener(|model, _, _, _| {
+                if let Some(Overlay::ProjectEditor(editor)) = &mut model.overlay {
+                    editor.color_drag = None;
+                }
+            }),
+        )
+        .on_mouse_up_out(
+            gpui::MouseButton::Left,
+            cx.listener(|model, _, _, _| {
+                if let Some(Overlay::ProjectEditor(editor)) = &mut model.overlay {
+                    editor.color_drag = None;
+                }
+            }),
+        )
         .children(mark.map(|mark| mark.of(model)))
         .child(muxy_ui::popover::header(theme, m).child(title(editor.target)))
         .child(
             muxy_ui::popover::body(m)
+                .id("project-editor-body")
+                .when(color_editor, |body| {
+                    body.max_h(
+                        (window.viewport_size().height - m.scaled(150.0)).max(m.scaled(100.0)),
+                    )
+                    .overflow_y_scroll()
+                    .child(colors::picker(editor, model, cx))
+                    .child(div().text_size(m.font_footnote()).child(tr!("Hex color")))
+                })
                 .child(muxy_ui::controls::text_field(
                     muxy_ui::controls::Style { theme, metrics: &m },
                     "project-editor",
@@ -411,7 +520,7 @@ fn render(
                     "project-editor-cancel",
                     muxy_ui::controls::Button::secondary(&tr!("Cancel")),
                     cx.listener(|model, _, _, cx| model.dismiss_overlay(cx)),
-                ))
+                ).debug_selector(|| "project-editor-cancel".into()))
                 .child(muxy_ui::controls::button(
                     muxy_ui::controls::Style { theme, metrics: &m },
                     "save-project-editor",
@@ -424,7 +533,7 @@ fn render(
                         tr!("Save")
                     }),
                     cx.listener(|model, _, _, cx| model.submit_project_editor(cx)),
-                )),
+                ).debug_selector(|| "save-project-editor".into())),
         )
         .into_any_element()
 }

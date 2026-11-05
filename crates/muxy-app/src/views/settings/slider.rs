@@ -28,6 +28,8 @@ pub(super) enum Commit {
     Quick,
     /// The sidebar's project icon size.
     SidebarIconSize,
+    /// The project icon background opacity.
+    ProjectIconOpacity,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -225,7 +227,7 @@ impl SettingsView {
                 }
                 self.dirty.remove(spec.id);
             }
-            Commit::Quick | Commit::SidebarIconSize => {}
+            Commit::Quick | Commit::SidebarIconSize | Commit::ProjectIconOpacity => {}
         }
         cx.notify();
     }
@@ -260,6 +262,15 @@ impl SettingsView {
                 )]
                 let value = value.round() as u8;
                 Some(Change::SidebarIconSize(value))
+            }
+            Commit::ProjectIconOpacity => {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the opacity stays within 0 to 100"
+                )]
+                let value = value.round() as u8;
+                Some(Change::ProjectIconOpacity(Some(value)))
             }
         }
     }

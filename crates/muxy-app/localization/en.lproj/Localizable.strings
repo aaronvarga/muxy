@@ -538,6 +538,7 @@
 "Colors for Quick Terminal when macOS uses light appearance. Same as App follows the app's light theme." = "Colors for Quick Terminal when macOS uses light appearance. Same as App follows the app's light theme.";
 "Colors for the interface and terminals when macOS uses dark appearance." = "Colors for the interface and terminals when macOS uses dark appearance.";
 "Colors for the interface and terminals when macOS uses light appearance." = "Colors for the interface and terminals when macOS uses light appearance.";
+"Color…" = "Color…";
 "Combine programming symbols when the selected font supports ligatures." = "Combine programming symbols when the selected font supports ligatures.";
 "Command" = "Command";
 "Command Center" = "Command Center";
@@ -845,6 +846,7 @@
 "English is built in. Additional languages can be provided by enabled extensions." = "English is built in. Additional languages can be provided by enabled extensions.";
 "Enter 1 to 4 characters." = "Enter 1 to 4 characters.";
 "Enter a branch name." = "Enter a branch name.";
+"Enter a color as #RRGGBB." = "Enter a color as #RRGGBB.";
 "Enter a commit message of up to 10,000 characters" = "Enter a commit message of up to 10,000 characters";
 "Enter a group name" = "Enter a group name";
 "Enter a path on %@…" = "Enter a path on %@…";
@@ -898,6 +900,7 @@
 "Eye Fill" = "Eye Fill";
 "Eye Slash" = "Eye Slash";
 "Eye Slash Fill" = "Eye Slash Fill";
+"Fade colored project backgrounds without fading symbols, text, or logos." = "Fade colored project backgrounds without fading symbols, text, or logos.";
 "Fallback fonts" = "Fallback fonts";
 "File" = "File";
 "File Manager" = "File Manager";
@@ -973,6 +976,7 @@
 "Gauge" = "Gauge";
 "Gear" = "Gear";
 "Gear Fill" = "Gear Fill";
+"Full" = "Full";
 "Gaming" = "Gaming";
 "General" = "General";
 "Get Started" = "Get Started";
@@ -1011,6 +1015,7 @@
 "Height in pixels for a new workspace window when no saved bounds exist." = "Height in pixels for a new workspace window when no saved bounds exist.";
 "Hexagon" = "Hexagon";
 "Hexagon Fill" = "Hexagon Fill";
+"Hex color" = "Hex color";
 "Hidden" = "Hidden";
 "Hide" = "Hide";
 "Hide %@" = "Hide %@";
@@ -1576,6 +1581,9 @@
 "Press %@ for the agents panel, with every running agent in one list." = "Press %@ for the agents panel, with every running agent in one list.";
 "Press %@ to give a branch its own tabs and terminals." = "Press %@ to give a branch its own tabs and terminals.";
 "Press %@ to open the composer, a text box for long prompts and commands. It's made for talking to AI agents." = "Press %@ to open the composer, a text box for long prompts and commands. It's made for talking to AI agents.";
+"Preparing on-device dictation…" = "Preparing on-device dictation…";
+"Presets" = "Presets";
+"Press Return after inserting standalone voice dictation into the terminal." = "Press Return after inserting standalone voice dictation into the terminal.";
 "Press a key…" = "Press a key…";
 "Press a shortcut…" = "Press a shortcut…";
 "Previous 7 days" = "Previous 7 days";
@@ -1592,11 +1600,13 @@
 "Profiles keep cookies and logins apart. New tabs use the default profile." = "Profiles keep cookies and logins apart. New tabs use the default profile.";
 "Project" = "Project";
 "Project %lld" = "Project %lld";
+"Project Color" = "Project Color";
 "Project Focused" = "Project Focused";
 "Project Logo" = "Project Logo";
 "Project edit is pending: %@" = "Project edit is pending: %@";
 "Project editor" = "Project editor";
 "Project folder is missing" = "Project folder is missing";
+"Project icon background opacity" = "Project icon background opacity";
 "Project is unavailable" = "Project is unavailable";
 "Projects" = "Projects";
 "Proxy" = "Proxy";

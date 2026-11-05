@@ -34,6 +34,7 @@ pub(crate) enum Change {
     StatusBar(bool),
     PaneHeaders(bool),
     SidebarIconSize(u8),
+    ProjectIconOpacity(Option<u8>),
     CommandsBar(bool),
     Tips(bool),
     RememberProjectsWithoutTabs(bool),
@@ -614,6 +615,10 @@ impl AppModel {
             }
             Change::InterfaceSize(size) => {
                 settings.appearance.interface_size = size;
+                settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
+            }
+            Change::ProjectIconOpacity(opacity) => {
+                settings.appearance.project_icon_opacity = opacity.map(|value| value.min(100));
                 settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
             }
             Change::SidebarIconSize(size) => {
@@ -1422,6 +1427,7 @@ fn change_id(change: &Change) -> &str {
         Change::SidebarCollapsedStyle(_) => "sidebar-collapsed-style",
         Change::InterfaceSize(_) => "interface-size",
         Change::SidebarIconSize(_) => "sidebar-icon-size",
+        Change::ProjectIconOpacity(_) => "project-icon-opacity",
         Change::AgentsPanel(_) => "agents-panel",
         Change::AgentsPanelGrouping(_) => "agents-panel-grouping",
         Change::AgentsPanelIcon(_) => "agents-panel-icon",
