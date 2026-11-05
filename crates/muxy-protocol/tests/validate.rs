@@ -350,6 +350,18 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                 ..
             } => ("FolderSource", ChannelKind::Control),
             Message::Request {
+                body:
+                    RequestBody::MutateProject(muxy_protocol::ProjectIntent {
+                        mutation:
+                            muxy_protocol::ProjectMutation::Patch {
+                                patch: muxy_protocol::ProjectPatch::HomeDirectory(_),
+                                ..
+                            },
+                        ..
+                    }),
+                ..
+            } => ("HomeDirectory", ChannelKind::Control),
+            Message::Request {
                 body: RequestBody::MutateProject(_),
                 ..
             } => ("MutateProject", ChannelKind::Control),
@@ -695,6 +707,7 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "CreateFolderGroup",
             "FolderEntries",
             "FolderSource",
+            "HomeDirectory",
             "PruneWorktree",
             "ListProjectSessions",
             "CancelCreation",

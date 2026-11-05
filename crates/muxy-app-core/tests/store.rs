@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::Read;
-use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 
 use muxy_app_core::{AppError, AppState, PaneId, ProjectId, ServerId, TabId, WindowBounds, store};
@@ -257,9 +256,7 @@ fn older_files_keep_everything_and_move_server_state_to_the_local_entry() -> Tes
             assert!(!legacy[old].is_null() && legacy[old] != json!([]) && legacy[old] != json!({}));
             assert_eq!(local[new], legacy[old], "{old}");
         }
-        let mut expected = legacy.clone();
-        let home = std::env::home_dir().ok_or("home directory")?;
-        expected["projects"][0]["directory"] = json!(home.as_os_str().as_bytes());
+        let expected = &legacy;
         for key in [
             "projects",
             "quick_terminal",

@@ -91,6 +91,8 @@ pub(crate) enum Command {
     ProjectColor(muxy_app_core::ProjectId, usize),
     ProjectLogo(muxy_app_core::ProjectId),
     RemoveProjectLogo(muxy_app_core::ProjectId),
+    ChangeHomeFolder,
+    ResetHomeFolder,
     RemoveProject(muxy_app_core::ProjectId),
     /// Add Project's folders on a server.
     AddProject(muxy_app_core::ServerId),
@@ -898,6 +900,12 @@ impl AppModel {
                 }
             }
             Command::ProjectLogo(id) => self.choose_project_logo(id, cx),
+            Command::ChangeHomeFolder => Self::choose_home_folder(cx),
+            Command::ResetHomeFolder => {
+                if let Some(directory) = std::env::home_dir() {
+                    self.change_home_folder(directory, cx);
+                }
+            }
             Command::RemoveProjectLogo(id) => {
                 self.edit_project(|state| state.set_project_logo(id, None), cx);
             }
