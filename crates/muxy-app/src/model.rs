@@ -71,17 +71,9 @@ pub(crate) struct PaneView {
 
 impl PaneView {
     pub(crate) fn element(&self) -> gpui::AnyElement {
-        use gpui::{IntoElement, Styled};
-        gpui::AnyView::from(self.view.clone())
-            .cached(
-                gpui::div()
-                    .size_full()
-                    .min_w(gpui::px(0.0))
-                    .min_h(gpui::px(0.0))
-                    .style()
-                    .clone(),
-            )
-            .into_any_element()
+        use gpui::IntoElement;
+        // shortcut: restore whole-view caching when GPUI fixes native input-handler slot reuse.
+        gpui::AnyView::from(self.view.clone()).into_any_element()
     }
 
     pub(crate) fn focus(&self, window: &mut Window, cx: &gpui::App) {
@@ -3085,6 +3077,7 @@ mod tests {
     mod git;
     mod layout_drag;
     mod links;
+    mod native_input;
     mod new_tab;
     mod preferences;
     mod project_apps;
