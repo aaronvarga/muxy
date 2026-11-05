@@ -69,6 +69,7 @@ impl Composer {
         let m = self.metrics;
         let theme = self.theme.clone();
         let active = matches!(control, Control::Recording);
+        let toolbar = matches!(control, Control::Toolbar | Control::Recording);
         let enabled = id != "composer-voice" || !self.sending;
         let (box_size, glyph_size, color) = match control {
             Control::Metadata => (m.control_small(), m.font_caption(), theme.fg_dim),
@@ -85,7 +86,10 @@ impl Composer {
             .items_center()
             .justify_center()
             .size(box_size)
-            .when(id == "composer-more", |button| button.w(m.control_small()))
+            .when(
+                self.settings.presentation == ComposerPresentation::Docked && toolbar,
+                |button| button.w(m.control_medium()),
+            )
             .when(
                 matches!(id, "composer-more" | "composer-commands"),
                 |button| {
@@ -450,20 +454,43 @@ impl Composer {
         row.into_any_element()
     }
 
-    /// Attach, dictation and more actions, in that order.
+    /// Attach, screenshot (macOS), quick commands, dictation and more actions, in that order.
     fn tools(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let recording =
             self.recording() && self.voice_snapshot.phase != muxy_ui::voice::Phase::Starting;
         let transcribing =
             recording && self.voice_snapshot.phase == muxy_ui::voice::Phase::Transcribing;
-        let mut tools = vec![self.glyph_button(
-            "composer-attach",
-            "plus",
-            tr_key!("Attach File"),
-            Control::Toolbar,
-            |_, _, cx| cx.emit(ComposerEvent::Attach),
-            cx,
-        )];
+        let mut tools = vec![
+            self.glyph_button(
+                "composer-attach",
+                "paperclip",
+                tr_key!("Attach File"),
+                Control::Toolbar,
+                |_, _, cx| cx.emit(ComposerEvent::Attach),
+                cx,
+            ),
+            self.glyph_button(
+                "composer-commands",
+                "terminal",
+                tr_key!("Quick Commands"),
+                Control::Toolbar,
+                |_, _, cx| cx.emit(ComposerEvent::QuickCommands),
+                cx,
+            ),
+        ];
+        if cfg!(target_os = "macos") {
+            tools.insert(
+                1,
+                self.glyph_button(
+                    "composer-screenshot",
+                    "viewfinder",
+                    tr_key!("Capture Screenshot"),
+                    Control::Toolbar,
+                    |_, _, cx| cx.emit(ComposerEvent::Screenshot),
+                    cx,
+                ),
+            );
+        }
         if self.dictation != muxy_core::capability::Capability::Unsupported {
             tools.push(self.glyph_button(
                 "composer-voice",
@@ -491,14 +518,6 @@ impl Composer {
             ));
         }
         tools.push(self.glyph_button(
-            "composer-commands",
-            "terminal",
-            tr_key!("Quick Commands"),
-            Control::Toolbar,
-            |_, _, cx| cx.emit(ComposerEvent::QuickCommands),
-            cx,
-        ));
-        tools.push(self.glyph_button(
             "composer-more",
             "ellipsis",
             tr_key!("More Composer Actions"),
@@ -507,6 +526,22 @@ impl Composer {
             cx,
         ));
         tools
+    }
+
+    fn clear_button(&self, cx: &mut Context<Self>) -> AnyElement {
+        self.glyph_button(
+            "composer-clear",
+            "xmark.circle",
+            tr_key!("Clear"),
+            Control::Toolbar,
+            |view, _, cx| {
+                view.input
+                    .update(cx, |input, cx| input.set_text(String::new(), cx));
+                view.draft.text.clear();
+                cx.emit(ComposerEvent::Changed);
+            },
+            cx,
+        )
     }
 
     fn send_button(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -551,6 +586,7 @@ impl Composer {
                     }),
             )
             .child(div().flex_1().min_w(m.spacing4()))
+            .child(self.clear_button(cx))
             .child(self.send_button(cx))
             .into_any_element()
     }
@@ -632,10 +668,11 @@ impl Composer {
     fn docked_row(&self, cx: &mut Context<Self>) -> AnyElement {
         let m = self.metrics;
         let line = self.input_style.line_height;
-        // Attach leads the input; more actions, then dictation, sit before send.
-        let mut trailing = self.tools(cx);
-        let attach = trailing.remove(0);
+        // Attach, screenshot and quick commands lead the input; clear, more and dictation precede send.
+        let mut leading = self.tools(cx);
+        let mut trailing = leading.split_off(if cfg!(target_os = "macos") { 3 } else { 2 });
         trailing.reverse();
+        trailing.insert(0, self.clear_button(cx));
         div()
             .flex()
             .flex_none()
@@ -643,11 +680,12 @@ impl Composer {
             .gap(m.spacing2())
             .h(super::dock_height(m))
             .px(m.spacing3())
-            .child(attach)
+            .child(div().flex().flex_none().items_center().children(leading))
             .child(
                 div()
                     .id("composer-editor")
                     .debug_selector(|| "composer-editor".into())
+                    .pl(m.spacing4())
                     .cursor_text()
                     .on_mouse_down(MouseButton::Left, Self::focus_input(cx))
                     .flex()
@@ -672,7 +710,7 @@ impl Composer {
                             .child(self.input.clone()),
                     ),
             )
-            .children(trailing)
+            .child(div().flex().flex_none().items_center().children(trailing))
             .child(self.send_button(cx))
             .into_any_element()
     }

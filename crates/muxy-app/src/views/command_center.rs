@@ -907,7 +907,7 @@ fn tile(
     let group = SharedString::from(format!("command-center-tile-{pane}"));
     // Tinted over the opaque `raised()`: `surface` is translucent and would dilute it.
     let header_background = project.map_or(model.theme.surface, |project| {
-        let color = gpui::Hsla::from(super::sidebar::project_color(project, model));
+        let color = gpui::Hsla::from(super::sidebar::project_color(project));
         model.theme.raised().blend(color.opacity(0.35))
     });
     // The progress bar tops the session; a collapsed tile has no session, so its

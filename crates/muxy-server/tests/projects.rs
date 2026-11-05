@@ -277,3 +277,51 @@ fn logo_heavy_catalog_pages_fit_the_wire_and_continue_without_losing_projects() 
     assert_eq!(count, 61);
     Ok(())
 }
+
+#[test]
+fn home_folder_changes_are_validated_and_survive_server_restart() -> Result {
+    let fixture = Fixture::new()?;
+    let registry = fixture.registry(LegacyImport::default())?;
+    let home = registry.read_catalog(None, None)?.home;
+    let ordinary = project(&fixture.0);
+    registry.mutate_project(&intent(ProjectMutation::Create(ordinary.clone())))?;
+    let custom = fixture.0.join("custom-home");
+    fs::create_dir(&custom)?;
+    let change = |project, directory: &Path| {
+        intent(ProjectMutation::Patch {
+            project,
+            patch: ProjectPatch::HomeDirectory(ServerPath(
+                directory.as_os_str().as_bytes().to_vec(),
+            )),
+        })
+    };
+    assert!(
+        registry
+            .mutate_project(&change(ordinary.id, &custom))
+            .is_err()
+    );
+    assert!(
+        registry
+            .mutate_project(&change(home, &fixture.0.join("missing")))
+            .is_err()
+    );
+    let file = fixture.0.join("file");
+    fs::write(&file, "not a directory")?;
+    assert!(registry.mutate_project(&change(home, &file)).is_err());
+    registry.mutate_project(&change(home, &custom))?;
+    drop(registry);
+    let registry = fixture.registry(LegacyImport::default())?;
+    let saved = registry.read_catalog(None, None)?;
+    assert_eq!(saved.home, home);
+    assert_eq!(
+        saved
+            .projects
+            .iter()
+            .find(|project| project.id == home)
+            .ok_or("Home")?
+            .directory
+            .0,
+        custom.as_os_str().as_bytes()
+    );
+    Ok(())
+}
