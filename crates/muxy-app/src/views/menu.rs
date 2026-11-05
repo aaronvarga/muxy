@@ -80,14 +80,12 @@ pub(crate) enum Command {
     CopyPath(muxy_app_core::ProjectId),
     RevealPath(muxy_app_core::ProjectId),
     EditProject(muxy_app_core::ProjectId, super::project_editor::Field),
-    /// Sets a project's color to `PROJECT_COLORS[index]`.
-    ProjectColor(muxy_app_core::ProjectId, usize),
     ProjectLogo(muxy_app_core::ProjectId),
     RemoveProjectLogo(muxy_app_core::ProjectId),
-    ChangeHomeFolder,
-    ResetHomeFolder,
     RemoveProject(muxy_app_core::ProjectId),
     SetProjectHidden(muxy_app_core::ProjectId, bool),
+    ChangeHomeFolder,
+    ResetHomeFolder,
     /// Shows or hides a project from the sidebar's project list menu, which
     /// stays open for the next toggle.
     ToggleProjectVisibility(muxy_app_core::ProjectId),
@@ -880,24 +878,19 @@ impl AppModel {
                 self.open_project_editor(id, field, position, window, cx);
                 return;
             }
-            Command::ProjectColor(id, index) => {
-                if let Some(color) = palette_color(index) {
-                    self.edit_project(|state| state.set_project_color(id, color), cx);
-                }
-            }
             Command::ProjectLogo(id) => self.choose_project_logo(id, cx),
-            Command::ChangeHomeFolder => Self::choose_home_folder(cx),
-            Command::ResetHomeFolder => {
-                if let Some(directory) = std::env::home_dir() {
-                    self.change_home_folder(directory, cx);
-                }
-            }
             Command::RemoveProjectLogo(id) => {
                 self.edit_project(|state| state.set_project_logo(id, None), cx);
             }
             Command::RemoveProject(id) => self.confirm_remove_project(id, cx),
             Command::SetProjectHidden(id, hidden) => {
                 self.edit_workspaces(|state| state.set_project_hidden(id, hidden), cx);
+            }
+            Command::ChangeHomeFolder => Self::choose_home_folder(cx),
+            Command::ResetHomeFolder => {
+                if let Some(directory) = std::env::home_dir() {
+                    self.change_home_folder(directory, cx);
+                }
             }
             Command::ToggleProjectVisibility(id) => {
                 let hidden = self.state.hidden_projects().any(|project| project.id == id);

@@ -4,7 +4,7 @@ use muxy_ui::dialog::ConfirmationResponse;
 use muxy_ui::l10n::tr_key;
 use muxy_ui::tr;
 
-use super::menu::{Command, Item, color_items};
+use super::menu::{Command, Item};
 use super::project_editor::Field;
 use crate::model::{AppModel, git::Repository};
 
@@ -45,11 +45,9 @@ pub(crate) fn items(
             icon,
         ]);
     }
-    items.push(Item::submenu(
-        tr!("Color"),
-        color_items(Some(project.color.as_str()), |index| {
-            Command::ProjectColor(id, index)
-        }),
+    items.push(Item::action(
+        tr!("Color…"),
+        Command::EditProject(id, Field::Color),
     ));
     if !project.home {
         items.push(Item::submenu(tr!("Workspaces"), workspace_items(state, id)));
@@ -71,6 +69,8 @@ pub(crate) fn items(
         items.push(Item::action(tr!("Add Divider Below"), Command::AddDivider(id)).separated());
     }
     if !project.is_folder_group() {
+        items.extend(path_items(project));
+    }
     if project.home && project.server_id.is_local() {
         items.push(Item::action(tr!("Change Home Folder…"), Command::ChangeHomeFolder).separated());
         let reset = Item::action(tr!("Use macOS Home Folder"), Command::ResetHomeFolder);
@@ -81,8 +81,6 @@ pub(crate) fn items(
                 reset
             },
         );
-    }
-        items.extend(path_items(project));
     }
     if !project.home {
         items.push(
@@ -380,6 +378,8 @@ impl AppModel {
             ),
             Item::action(tr!("Remove Divider"), Command::RemoveDivider(id)),
         ]
+    }
+
     pub(crate) fn choose_home_folder(cx: &mut Context<Self>) {
         let paths = cx.prompt_for_paths(gpui::PathPromptOptions {
             files: false,
@@ -413,8 +413,6 @@ impl AppModel {
             return;
         }
         self.edit_project(|state| state.set_home_directory(directory), cx);
-    }
-
     }
 
     /// Adds an extra folder to a top-level project, chosen in Finder or, for

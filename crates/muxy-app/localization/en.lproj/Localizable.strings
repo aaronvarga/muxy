@@ -381,6 +381,7 @@
 "Colors for Quick Terminal when macOS uses light appearance. Same as App follows the app's light theme." = "Colors for Quick Terminal when macOS uses light appearance. Same as App follows the app's light theme.";
 "Colors for the interface and terminals when macOS uses dark appearance." = "Colors for the interface and terminals when macOS uses dark appearance.";
 "Colors for the interface and terminals when macOS uses light appearance." = "Colors for the interface and terminals when macOS uses light appearance.";
+"Color…" = "Color…";
 "Combine programming symbols when the selected font supports ligatures." = "Combine programming symbols when the selected font supports ligatures.";
 "Command" = "Command";
 "Command Center" = "Command Center";
@@ -650,6 +651,7 @@
 "English is built in. Additional languages can be provided by enabled extensions." = "English is built in. Additional languages can be provided by enabled extensions.";
 "Enter 1 to 4 characters." = "Enter 1 to 4 characters.";
 "Enter a branch name." = "Enter a branch name.";
+"Enter a color as #RRGGBB." = "Enter a color as #RRGGBB.";
 "Enter a commit message of up to 10,000 characters" = "Enter a commit message of up to 10,000 characters";
 "Enter a group name" = "Enter a group name";
 "Enter a path on %@…" = "Enter a path on %@…";
@@ -688,6 +690,7 @@
 "Extension webviews are not available on this platform yet." = "Extension webviews are not available on this platform yet.";
 "Extensions" = "Extensions";
 "Extensions changed while reloading. Try again." = "Extensions changed while reloading. Try again.";
+"Fade colored project backgrounds without fading symbols, text, or logos." = "Fade colored project backgrounds without fading symbols, text, or logos.";
 "Fallback fonts" = "Fallback fonts";
 "File" = "File";
 "File Manager" = "File Manager";
@@ -739,6 +742,7 @@
 "Forget %lld Servers?" = "Forget %lld Servers?";
 "Forward" = "Forward";
 "From 1024 to 65535. Press Return to save." = "From 1024 to 65535. Press Return to save.";
+"Full" = "Full";
 "Gaming" = "Gaming";
 "General" = "General";
 "Global X11 shortcuts cannot cover a Wayland desktop." = "Global X11 shortcuts cannot cover a Wayland desktop.";
@@ -755,6 +759,7 @@
 "Health" = "Health";
 "Height" = "Height";
 "Height in pixels for a new workspace window when no saved bounds exist." = "Height in pixels for a new workspace window when no saved bounds exist.";
+"Hex color" = "Hex color";
 "Hidden" = "Hidden";
 "Hide" = "Hide";
 "Hide %@" = "Hide %@";
@@ -1199,6 +1204,7 @@
 "Points to change the font size by, such as 1." = "Points to change the font size by, such as 1.";
 "Port" = "Port";
 "Preparing on-device dictation…" = "Preparing on-device dictation…";
+"Presets" = "Presets";
 "Press Return after inserting standalone voice dictation into the terminal." = "Press Return after inserting standalone voice dictation into the terminal.";
 "Press a key…" = "Press a key…";
 "Press a shortcut…" = "Press a shortcut…";
@@ -1213,10 +1219,12 @@
 "Profiles keep cookies and logins apart. New tabs use the default profile." = "Profiles keep cookies and logins apart. New tabs use the default profile.";
 "Project" = "Project";
 "Project %lld" = "Project %lld";
+"Project Color" = "Project Color";
 "Project Focused" = "Project Focused";
 "Project edit is pending: %@" = "Project edit is pending: %@";
 "Project editor" = "Project editor";
 "Project folder is missing" = "Project folder is missing";
+"Project icon background opacity" = "Project icon background opacity";
 "Project is unavailable" = "Project is unavailable";
 "Project server" = "Project server";
 "Proxy" = "Proxy";

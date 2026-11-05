@@ -149,7 +149,7 @@ fn folder_group_hover_launches_the_saved_folder_and_keeps_artwork_controls(
         _ => "no menu".to_owned(),
     });
     assert!(cx.debug_bounds("menu-label-Icon").is_some(), "{menu}");
-    assert!(cx.debug_bounds("menu-label-Color").is_some());
+    assert!(cx.debug_bounds("menu-label-Color…").is_some());
     let icon = cx.debug_bounds("menu-label-Icon").expect("icon menu");
     cx.simulate_mouse_move(icon.center(), None, Modifiers::none());
     cx.run_until_parked();
@@ -1365,5 +1365,130 @@ fn changing_home_folder_requires_server_support_and_preserves_existing_tabs(
         assert_eq!(model.state.home().tabs, old.home().tabs);
         let saved = store::load(&model.path).expect("saved Home folder");
         assert_eq!(saved.home().directory, directory.path());
+    });
+}
+
+#[gpui::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Exercise preview, cancellation, validation, and saving in one editor session"
+)]
+fn project_color_picker_stages_presets_and_validates_custom_hex(cx: &mut TestAppContext) {
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1000.0), px(800.0)));
+    cx.run_until_parked();
+    let original = view.read_with(cx, |model, _| model.state.clone());
+    let open = |view: &Entity<AppModel>, cx: &mut VisualTestContext| {
+        view.update_in(cx, |model, window, cx| {
+            model.open_project_editor(
+                home,
+                crate::views::project_editor::Field::Color,
+                point(px(40.0), px(40.0)),
+                window,
+                cx,
+            );
+        });
+        cx.run_until_parked();
+    };
+    open(&view, cx);
+    preferences::click_preference(cx, "project-color-#b4bbbf");
+    view.read_with(cx, |model, _| {
+        assert_eq!(
+            crate::views::sidebar::project_color(model.state.home(), model),
+            gpui::rgb(0x00b4_bbbf)
+        );
+        assert_eq!(model.state, original);
+    });
+
+    preferences::click_preference(cx, "project-color-full");
+    let square = cx
+        .debug_bounds("project-color-saturation")
+        .expect("color square");
+    cx.simulate_mouse_down(square.center(), gpui::MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(
+        square.origin + point(square.size.width * 0.75, square.size.height * 0.25),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(square.center(), gpui::MouseButton::Left, Modifiers::none());
+    preferences::click_preference(cx, "project-color-presets");
+
+    view.read_with(cx, |model, _| assert_eq!(model.state, original));
+    cx.simulate_keystrokes("escape");
+    view.read_with(cx, |model, _| {
+        assert!(model.overlay.is_none());
+        assert_eq!(model.state, original);
+        assert_eq!(
+            crate::views::sidebar::project_color(model.state.home(), model),
+            muxy_ui::theme::parse_hex(original.home().color.as_str()).expect("saved color")
+        );
+    });
+    open(&view, cx);
+    preferences::click_preference(cx, "project-color-#b4bbbf");
+    preferences::click_preference(cx, "project-editor-cancel");
+    view.read_with(cx, |model, _| {
+        assert!(model.overlay.is_none());
+        assert_eq!(model.state, original);
+        assert_eq!(
+            crate::views::sidebar::project_color(model.state.home(), model),
+            muxy_ui::theme::parse_hex(original.home().color.as_str()).expect("saved color")
+        );
+    });
+    open(&view, cx);
+    cx.simulate_input("not a color");
+    cx.simulate_keystrokes("enter");
+    view.read_with(cx, |model, _| {
+        assert!(model.overlay.is_some());
+        assert_eq!(model.state, original);
+    });
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-a"
+    } else {
+        "ctrl-a"
+    });
+    cx.simulate_input("#Ab12Cd");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert!(model.overlay.is_none());
+        assert_eq!(model.state.home().color.as_str(), "#ab12cd");
+        assert_eq!(
+            crate::views::sidebar::project_color(model.state.home(), model),
+            gpui::rgb(0x00ab_12cd)
+        );
+        assert_eq!(
+            store::load(&model.path)
+                .expect("saved color")
+                .home()
+                .color
+                .as_str(),
+            "#ab12cd"
+        );
+    });
+    open(&view, cx);
+    preferences::click_preference(cx, "project-color-#b4bbbf");
+    preferences::click_preference(cx, "save-project-editor");
+    view.read_with(cx, |model, _| {
+        assert!(model.overlay.is_none());
+        assert_eq!(model.state.home().color.as_str(), "#b4bbbf");
+    });
+    open(&view, cx);
+    preferences::click_preference(cx, "project-color-full");
+    let hue = cx.debug_bounds("project-color-hue").expect("hue strip");
+    cx.simulate_click(hue.center(), Modifiers::none());
+    let square = cx
+        .debug_bounds("project-color-saturation")
+        .expect("color square");
+    cx.simulate_click(
+        square.origin + point(square.size.width * 0.75, square.size.height * 0.25),
+        Modifiers::none(),
+    );
+    preferences::click_preference(cx, "save-project-editor");
+    view.read_with(cx, |model, _| {
+        assert!(model.overlay.is_none());
+        assert_eq!(model.state.home().color.as_str(), "#30bfbf");
     });
 }
