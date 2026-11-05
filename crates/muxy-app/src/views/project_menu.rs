@@ -4,7 +4,7 @@ use muxy_ui::dialog::ConfirmationResponse;
 use muxy_ui::l10n::tr_key;
 use muxy_ui::tr;
 
-use super::menu::{Command, Item, color_items};
+use super::menu::{Command, Item};
 use super::project_editor::Field;
 use crate::model::{AppModel, git::Repository};
 
@@ -45,11 +45,9 @@ pub(crate) fn items(
             icon,
         ]);
     }
-    items.push(Item::submenu(
-        tr!("Color"),
-        color_items(Some(project.color.as_str()), |index| {
-            Command::ProjectColor(id, index)
-        }),
+    items.push(Item::action(
+        tr!("Color…"),
+        Command::EditProject(id, Field::Color),
     ));
     if !project.home {
         items.push(Item::submenu(tr!("Workspaces"), workspace_items(state, id)));
@@ -72,6 +70,17 @@ pub(crate) fn items(
     }
     if !project.is_folder_group() {
         items.extend(path_items(project));
+    }
+    if project.home && project.server_id.is_local() {
+        items.push(Item::action(tr!("Change Home Folder…"), Command::ChangeHomeFolder).separated());
+        let reset = Item::action(tr!("Use macOS Home Folder"), Command::ResetHomeFolder);
+        items.push(
+            if std::env::home_dir().as_ref() == Some(&project.directory) {
+                reset.disabled()
+            } else {
+                reset
+            },
+        );
     }
     if !project.home {
         items.push(
@@ -369,6 +378,41 @@ impl AppModel {
             ),
             Item::action(tr!("Remove Divider"), Command::RemoveDivider(id)),
         ]
+    }
+
+    pub(crate) fn choose_home_folder(cx: &mut Context<Self>) {
+        let paths = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some(tr!("Choose Home Folder")),
+        });
+        cx.spawn(async move |model, cx| {
+            if let Ok(Ok(Some(paths))) = paths.await
+                && let Some(directory) = paths.into_iter().next()
+            {
+                let _ = model.update(cx, |model, cx| model.change_home_folder(directory, cx));
+            }
+        })
+        .detach();
+    }
+
+    pub(crate) fn change_home_folder(
+        &mut self,
+        directory: std::path::PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.server_supports(
+            muxy_app_core::ServerId::local(),
+            muxy_protocol::Feature::HOME_DIRECTORY,
+        ) {
+            self.fail(
+                tr!("Restart the server to change the Home folder.").to_string(),
+                cx,
+            );
+            return;
+        }
+        self.edit_project(|state| state.set_home_directory(directory), cx);
     }
 
     /// Adds an extra folder to a top-level project, chosen in Finder or, for

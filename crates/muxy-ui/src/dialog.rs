@@ -301,7 +301,13 @@ pub fn choose_folder_with(
     directory: &std::path::Path,
     on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
 ) -> io::Result<FolderPicker> {
-    open_panel(message, prompt, directory, false, on_complete)
+    open_panel(
+        message,
+        prompt,
+        directory,
+        Choose::Folder,
+        first(on_complete),
+    )
 }
 
 /// A file picker that also shows hidden files, such as keys in `~/.ssh`.
@@ -311,15 +317,43 @@ pub fn choose_file(
     directory: &std::path::Path,
     on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
 ) -> io::Result<FolderPicker> {
-    open_panel(message, "", directory, true, on_complete)
+    open_panel(message, "", directory, Choose::File, first(on_complete))
+}
+
+/// A picker for any number of files and folders, starting in `directory`.
+pub fn choose_paths(
+    _cx: &mut gpui::App,
+    prompt: &str,
+    directory: &std::path::Path,
+    on_complete: impl FnOnce(io::Result<Option<Vec<std::path::PathBuf>>>) + 'static,
+) -> io::Result<FolderPicker> {
+    open_panel("", prompt, directory, Choose::Paths, on_complete)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Choose {
+    Folder,
+    File,
+    /// Several files and folders.
+    Paths,
+}
+
+type PathsCallback = Box<dyn FnOnce(io::Result<Option<Vec<std::path::PathBuf>>>)>;
+
+fn first(
+    on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
+) -> PathsCallback {
+    Box::new(move |paths| {
+        on_complete(paths.map(|paths| paths.and_then(|paths| paths.into_iter().next())));
+    })
 }
 
 fn open_panel(
     message: &str,
     prompt: &str,
     directory: &std::path::Path,
-    files: bool,
-    on_complete: impl FnOnce(io::Result<Option<std::path::PathBuf>>) + 'static,
+    choose: Choose,
+    on_complete: impl FnOnce(io::Result<Option<Vec<std::path::PathBuf>>>) + 'static,
 ) -> io::Result<FolderPicker> {
     let main_thread = MainThreadMarker::new()
         .ok_or_else(|| io::Error::other("native dialogs require the main thread"))?;
@@ -328,10 +362,10 @@ fn open_panel(
     if !prompt.is_empty() {
         panel.setPrompt(Some(&NSString::from_str(prompt)));
     }
-    panel.setCanChooseFiles(files);
-    panel.setCanChooseDirectories(!files);
-    panel.setShowsHiddenFiles(files);
-    panel.setAllowsMultipleSelection(false);
+    panel.setCanChooseFiles(choose != Choose::Folder);
+    panel.setCanChooseDirectories(choose != Choose::File);
+    panel.setShowsHiddenFiles(choose == Choose::File);
+    panel.setAllowsMultipleSelection(choose == Choose::Paths);
     panel.setDirectoryURL(Some(&objc2_foundation::NSURL::fileURLWithPath(
         &NSString::from_str(&directory.to_string_lossy()),
     )));
@@ -341,16 +375,16 @@ fn open_panel(
     let callback = Cell::new(Some(on_complete));
     let handler = RcBlock::new(move |response| {
         finished.set(true);
-        let path = (response == objc2_app_kit::NSModalResponseOK)
-            .then(|| {
-                result_panel
-                    .URL()
-                    .and_then(|url| url.path())
-                    .map(|path| path.to_string().into())
-            })
-            .flatten();
+        let paths = (response == objc2_app_kit::NSModalResponseOK).then(|| {
+            result_panel
+                .URLs()
+                .iter()
+                .filter_map(|url| url.path())
+                .map(|path| path.to_string().into())
+                .collect()
+        });
         if let Some(callback) = callback.take() {
-            callback(Ok(path));
+            callback(Ok(paths));
         }
     });
     panel.beginWithCompletionHandler(&handler);
