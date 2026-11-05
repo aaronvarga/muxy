@@ -391,6 +391,15 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Interface"),
     },
     Setting {
+        id: "project-icon-opacity",
+        label: tr_key!("Project icon background opacity"),
+        description: tr_key!(
+            "Fade colored project backgrounds without fading symbols, text, or logos."
+        ),
+        category: Category::Appearance,
+        section: tr_key!("Interface"),
+    },
+    Setting {
         id: "sidebar-icon-size",
         label: tr_key!("Sidebar icon size"),
         description: tr_key!("How large project icons and logos appear in the sidebar."),

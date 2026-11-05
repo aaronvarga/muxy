@@ -179,6 +179,7 @@ impl ProjectPicker {
                     ListEvent::FooterAction(action) => match action.as_ref() {
                         "confirm" => project_picker.confirm(false, cx),
                         "secondary-confirm" => project_picker.confirm(true, cx),
+                        "choose-folder" => Self::choose_folder(cx),
                         _ => {}
                     },
                     ListEvent::Dismissed => cx.emit(PickerEvent::Dismiss),
@@ -490,16 +491,50 @@ impl ProjectPicker {
             }
             (Purpose::NewTab, None) => vec![tr_key!("Terminal in Home"), add],
         };
-        ["confirm", "secondary-confirm"]
+        let choose = (self.remote.is_none()
+            && target.is_none()
+            && matches!(self.purpose, Purpose::AddProject | Purpose::AddFolder(_)))
+        .then(|| PickerAction::new("choose-folder", tr!("Choose Folder…")));
+        choose
             .into_iter()
-            .zip(titles)
-            .zip(&self.shortcuts)
-            .map(|((id, title), shortcut)| {
-                let mut action = PickerAction::new(id, muxy_ui::l10n::translate(title));
-                action.shortcut = shortcut.clone().map(Into::into);
-                action.disabled(disabled)
-            })
+            .chain(
+                ["confirm", "secondary-confirm"]
+                    .into_iter()
+                    .zip(titles)
+                    .zip(&self.shortcuts)
+                    .map(|((id, title), shortcut)| {
+                        let mut action = PickerAction::new(id, muxy_ui::l10n::translate(title));
+                        action.shortcut = shortcut.clone().map(Into::into);
+                        action.disabled(disabled)
+                    }),
+            )
             .collect()
+    }
+
+    /// Picks a folder with the system dialog, then adds it like a typed path.
+    fn choose_folder(cx: &mut Context<Self>) {
+        let result = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some(tr!("Choose Folder")),
+        });
+        cx.spawn(async move |picker, cx| {
+            let Ok(Ok(Some(paths))) = result.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            let _ = picker.update(cx, |_, cx| {
+                cx.emit(PickerEvent::Confirm {
+                    path: path_service::standardize(&path.to_string_lossy()),
+                    create_if_missing: false,
+                    home_terminal: false,
+                });
+            });
+        })
+        .detach();
     }
 
     fn activate(&mut self, id: &str, cx: &mut Context<Self>) {

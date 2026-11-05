@@ -202,3 +202,41 @@ fn foreign_session_membership_is_never_inferred_from_directory() -> Result {
     assert_eq!(plan.close, [(pane, session)]);
     Ok(())
 }
+
+#[test]
+fn custom_home_folder_survives_reload_and_catalog_refresh_without_moving_existing_panes() -> Result
+{
+    let directory = tempfile::tempdir()?;
+    let custom = directory.path().join("custom-home");
+    fs::create_dir(&custom)?;
+    let mut state = AppState::bootstrap()?;
+    let home = state.home().id;
+    let old = state.home().directory.clone();
+    state.open_terminal_tab(home)?;
+    let pane = state.window().active_pane.ok_or("pane")?;
+    let original = state.prepare_creation(pane, &old);
+    let before = state.clone();
+    let file = directory.path().join("file");
+    fs::write(&file, "not a folder")?;
+    for invalid in [file, directory.path().join("missing"), "relative".into()] {
+        assert!(state.set_home_directory(invalid).is_err());
+        assert_eq!(state, before);
+    }
+    state.set_home_directory(custom.clone())?;
+    assert_eq!(state.home().id, home);
+    assert_eq!(state.prepare_creation(pane, &custom), original);
+    let path = directory.path().join("state.json");
+    store::save(&path, &state)?;
+    let mut loaded = store::load(&path)?;
+    assert_eq!(loaded.home().directory, custom);
+    // A stale server catalog must not undo the still-pending folder choice.
+    loaded.apply_catalog(ServerId::local(), &snapshot(&before))?;
+    assert_eq!(loaded.home().directory, custom);
+    assert_eq!(loaded.prepare_creation(pane, &custom), original);
+    let restored = before
+        .configuration_backup()
+        .restore_configuration(&loaded)
+        .map_err(|error| error.to_string())?;
+    assert_eq!(restored.home().directory, custom);
+    Ok(())
+}

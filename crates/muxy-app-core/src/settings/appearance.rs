@@ -94,6 +94,8 @@ pub struct Appearance {
     pub sidebar_collapsed_style: SidebarCollapsedStyle,
     /// Project icon size in the sidebar, in unscaled points.
     pub sidebar_icon_size: u8,
+    /// Background alpha for colored project tiles; unset uses the theme default.
+    pub project_icon_opacity: Option<u8>,
     pub status_bar_visible: bool,
     pub commands_bar_visible: bool,
     pub tips_visible: bool,
@@ -198,6 +200,7 @@ impl Default for Appearance {
             sidebar_expanded_width: None,
             sidebar_collapsed_style: SidebarCollapsedStyle::default(),
             sidebar_icon_size: SIDEBAR_ICON_SIZE.1,
+            project_icon_opacity: None,
             status_bar_visible: true,
             commands_bar_visible: true,
             tips_visible: true,
@@ -281,6 +284,9 @@ impl Appearance {
             .as_table_mut()
             .ok_or_else(|| io::Error::other("appearance must be a table"))?;
         target.extend(changes);
+        if self.project_icon_opacity.is_none() && previous.project_icon_opacity.is_some() {
+            target.remove("project_icon_opacity");
+        }
         let mut saved: Self = toml::Value::Table(target.clone()).try_into()?;
         for project in self.hidden_worktrees.difference(&previous.hidden_worktrees) {
             saved.hidden_worktrees.insert(*project);
