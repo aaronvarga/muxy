@@ -986,7 +986,7 @@ impl AppModel {
         let text = command.command.clone();
         if let Some(view) = &self.composer.view {
             view.update(cx, |view, cx| {
-                if !view.sending && !view.recording() {
+                if !view.sending {
                     view.input
                         .update(cx, |input, cx| input.insert_at_selection(&text, cx));
                 }
@@ -1000,7 +1000,7 @@ impl AppModel {
         };
         let choices = if quick {
             use crate::views::composer::menu::Command;
-            let enabled = !view.read(cx).sending && !view.read(cx).recording();
+            let enabled = !view.read(cx).sending;
             let mut choices: Vec<_> = self
                 .available_commands()
                 .filter(|(_, command)| command.status_bar)

@@ -500,4 +500,35 @@ fn a_metadata_watcher_hears_titles_of_sessions_it_does_not_show()
         .map_err(|error| error.to_string())?;
     std::fs::remove_dir_all(&directory)?;
     Ok(())
+    Ok(())
+}
+
+#[test]
+fn phones_get_no_text_icons_that_stock_apps_reject() {
+    let (sender, _events) = mpsc::channel();
+    let registry = Registry::new(ServerSettings::default(), sender);
+    let mut page = registry.read_catalog(None, None).expect("catalog");
+    page.projects[0].icon = Some("AVP".into());
+    page.projects.push(page.projects[0].clone());
+    page.projects[1].icon = Some("🚀".into());
+    let phone = Connection::for_device(
+        Arc::clone(&registry.notifier),
+        muxy_protocol::DeviceId::new(),
+        muxy_protocol::DeviceKind::Phone,
+    );
+    let icons = |page: &muxy_protocol::CatalogPage| -> Vec<_> {
+        page.projects
+            .iter()
+            .map(|project| project.icon.clone())
+            .collect()
+    };
+    assert_eq!(
+        icons(&super::reader::catalog_for(&phone, page.clone())),
+        [None, Some("🚀".into())]
+    );
+    let desktop = Connection::new(Arc::clone(&registry.notifier));
+    assert_eq!(
+        icons(&super::reader::catalog_for(&desktop, page.clone())),
+        icons(&page)
+    );
 }
