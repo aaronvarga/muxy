@@ -263,6 +263,17 @@ pub enum MetadataEvent {
     },
     #[n(9)]
     ClipboardWrite(#[n(0)] String),
+    /// The coding agent session last seen in the foreground, kept after it exits.
+    #[n(10)]
+    AgentSession {
+        #[n(0)]
+        provider: crate::AgentProvider,
+        #[n(1)]
+        id: String,
+        /// The agent's own arguments, without the program or a script runtime.
+        #[n(2)]
+        arguments: Vec<String>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

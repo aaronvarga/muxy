@@ -544,6 +544,9 @@ impl Owner {
                 seq: 0,
                 rows: self.links.clone(),
             }));
+            if let Some(session) = self.metadata.agent_session.clone() {
+                sink.send(AttachmentEvent::Metadata(session.event()));
+            }
             self.attachments.insert(id, Attachment { sink, seq: 1 });
         }
         Ok(())

@@ -512,6 +512,9 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             Message::Metadata(MetadataEvent::ClipboardWrite(_)) => {
                 ("ClipboardWrite", ChannelKind::Session)
             }
+            Message::Metadata(MetadataEvent::AgentSession { .. }) => {
+                ("AgentSession", ChannelKind::Session)
+            }
             Message::Progress { .. } => ("Progress", ChannelKind::Control),
             Message::Metadata(_) => ("Metadata", ChannelKind::Session),
             Message::CellSize(_) => ("CellSize", ChannelKind::Session),
@@ -622,6 +625,7 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "InputModes",
             "CursorBlinking",
             "ClipboardWrite",
+            "AgentSession",
             "Progress",
             "Frame",
             "Metadata",

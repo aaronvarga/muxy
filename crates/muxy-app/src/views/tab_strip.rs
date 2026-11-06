@@ -410,6 +410,29 @@ fn move_button(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyEle
     .into_any_element()
 }
 
+/// Copies the command reopening the agent session last run in `pane`.
+fn resume_button(
+    pane: PaneId,
+    command: String,
+    model: &AppModel,
+    cx: &Context<AppModel>,
+) -> AnyElement {
+    titlebar::scaled_icon_button(
+        SharedString::from(format!("copy-resume-{pane}")),
+        Icon::Overlap,
+        PANE_BUTTON_SCALE,
+        tr!("Copy Resume Command"),
+        model,
+    )
+    .debug_selector(|| "copy-resume-button".into())
+    .on_click(cx.listener(move |model, _, _, cx| {
+        cx.stop_propagation();
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(command.clone()));
+        model.show_notice(tr!("Copied the resume command").to_string(), cx);
+    }))
+    .into_any_element()
+}
+
 /// Terminal title and pane controls; a tab's only pane gets just the split buttons.
 pub(super) fn pane_controls(
     pane: PaneId,
@@ -431,6 +454,9 @@ pub(super) fn pane_controls(
                 )
         })
         .map(|pane| pane.title.clone());
+    let resume = model
+        .terminal(&pane)
+        .and_then(|terminal| terminal.view.read(cx).resume_command.clone());
     let label = tr!("Close Pane");
     let tooltip = model
         .settings
@@ -500,6 +526,9 @@ pub(super) fn pane_controls(
                     .child(title.clone())
                     .debug_selector(move || format!("pane-title-{pane}-{title}")),
             )
+        })
+        .when_some(resume, |bar, command| {
+            bar.child(resume_button(pane, command, model, cx))
         })
         .when(!only, |bar| bar.child(move_button(pane, model, cx)))
         .child(split_button(Some(pane), Direction::Right, model, cx))

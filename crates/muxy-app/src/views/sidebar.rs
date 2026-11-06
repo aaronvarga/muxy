@@ -1109,7 +1109,7 @@ fn project_row(
     let wide = model.appearance.sidebar_expanded;
     let id = project.id;
     let missing = project.status() == ProjectStatus::Missing;
-    let active = !model.command_center.active
+    let active = (!model.command_center.active || model.command_center.scope.is_some())
         && (model.state.current_project().id == id
             || model.state.current_project().parent_id == Some(id));
     let has_worktrees = model.has_worktrees(project) && !missing;
@@ -1132,6 +1132,11 @@ fn project_row(
             },
         );
     let activity = super::tab_activity::project_status(id, model);
+    let count = if model.appearance.project_session_counts && !missing {
+        model.running_session_count(project)
+    } else {
+        0
+    };
     let drag = DraggedProject {
         id,
         last_target: Cell::new(None),
@@ -1220,26 +1225,31 @@ fn project_row(
             )
         })
         .when(wide, |row| row.children(remote_marker(project, model)))
-        .when(activity != super::tab_activity::Status::None, |row| {
-            row.child(
-                div()
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .justify_center()
-                    .min_w(m.scaled(18.0))
-                    .h(m.scaled(18.0))
-                    .when(!wide, |badge| {
-                        badge.absolute().right(m.scaled(-3.0)).top(m.scaled(-3.0))
-                    })
-                    .child(super::tab_activity::status_glyph(
-                        format!("project-activity-{id}"),
-                        activity,
-                        m.icon_sm(),
-                        model,
-                    )),
-            )
-        })
+        .when(
+            activity != super::tab_activity::Status::None || count > 0,
+            |row| {
+                row.child(
+                    div()
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .justify_center()
+                        .min_w(m.scaled(18.0))
+                        .h(m.scaled(18.0))
+                        .when(!wide, |badge| {
+                            badge.absolute().right(m.scaled(-3.0)).top(m.scaled(-3.0))
+                        })
+                        .child(super::tab_activity::counted_status_glyph(
+                            format!("project-activity-{id}"),
+                            activity,
+                            count,
+                            m.icon_sm(),
+                            None,
+                            model,
+                        )),
+                )
+            },
+        )
         .when(wide && has_worktrees, |row| {
             row.child(worktrees::disclosure(project, model, cx))
         })

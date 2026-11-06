@@ -1,11 +1,15 @@
+mod agent_session;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "linux")]
-use linux::{agent_provider, foreground_member, process_directory};
+use linux as platform;
 #[cfg(target_os = "macos")]
-use macos::{agent_provider, foreground_member, process_directory};
+use macos as platform;
+use platform::{agent_provider, foreground_member, process_directory};
+
+use agent_session::AgentSession;
 
 use muxy_protocol::{ForegroundProcess, MetadataEvent, ServerPath};
 use muxy_terminal::TerminalEvent;
@@ -18,7 +22,10 @@ pub(super) struct Metadata {
     pub(super) agent: Option<muxy_protocol::AgentProvider>,
     /// The session's own shell is in the foreground, so no program it ran is.
     pub(super) shell_foreground: bool,
+    /// The last agent session seen, kept after the agent exits so it can be resumed.
+    pub(super) agent_session: Option<AgentSession>,
     next_agent: std::time::Instant,
+    next_agent_session: std::time::Instant,
     agent_group: Option<u32>,
     observed_directory: Option<ServerPath>,
 }
@@ -31,7 +38,9 @@ impl Metadata {
             process: None,
             agent: None,
             shell_foreground: false,
+            agent_session: None,
             next_agent: std::time::Instant::now(),
+            next_agent_session: std::time::Instant::now(),
             agent_group: None,
             observed_directory: None,
         }
@@ -50,6 +59,7 @@ impl Metadata {
                 )
             });
         if self.next_agent <= std::time::Instant::now() || self.agent_group != group {
+            let changed = self.agent_group != group;
             self.next_agent = std::time::Instant::now() + std::time::Duration::from_millis(500);
             self.agent_group = group;
             self.agent = if self.shell_foreground {
@@ -57,6 +67,9 @@ impl Metadata {
             } else {
                 group.and_then(agent_provider)
             };
+            if let Some(event) = self.find_agent_session(group, changed) {
+                events.push(event);
+            }
         }
         if let Some(group) = group {
             let process = ForegroundProcess {
@@ -101,6 +114,36 @@ impl Metadata {
             events.push(MetadataEvent::Directory(self.directory.clone()));
         }
         events
+    }
+}
+
+impl Metadata {
+    /// Rechecked every few seconds, since `/clear` or `/new` starts another session.
+    fn find_agent_session(&mut self, group: Option<u32>, changed: bool) -> Option<MetadataEvent> {
+        let now = std::time::Instant::now();
+        let (Some(group), Some(provider)) = (group, self.agent) else {
+            return None;
+        };
+        if !changed && now < self.next_agent_session {
+            return None;
+        }
+        self.next_agent_session = now + std::time::Duration::from_secs(3);
+        let session = agent_session::find(group, provider)?;
+        if self.agent_session.as_ref() == Some(&session) {
+            return None;
+        }
+        self.agent_session = Some(session.clone());
+        Some(session.event())
+    }
+}
+
+impl AgentSession {
+    pub(crate) fn event(self) -> MetadataEvent {
+        MetadataEvent::AgentSession {
+            provider: self.provider,
+            id: self.id,
+            arguments: self.arguments,
+        }
     }
 }
 

@@ -31,6 +31,8 @@ pub(crate) struct CommandCenter {
     pub(crate) layout_anchor: muxy_ui::popover::PopoverAnchor,
     pub(crate) grid: Option<([usize; 2], gpui::Size<gpui::Pixels>, usize, gpui::Pixels)>,
     pub(crate) reveal: Option<PaneId>,
+    /// Shows only this project's terminals, with its worktrees', in place of its tabs.
+    pub(crate) scope: Option<ProjectId>,
     render_epoch: u64,
 }
 
@@ -50,6 +52,7 @@ impl Default for CommandCenter {
             layout_anchor: muxy_ui::popover::PopoverAnchor::default(),
             grid: None,
             reveal: None,
+            scope: None,
             render_epoch: 0,
         }
     }
@@ -87,18 +90,62 @@ impl CommandCenter {
     }
 
     pub(crate) fn leave(&mut self) {
+        if self.scope.is_some() {
+            // The global grid shouldn't open at the scoped grid's offset.
+            self.grid = None;
+            self.scroll.scroll_to(ListOffset::default());
+        }
         self.active = false;
         self.visible.clear();
         self.focused = None;
         self.reveal = None;
+        self.scope = None;
         self.render_epoch = self.render_epoch.wrapping_add(1);
     }
 }
 
 impl AppModel {
     pub(crate) fn open_command_center(&mut self, cx: &mut Context<Self>) {
+        self.enter_command_center(None, cx);
+    }
+
+    /// Switches the current project between its tabs and its own command center.
+    pub(crate) fn toggle_project_command_center(&mut self, cx: &mut Context<Self>) {
+        if self.command_center.active && self.command_center.scope.is_some() {
+            self.command_center.leave();
+            self.changed(cx);
+            self.focus_requested = true;
+            cx.notify();
+        } else {
+            self.enter_command_center(Some(self.project_command_center_scope()), cx);
+        }
+    }
+
+    /// A removed or switched-away project ends its command center.
+    pub(super) fn end_stale_project_command_center(&mut self) {
+        if self
+            .command_center
+            .scope
+            .is_some_and(|scope| scope != self.project_command_center_scope())
+        {
+            self.command_center.leave();
+        }
+    }
+
+    /// The project the sidebar row stands for: a worktree's parent, so all its worktrees show.
+    pub(crate) fn project_command_center_scope(&self) -> ProjectId {
+        let current = self.state.current_project();
+        current.parent_id.unwrap_or(current.id)
+    }
+
+    fn enter_command_center(&mut self, scope: Option<ProjectId>, cx: &mut Context<Self>) {
         if self.quitting != Quitting::Idle || self.close_request.is_some() {
             return;
+        }
+        if self.command_center.scope != scope {
+            self.command_center.scope = scope;
+            self.command_center.grid = None;
+            self.command_center.scroll.scroll_to(ListOffset::default());
         }
         self.dismiss_overlay(cx);
         self.dismiss_composer(false, cx);
@@ -278,12 +325,33 @@ impl AppModel {
         };
         let tile = self.command_center.tiles.remove(from);
         self.command_center.tiles.insert(to, tile);
-        self.appearance.command_center_order = self
+        let keys: Vec<_> = self
             .command_center
             .tiles
             .iter()
             .map(|tile| (tile.server, tile.session.info.id))
             .collect();
+        self.appearance.command_center_order = if self.command_center.scope.is_some() {
+            // Keep the other projects' places in the global order.
+            let shown: HashSet<_> = keys.iter().copied().collect();
+            let mut next = keys.iter().copied();
+            let mut order: Vec<_> = self
+                .appearance
+                .command_center_order
+                .iter()
+                .map(|key| {
+                    if shown.contains(key) {
+                        next.next().unwrap_or(*key)
+                    } else {
+                        *key
+                    }
+                })
+                .collect();
+            order.extend(next);
+            order
+        } else {
+            keys
+        };
         self.save_appearance(cx);
         self.command_center.grid = None;
         self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
@@ -304,32 +372,33 @@ impl AppModel {
             .iter()
             .map(|tile| ((tile.server, tile.session.info.id), tile))
             .collect();
-        let labels: HashMap<_, _> = self
-            .state
-            .projects()
-            .iter()
-            .flat_map(|project| {
-                project
-                    .tabs
-                    .iter()
-                    .flat_map(|tab| &tab.panes)
-                    .filter_map(|pane| match pane.content {
-                        PaneContent::Terminal {
-                            session: Some(session),
-                        } => Some(((project.server_id, session), pane.title.as_str())),
-                        _ => None,
-                    })
-            })
-            .collect();
+        let labels = self.session_titles();
         let quick_session = self
             .state
             .quick_terminal()
             .and_then(|pane| self.pane_session(pane.id));
+        let scope = self.command_center_scope();
+        // Hiding applies to the global dashboard; a project's own one shows all its terminals.
+        let hidden: HashSet<_> = if scope.is_none() {
+            self.appearance
+                .command_center_hidden
+                .iter()
+                .copied()
+                .collect()
+        } else {
+            HashSet::new()
+        };
         let mut tiles: Vec<_> = self
             .running_sessions()
             .into_iter()
             .filter(|(server, session)| {
                 !server.is_local() || Some(session.info.id) != quick_session
+            })
+            .filter(|(server, session)| {
+                !hidden.contains(&(*server, session.info.id))
+                    && scope
+                        .as_ref()
+                        .is_none_or(|scope| scope.contains(&(*server, session.info.project)))
             })
             .filter(|(server, session)| seen.insert((*server, session.info.id)))
             .map(|(server, session)| {
@@ -337,11 +406,7 @@ impl AppModel {
                 let pane = previous.map_or_else(PaneId::new, |tile| tile.pane);
                 let title = previous
                     .map(|tile| tile.title.clone())
-                    .or_else(|| {
-                        labels
-                            .get(&(server, session.info.id))
-                            .map(|title| (*title).to_owned())
-                    })
+                    .or_else(|| labels.get(&(server, session.info.id)).cloned())
                     .unwrap_or_else(|| tr!("Terminal %lld", session.info.id.get()).to_string());
                 let error = previous.and_then(|tile| tile.error.clone());
                 Tile {
@@ -382,6 +447,132 @@ impl AppModel {
         }
         self.sync_visible(cx);
         cx.notify();
+    }
+
+    /// Each saved terminal pane's title, by session.
+    fn session_titles(&self) -> HashMap<(ServerId, SessionId), String> {
+        self.state
+            .projects()
+            .iter()
+            .flat_map(|project| {
+                project
+                    .tabs
+                    .iter()
+                    .flat_map(|tab| &tab.panes)
+                    .filter_map(|pane| match pane.content {
+                        PaneContent::Terminal {
+                            session: Some(session),
+                        } => Some(((project.server_id, session), pane.title.clone())),
+                        _ => None,
+                    })
+            })
+            .collect()
+    }
+
+    /// Lists every shown project's terminals, so the dashboard's menu can offer them.
+    pub(crate) fn request_all_sessions(&mut self, cx: &mut Context<Self>) {
+        let projects: Vec<_> = self
+            .state
+            .projects()
+            .iter()
+            .filter(|project| self.project_shown(project) && self.confirmed(project.server_id))
+            .map(|project| project.id)
+            .collect();
+        for project in projects {
+            self.request_sessions(project, cx);
+        }
+    }
+
+    /// Every running terminal by project, checked when the dashboard shows it.
+    pub(crate) fn command_center_session_items(&self) -> Vec<crate::views::menu::Item> {
+        use crate::views::menu::{Command, Item, MenuIcon};
+        let mut titles = self.session_titles();
+        // Attached tiles carry the live title.
+        titles.extend(
+            self.command_center
+                .tiles
+                .iter()
+                .map(|tile| ((tile.server, tile.session.info.id), tile.title.clone())),
+        );
+        let hidden: HashSet<_> = self.appearance.command_center_hidden.iter().collect();
+        let quick_session = self
+            .state
+            .quick_terminal()
+            .and_then(|pane| self.pane_session(pane.id));
+        let mut items = vec![Item::heading(tr!("Show in Command Center"))];
+        let mut project = None;
+        for (server, session) in self.running_sessions() {
+            // The Quick Terminal never gets a tile, so it can't be offered here.
+            if server.is_local() && Some(session.info.id) == quick_session {
+                continue;
+            }
+            let key = (server, session.info.id);
+            if project != Some(session.info.project) {
+                project = Some(session.info.project);
+                if let Some(entry) = self.state.project(session.info.project) {
+                    items.push(Item::heading(entry.name.clone()).separated());
+                }
+            }
+            let title = titles
+                .get(&key)
+                .filter(|title| !title.is_empty())
+                .cloned()
+                .unwrap_or_else(|| tr!("Terminal %lld", session.info.id.get()).to_string());
+            items.push(
+                Item::action(title, Command::ToggleCenterSession(server, session.info.id))
+                    .icon(MenuIcon::Project(session.info.project))
+                    .checked_if(!hidden.contains(&key)),
+            );
+        }
+        if items.len() == 1 {
+            items.push(Item::heading(tr!("No running terminals")));
+        }
+        items
+    }
+
+    /// Shows or hides a running terminal in the dashboard; it keeps running either way.
+    pub(crate) fn toggle_command_center_session(
+        &mut self,
+        server: ServerId,
+        session: SessionId,
+        cx: &mut Context<Self>,
+    ) {
+        let running: HashSet<_> = self
+            .running_sessions()
+            .into_iter()
+            .map(|(server, session)| (server, session.info.id))
+            .collect();
+        let ready: HashSet<_> = self
+            .servers
+            .ids()
+            .into_iter()
+            .filter(|server| self.server_ready(*server))
+            .collect();
+        let hidden = &mut self.appearance.command_center_hidden;
+        // Ended terminals' entries go; an unreachable server's stay until it's back.
+        hidden.retain(|key| running.contains(key) || !ready.contains(&key.0));
+        let key = (server, session);
+        if let Some(index) = hidden.iter().position(|hidden| *hidden == key) {
+            hidden.remove(index);
+        } else if running.contains(&key) {
+            hidden.push(key);
+        }
+        self.save_appearance(cx);
+        self.sync_command_center(cx);
+        cx.notify();
+    }
+
+    /// The scoped project and its worktrees, or `None` for every project.
+    fn command_center_scope(&self) -> Option<HashSet<(ServerId, ProjectId)>> {
+        let scope = self.command_center.scope?;
+        Some(
+            self.state
+                .projects()
+                .iter()
+                .filter(|project| project.id == scope || project.parent_id == Some(scope))
+                .map(|project| (project.server_id, project.id))
+                .collect(),
+        )
     }
 
     /// Only tiles intersecting the viewport may attach terminals. A deferred

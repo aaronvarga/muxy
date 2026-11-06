@@ -453,6 +453,15 @@ pub(super) const SETTINGS: &[Setting] = &[
         section: tr_key!("Interface"),
     },
     Setting {
+        id: "project-session-counts",
+        label: tr_key!("Show running terminal counts on project icons"),
+        description: tr_key!(
+            "Show how many terminals each project has running on its sidebar icon."
+        ),
+        category: Category::Appearance,
+        section: tr_key!("Interface"),
+    },
+    Setting {
         id: "worktree-recent-order",
         label: tr_key!("Order the worktree switcher by recent use"),
         description: tr_key!(

@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+
+use libproc::bsd_info::BSDInfo;
+use libproc::file_info::{ListFDs, PIDFDInfo, PIDFDInfoFlavor, ProcFDType, pidfdinfo};
 use libproc::net_info::VInfoStat;
 use libproc::proc_pid::{self, PIDInfo, PidInfoFlavor};
 use libproc::processes::{self, ProcFilter};
@@ -49,21 +53,81 @@ impl PIDInfo for VnodePathInfo {
     }
 }
 
-pub(super) fn agent_provider(group: u32) -> Option<muxy_protocol::AgentProvider> {
-    let mut pids = processes::pids_by_type(ProcFilter::ByProgramGroup { pgrpid: group }).ok()?;
+/// Darwin's `vnode_fdinfowithpath`: a `proc_fileinfo` followed by the vnode and its path.
+#[repr(C)]
+struct VnodeFdPathInfo {
+    file: [u64; 3],
+    vnode: VnodePath,
+}
+
+impl Default for VnodeFdPathInfo {
+    fn default() -> Self {
+        Self {
+            file: [0; 3],
+            vnode: VnodePath {
+                info: VnodeInfo {
+                    stat: VInfoStat::default(),
+                    kind: 0,
+                    padding: 0,
+                    filesystem: [0; 2],
+                },
+                path: [0; 1024],
+            },
+        }
+    }
+}
+
+impl PIDFDInfo for VnodeFdPathInfo {
+    fn flavor() -> PIDFDInfoFlavor {
+        PIDFDInfoFlavor::VNodePathInfo
+    }
+}
+
+/// The foreground group's processes, by pid, with their names.
+pub(super) fn group_members(group: u32) -> Vec<(i32, String)> {
+    let mut pids =
+        processes::pids_by_type(ProcFilter::ByProgramGroup { pgrpid: group }).unwrap_or_default();
     pids.sort_unstable();
-    pids.into_iter().take(128).find_map(|pid| {
-        let pid = i32::try_from(pid).ok()?;
-        let name = proc_pid::name(pid).ok()?;
-        crate::detection::identify(&name, &process_arguments(pid))
-    })
+    pids.into_iter()
+        .take(128)
+        .filter_map(|pid| {
+            let pid = i32::try_from(pid).ok()?;
+            Some((pid, proc_pid::name(pid).ok()?))
+        })
+        .collect()
+}
+
+/// Paths of the regular files `pid` has open.
+pub(super) fn open_files(pid: i32) -> Vec<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(info) = proc_pid::pidinfo::<BSDInfo>(pid, 0) else {
+        return Vec::new();
+    };
+    let Ok(fds) = proc_pid::listpidinfo::<ListFDs>(pid, info.pbi_nfiles as usize) else {
+        return Vec::new();
+    };
+    fds.into_iter()
+        .filter(|fd| matches!(ProcFDType::from(fd.proc_fdtype), ProcFDType::VNode))
+        .filter_map(|fd| {
+            let info = pidfdinfo::<VnodeFdPathInfo>(pid, fd.proc_fd).ok()?;
+            let path = &info.vnode.path;
+            let length = path.iter().position(|byte| *byte == 0)?;
+            Some(PathBuf::from(std::ffi::OsStr::from_bytes(&path[..length])))
+        })
+        .collect()
+}
+
+pub(super) fn agent_provider(group: u32) -> Option<muxy_protocol::AgentProvider> {
+    group_members(group)
+        .into_iter()
+        .find_map(|(pid, name)| crate::detection::identify(&name, &process_arguments(pid)))
 }
 
 #[allow(
     unsafe_code,
     reason = "Darwin exposes process arguments only through sysctl"
 )]
-fn process_arguments(pid: i32) -> Vec<String> {
+pub(super) fn process_arguments(pid: i32) -> Vec<String> {
     unsafe extern "C" {
         fn sysctl(
             name: *mut std::ffi::c_int,
@@ -111,7 +175,7 @@ fn process_arguments(pid: i32) -> Vec<String> {
     };
     args[start..]
         .split(|b| *b == 0)
-        .take(usize::try_from(count).unwrap_or(0).min(64))
+        .take(usize::try_from(count).unwrap_or(0).min(65))
         .map(|b| String::from_utf8_lossy(b).into_owned())
         .collect()
 }
@@ -124,5 +188,21 @@ mod tests {
     fn vnode_layout_matches_the_darwin_abi() {
         assert_eq!(size_of::<VnodePathInfo>(), 2352);
         assert_eq!(std::mem::offset_of!(VnodePath, path), 152);
+        assert_eq!(size_of::<VnodeFdPathInfo>(), 1200);
+    }
+
+    #[test]
+    fn open_files_lists_this_process_files() -> Result<(), Box<dyn std::error::Error>> {
+        let path = std::env::temp_dir().join(format!(
+            "muxy-open-files-{}",
+            muxy_protocol::OperationId::new()
+        ));
+        let file = std::fs::File::create(&path)?;
+        let listed = open_files(i32::try_from(std::process::id())?);
+        let expected = path.canonicalize()?;
+        drop(file);
+        std::fs::remove_file(&path)?;
+        assert!(listed.contains(&expected), "{listed:?}");
+        Ok(())
     }
 }

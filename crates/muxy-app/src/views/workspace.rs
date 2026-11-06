@@ -1064,9 +1064,10 @@ impl Render for AppModel {
                                 header.child(div().h(px(1.0)).flex_none().bg(theme.border))
                             }),
                     )
-                    .when(!self.command_center.active, |column| {
-                        column.children(super::commands_bar::commands_bar(self, cx))
-                    })
+                    .when(
+                        !self.command_center.active || self.command_center.scope.is_some(),
+                        |column| column.children(super::commands_bar::commands_bar(self, cx)),
+                    )
                     .child(
                         div()
                             .debug_selector(|| "workspace-content".into())

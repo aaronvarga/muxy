@@ -8,6 +8,8 @@ pub const MAX_ROWS: u16 = 1024;
 pub const MAX_LINK_SPANS: usize = 1024;
 pub const MAX_LINK_URI: usize = 2048;
 pub const MAX_CLIPBOARD_TEXT: usize = 1024 * 1024;
+pub const MAX_AGENT_ARGUMENTS: usize = 64;
+pub const MAX_AGENT_ARGUMENT: usize = 4096;
 
 pub const MAX_INPUT: usize = 1024 * 1024;
 
@@ -105,6 +107,18 @@ impl Message {
             Self::Metadata(MetadataEvent::Directory(path)) => validate_path(path),
             Self::Metadata(MetadataEvent::ClipboardWrite(text)) => {
                 if text.is_empty() || text.len() > MAX_CLIPBOARD_TEXT {
+                    Err(ErrorCode::BadRequest)
+                } else {
+                    Ok(())
+                }
+            }
+            Self::Metadata(MetadataEvent::AgentSession { id, arguments, .. }) => {
+                if !(1..=200).contains(&id.len())
+                    || arguments.len() > MAX_AGENT_ARGUMENTS
+                    || arguments
+                        .iter()
+                        .any(|argument| argument.len() > MAX_AGENT_ARGUMENT)
+                {
                     Err(ErrorCode::BadRequest)
                 } else {
                     Ok(())

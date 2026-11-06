@@ -45,10 +45,12 @@ fn parse_stat(stat: &[u8]) -> Option<(u32, String)> {
     Some((group, name))
 }
 
-pub(super) fn agent_provider(group: u32) -> Option<muxy_protocol::AgentProvider> {
-    use std::io::Read;
-    let mut pids: Vec<u32> = fs::read_dir("/proc")
-        .ok()?
+/// The foreground group's processes, by pid, with their names.
+pub(super) fn group_members(group: u32) -> Vec<(i32, String)> {
+    let Ok(entries) = fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    let mut pids: Vec<u32> = entries
         .filter_map(Result::ok)
         .filter_map(|e| e.file_name().to_str()?.parse().ok())
         .collect();
@@ -57,22 +59,43 @@ pub(super) fn agent_provider(group: u32) -> Option<muxy_protocol::AgentProvider>
         .filter_map(|pid| {
             let stat = fs::read(format!("/proc/{pid}/stat")).ok()?;
             let (pgrp, name) = parse_stat(&stat)?;
-            (pgrp == group).then_some((pid, name))
+            (pgrp == group).then_some((i32::try_from(pid).ok()?, name))
         })
         .take(128)
-        .find_map(|(pid, name)| {
-            let mut bytes = Vec::new();
-            let _ = fs::File::open(format!("/proc/{pid}/cmdline"))
-                .ok()?
-                .take(64 * 1024)
-                .read_to_end(&mut bytes);
-            let args = bytes
-                .split(|b| *b == 0)
-                .take(64)
-                .map(|b| String::from_utf8_lossy(b).into_owned())
-                .collect::<Vec<_>>();
-            crate::detection::identify(&name, &args)
+        .collect()
+}
+
+pub(super) fn process_arguments(pid: i32) -> Vec<String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    if let Ok(file) = fs::File::open(format!("/proc/{pid}/cmdline")) {
+        let _ = file.take(64 * 1024).read_to_end(&mut bytes);
+    }
+    bytes
+        .strip_suffix(&[0])
+        .unwrap_or(&bytes)
+        .split(|b| *b == 0)
+        .take(65)
+        .map(|b| String::from_utf8_lossy(b).into_owned())
+        .collect()
+}
+
+/// Paths of the files `pid` has open.
+pub(super) fn open_files(pid: i32) -> Vec<std::path::PathBuf> {
+    fs::read_dir(format!("/proc/{pid}/fd"))
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter_map(|entry| fs::read_link(entry.path()).ok())
+                .collect()
         })
+        .unwrap_or_default()
+}
+
+pub(super) fn agent_provider(group: u32) -> Option<muxy_protocol::AgentProvider> {
+    group_members(group)
+        .into_iter()
+        .find_map(|(pid, name)| crate::detection::identify(&name, &process_arguments(pid)))
 }
 
 #[cfg(test)]

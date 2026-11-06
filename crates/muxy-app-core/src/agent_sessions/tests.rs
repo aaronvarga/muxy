@@ -224,6 +224,67 @@ fn resume_commands_never_interpolate_transcript_text_or_paths() {
     }
 }
 
+#[test]
+fn resume_commands_keep_launch_flags_but_not_prompts_or_session_choices() {
+    let words = |values: &[&str]| -> Vec<String> { values.iter().map(|&v| v.into()).collect() };
+    let id = "bde3d35b-d3c0-49d7-93c1-9a0391781702";
+    assert_eq!(
+        resume_command(
+            AgentProvider::Claude,
+            id,
+            &words(&[
+                "--enable-auto-mode",
+                "--resume",
+                "old-id",
+                "--model",
+                "opus"
+            ])
+        )
+        .as_deref(),
+        Some(
+            "claude --enable-auto-mode --model opus --resume bde3d35b-d3c0-49d7-93c1-9a0391781702"
+        )
+    );
+    assert_eq!(
+        resume_command(
+            AgentProvider::Claude,
+            id,
+            &words(&["-c", "--settings=a b.json", "--", "a prompt"])
+        )
+        .as_deref(),
+        Some("claude '--settings=a b.json' --resume bde3d35b-d3c0-49d7-93c1-9a0391781702")
+    );
+    // Codex takes flags after its subcommand, and `-c` is a config value there.
+    assert_eq!(
+        resume_command(
+            AgentProvider::Codex,
+            id,
+            &words(&["resume", "--last", "--yolo", "-c", "model='o3'"])
+        )
+        .as_deref(),
+        Some(r"codex resume --yolo -c 'model='\''o3'\''' bde3d35b-d3c0-49d7-93c1-9a0391781702")
+    );
+    // A prompt after a Codex switch would be read as the session id.
+    assert_eq!(
+        resume_command(
+            AgentProvider::Codex,
+            id,
+            &words(&["--full-auto", "fix the tests", "--model", "o3"])
+        )
+        .as_deref(),
+        Some("codex resume --full-auto --model o3 bde3d35b-d3c0-49d7-93c1-9a0391781702")
+    );
+    assert_eq!(
+        resume_command(
+            AgentProvider::Claude,
+            id,
+            &words(&["--model", "a\u{1b}[2J"])
+        )
+        .as_deref(),
+        Some("claude --resume bde3d35b-d3c0-49d7-93c1-9a0391781702")
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn symlinked_transcripts_are_not_followed_but_project_aliases_match() -> Result {

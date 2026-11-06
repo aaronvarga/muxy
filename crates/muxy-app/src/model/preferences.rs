@@ -372,6 +372,7 @@ impl AppModel {
                 match key {
                     "auto-expand-worktrees" => settings.appearance.auto_expand_worktrees = value,
                     "worktree-unread" => settings.appearance.worktree_show_unread = value,
+                    "project-session-counts" => settings.appearance.project_session_counts = value,
                     "worktree-recent-order" => settings.appearance.worktree_recent_order = value,
                     _ => return Ok(()),
                 }
@@ -594,8 +595,13 @@ impl AppModel {
             || self.appearance.dark_theme != settings.appearance.dark_theme
             || self.appearance.light_theme != settings.appearance.light_theme;
         let language_changed = self.appearance.language != settings.appearance.language;
+        let session_counts_shown =
+            settings.appearance.project_session_counts && !self.appearance.project_session_counts;
         self.appearance = settings.appearance.clone();
         self.settings = settings;
+        if session_counts_shown {
+            self.refresh_existing_sessions(cx);
+        }
         self.sync_agents_panel(cx);
         self.sync_agent_sessions(cx);
         self.filter_agent_sessions(cx);

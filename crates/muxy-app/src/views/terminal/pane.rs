@@ -40,6 +40,7 @@ pub(crate) enum PaneEvent {
     Mouse(ChannelId, MouseEvent),
     CellSize(ChannelId, muxy_protocol::CellSize),
     Title(String),
+    ResumeCommand,
     Bell,
     History(HistoryRequest),
     Search(find::SearchRequest),
@@ -122,6 +123,8 @@ pub(crate) struct TerminalPane {
     pub(crate) terminal: muxy_app_core::settings::TerminalSettings,
     pub(crate) state: PaneState,
     pub(crate) process: Option<ForegroundProcess>,
+    /// Reopens the agent session last run here, even after it exited.
+    pub(crate) resume_command: Option<String>,
     title: String,
     directory: ServerPath,
     pub(crate) bell_flashing: bool,
@@ -220,6 +223,7 @@ impl TerminalPane {
             terminal,
             state: PaneState::Connecting,
             process: None,
+            resume_command: None,
             title: String::new(),
             directory: ServerPath(Vec::new()),
             bell_flashing: false,
@@ -677,6 +681,19 @@ impl TerminalPane {
                     && text.len() <= muxy_protocol::MAX_CLIPBOARD_TEXT
                 {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                }
+                return;
+            }
+            MetadataEvent::AgentSession {
+                provider,
+                id,
+                arguments,
+            } => {
+                let command =
+                    muxy_app_core::agent_sessions::resume_command(provider, &id, &arguments);
+                if self.resume_command != command {
+                    self.resume_command = command;
+                    cx.emit(PaneEvent::ResumeCommand);
                 }
                 return;
             }

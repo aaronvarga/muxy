@@ -1816,15 +1816,22 @@ impl AppModel {
     /// The project shown is always one the sidebar lists, never a removed
     /// server's project or another computer's Home outside Remote Servers, so
     /// new tabs never open somewhere the user can't see.
-    fn sync_visible(&mut self, cx: &mut Context<Self>) {
-        if self.state.remote_servers_selected() && !self.remote_servers_offered() {
-            let _ = self.state.select_workspace(None);
-        }
+    /// Falls back to Home when the current project is gone, ending a stale project
+    /// command center.
+    fn sync_current_project(&mut self) {
         if !self.project_listed(self.state.current_project()) {
             let home = self.state.home().id;
             let _ = self.state.select_project(home);
             self.state.reveal_current_project();
         }
+        self.end_stale_project_command_center();
+    }
+
+    fn sync_visible(&mut self, cx: &mut Context<Self>) {
+        if self.state.remote_servers_selected() && !self.remote_servers_offered() {
+            let _ = self.state.select_workspace(None);
+        }
+        self.sync_current_project();
         self.sync_agent_sessions(cx);
         self.sync_composer(cx);
         self.sync_project_layouts(cx);
@@ -1987,7 +1994,7 @@ impl AppModel {
             PaneEvent::SelectionCopied => {
                 model.show_notice(tr!("Copied to clipboard").to_string(), cx);
             }
-            PaneEvent::Bell => cx.notify(),
+            PaneEvent::Bell | PaneEvent::ResumeCommand => cx.notify(),
             PaneEvent::Focused => {
                 model.blur_webviews(cx);
                 if !model.is_quick_terminal(id) {

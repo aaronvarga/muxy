@@ -84,7 +84,10 @@ impl AppModel {
         if let Some(Overlay::Sessions(picker)) = &self.overlay {
             self.request_sessions(picker.project, cx);
         }
-        if self.command_center.active || self.has_status_menu() {
+        if self.command_center.active
+            || self.has_status_menu()
+            || self.appearance.project_session_counts
+        {
             let projects: Vec<_> = self
                 .state
                 .projects()
@@ -125,7 +128,7 @@ impl AppModel {
         self.refresh_existing_sessions(cx);
     }
 
-    fn request_sessions(&mut self, project: ProjectId, cx: &mut Context<Self>) {
+    pub(crate) fn request_sessions(&mut self, project: ProjectId, cx: &mut Context<Self>) {
         let Some(current) = self.sessions_revision(project) else {
             return;
         };
@@ -164,6 +167,28 @@ impl AppModel {
         self.refresh_existing_sessions(cx);
         self.sync_command_center(cx);
         cx.notify();
+    }
+
+    /// A project's running terminals, leaving out the Quick Terminal.
+    pub(crate) fn running_session_count(&self, project: &muxy_app_core::Project) -> usize {
+        let quick = (project.home && project.server_id.is_local())
+            .then(|| self.state.quick_terminal())
+            .flatten()
+            .and_then(|pane| self.pane_session(pane.id));
+        self.existing_sessions
+            .projects
+            .get(&project.id)
+            .into_iter()
+            .flat_map(|listing| &listing.entries)
+            .filter(|session| {
+                session.info.project == project.id
+                    && Some(session.info.id) != quick
+                    && matches!(
+                        session.status,
+                        muxy_protocol::SessionStatus::Live | muxy_protocol::SessionStatus::Starting
+                    )
+            })
+            .count()
     }
 
     pub(crate) fn running_sessions(&self) -> Vec<(ServerId, ProjectSession)> {

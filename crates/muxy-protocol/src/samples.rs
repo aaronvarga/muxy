@@ -457,6 +457,11 @@ fn terminal_metadata_samples(samples: &mut Vec<Message>) {
     samples.push(Message::Metadata(MetadataEvent::ClipboardWrite(
         "copied text".into(),
     )));
+    samples.push(Message::Metadata(MetadataEvent::AgentSession {
+        provider: crate::AgentProvider::Claude,
+        id: "bde3d35b-d3c0-49d7-93c1-9a0391781702".into(),
+        arguments: vec!["--enable-auto-mode".into()],
+    }));
     samples.push(Message::Metadata(MetadataEvent::Links {
         seq: 1,
         rows: vec![crate::LinkRow {

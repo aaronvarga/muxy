@@ -561,30 +561,53 @@ pub(super) fn status_glyph_in(
     owner: Option<gpui::EntityId>,
     model: &AppModel,
 ) -> AnyElement {
+    counted_status_glyph(id, status, 0, size, owner, model)
+}
+
+/// A status glyph whose dot carries `count`, or a gray one when there's no
+/// status; a spinner or progress ring circles a gray count.
+pub(super) fn counted_status_glyph(
+    id: String,
+    status: Status,
+    count: usize,
+    size: Pixels,
+    owner: Option<gpui::EntityId>,
+    model: &AppModel,
+) -> AnyElement {
     let theme = &model.theme;
+    // A ring grows to fit the count inside it.
+    let ring = if count > 0 {
+        model.metrics.scaled(RING_WITH_COUNT)
+    } else {
+        size
+    };
     let (kind, tooltip, glyph) = match status {
-        Status::None => return div().into_any_element(),
+        Status::None if count == 0 => return div().into_any_element(),
+        Status::None => (
+            "count",
+            running_terminals(count),
+            count_dot(count, theme.fg_muted, 13.0, model),
+        ),
         Status::Busy(key) => (
             "busy",
-            translate(key).to_string(),
-            model
-                .spinners
-                .glyph_in(id.clone(), size, theme.accent, owner),
+            with_count(translate(key).to_string(), count),
+            ringed(
+                model
+                    .spinners
+                    .glyph_in(id.clone(), ring, theme.accent, owner),
+                count,
+                model,
+            ),
         ),
-        Status::Progress(progress) => {
-            let tooltip = match progress.state {
-                ProgressState::Error => tr!("Work reported an error."),
-                ProgressState::Paused => tr!("Work is paused."),
-                ProgressState::Running
-                | ProgressState::Indeterminate
-                | ProgressState::Unrecognized(_) => tr!("Work is in progress."),
-            };
-            (
-                "progress",
-                tooltip.to_string(),
-                progress_circle(&id, progress, size, owner, model),
-            )
-        }
+        Status::Progress(progress) => (
+            "progress",
+            with_count(progress_tooltip(progress.state), count),
+            ringed(
+                progress_circle(&id, progress, ring, owner, model),
+                count,
+                model,
+            ),
+        ),
         Status::Blocked | Status::Completed => {
             let blocked = status == Status::Blocked;
             let color = if blocked { theme.warning } else { theme.accent };
@@ -595,32 +618,23 @@ pub(super) fn status_glyph_in(
             };
             (
                 if blocked { "blocked" } else { "completion" },
-                tooltip.to_string(),
-                div()
-                    .size(model.metrics.scaled(
-                        if id.starts_with("tab-") || id.starts_with("agents-panel-") {
-                            7.0
-                        } else {
-                            8.0
-                        },
-                    ))
-                    .rounded_full()
-                    .bg(color)
-                    .into_any_element(),
+                with_count(tooltip.to_string(), count),
+                status_dot(
+                    count,
+                    color,
+                    if id.starts_with("tab-") || id.starts_with("agents-panel-") {
+                        7.0
+                    } else {
+                        8.0
+                    },
+                    model,
+                ),
             )
         }
-        Status::Unread(count) => (
+        Status::Unread(unread) => (
             "unread",
-            if count == 1 {
-                tr!("1 unread notification").to_string()
-            } else {
-                tr!("%lld unread notifications", count).to_string()
-            },
-            div()
-                .size(model.metrics.scaled(8.0))
-                .rounded_full()
-                .bg(theme.accent)
-                .into_any_element(),
+            with_count(unread_tooltip(unread), count),
+            status_dot(count, theme.accent, 8.0, model),
         ),
     };
     let selector = if let Some(tab) = id.strip_prefix("tab-") {
@@ -639,8 +653,8 @@ pub(super) fn status_glyph_in(
         .flex_none()
         .items_center()
         .justify_center()
-        .min_w(size)
-        .h(size)
+        .min_w(ring)
+        .h(ring)
         .tooltip(move |_, cx| {
             cx.new(|_| {
                 Tooltip::new(
@@ -654,6 +668,97 @@ pub(super) fn status_glyph_in(
             .into()
         })
         .child(glyph)
+        .into_any_element()
+}
+
+fn unread_tooltip(unread: usize) -> String {
+    if unread == 1 {
+        tr!("1 unread notification").to_string()
+    } else {
+        tr!("%lld unread notifications", unread).to_string()
+    }
+}
+
+fn progress_tooltip(state: ProgressState) -> String {
+    match state {
+        ProgressState::Error => tr!("Work reported an error."),
+        ProgressState::Paused => tr!("Work is paused."),
+        ProgressState::Running | ProgressState::Indeterminate | ProgressState::Unrecognized(_) => {
+            tr!("Work is in progress.")
+        }
+    }
+    .to_string()
+}
+
+fn running_terminals(count: usize) -> String {
+    if count == 1 {
+        tr!("1 running terminal").to_string()
+    } else {
+        tr!("%lld running terminals", count).to_string()
+    }
+}
+
+fn with_count(tooltip: String, count: usize) -> String {
+    if count == 0 {
+        tooltip
+    } else {
+        format!("{tooltip}\n{}", running_terminals(count))
+    }
+}
+
+/// A plain status dot, or one grown to hold a running terminal count.
+fn status_dot(count: usize, color: Hsla, diameter: f32, model: &AppModel) -> AnyElement {
+    if count == 0 {
+        return div()
+            .size(model.metrics.scaled(diameter))
+            .rounded_full()
+            .bg(color)
+            .into_any_element();
+    }
+    count_dot(count, color, 13.0, model)
+}
+
+/// Diameter of a spinner or progress ring holding a count.
+const RING_WITH_COUNT: f32 = 18.0;
+
+/// A spinner or progress ring with a gray count in its hollow middle.
+fn ringed(ring: AnyElement, count: usize, model: &AppModel) -> AnyElement {
+    if count == 0 {
+        return ring;
+    }
+    let size = model.metrics.scaled(RING_WITH_COUNT);
+    div()
+        .relative()
+        .flex()
+        .items_center()
+        .justify_center()
+        .size(size)
+        .child(count_dot(count, model.theme.fg_muted, 12.0, model))
+        .child(div().absolute().inset_0().child(ring))
+        .into_any_element()
+}
+
+/// A status dot grown to hold a running terminal count.
+fn count_dot(count: usize, color: Hsla, diameter: f32, model: &AppModel) -> AnyElement {
+    let size = model.metrics.scaled(diameter);
+    div()
+        .flex()
+        .items_center()
+        .justify_center()
+        .min_w(size)
+        .h(size)
+        .px(model.metrics.scaled(diameter * 0.2))
+        .rounded_full()
+        .bg(color)
+        .text_color(model.theme.bg)
+        .text_size(model.metrics.scaled(diameter * 0.7))
+        .line_height(size)
+        .font_weight(gpui::FontWeight::BOLD)
+        .child(if count > 99 {
+            "99+".to_owned()
+        } else {
+            count.to_string()
+        })
         .into_any_element()
 }
 

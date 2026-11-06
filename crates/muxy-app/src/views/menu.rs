@@ -43,6 +43,9 @@ pub(crate) enum Command {
     CenterGroupByProject,
     CenterLayout(muxy_app_core::command_center::GridLayout),
     CenterColor(Option<usize>),
+    /// Shows or hides a running terminal in the Command Center; the menu stays
+    /// open for the next toggle.
+    ToggleCenterSession(muxy_app_core::ServerId, muxy_protocol::SessionId),
     CenterCustomLayout,
     CenterProject(muxy_app_core::PaneId),
     CenterCollapse(muxy_app_core::PaneId),
@@ -753,6 +756,12 @@ impl AppModel {
                 };
                 self.appearance.command_center_color = color;
                 self.save_appearance(cx);
+            }
+            Command::ToggleCenterSession(server, session) => {
+                self.toggle_command_center_session(server, session, cx);
+                let items = super::command_center::sidebar_menu(self);
+                self.open_menu(items, position, window, cx);
+                return;
             }
             Command::CenterProject(pane) => self.open_command_center_project(pane, cx),
             Command::CenterCollapse(pane) => self.toggle_command_center_terminal(pane, cx),
