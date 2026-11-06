@@ -2125,6 +2125,11 @@ impl AppModel {
             let _ = self.state.select_project(home);
             self.state.reveal_current_project();
         }
+        self.end_stale_project_command_center();
+    }
+
+    fn sync_visible(&mut self, cx: &mut Context<Self>) {
+        self.sync_current_project();
         self.sync_agent_sessions(cx);
         self.sync_composer(cx);
         self.sync_project_layouts(cx);
@@ -2268,7 +2273,7 @@ impl AppModel {
             PaneEvent::SelectionCopied => {
                 model.show_notice(tr!("Copied to clipboard").to_string(), cx);
             }
-            PaneEvent::Bell | PaneEvent::HeaderBackground => cx.notify(),
+            PaneEvent::Bell | PaneEvent::HeaderBackground | PaneEvent::ResumeCommand => cx.notify(),
             PaneEvent::Focused => {
                 model.blur_webviews(cx);
                 if !model.is_quick_terminal(id) {

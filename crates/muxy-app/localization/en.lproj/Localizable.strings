@@ -84,6 +84,7 @@
 "%lld offline" = "%lld offline";
 "%lld passed" = "%lld passed";
 "%lld running" = "%lld running";
+"%lld running terminals" = "%lld running terminals";
 "%lld selected" = "%lld selected";
 "%lld unread notifications" = "%lld unread notifications";
 "%lld updates available" = "%lld updates available";
@@ -98,6 +99,7 @@
 "1 Change" = "1 Change";
 "1 Existing Terminal" = "1 Existing Terminal";
 "1 more project" = "1 more project";
+"1 running terminal" = "1 running terminal";
 "1 unread notification" = "1 unread notification";
 "1 update available" = "1 update available";
 "A Git action is already pending" = "A Git action is already pending";
@@ -614,6 +616,7 @@
 "Cookies" = "Cookies";
 "Copied image is larger than 25 MiB" = "Copied image is larger than 25 MiB";
 "Copied the path" = "Copied the path";
+"Copied the resume command" = "Copied the resume command";
 "Copied the update command" = "Copied the update command";
 "Copied to clipboard" = "Copied to clipboard";
 "Copied!" = "Copied!";
@@ -623,6 +626,7 @@
 "Copy Page Address" = "Copy Page Address";
 "Copy Path" = "Copy Path";
 "Copy Project Path" = "Copy Project Path";
+"Copy Resume Command" = "Copy Resume Command";
 "Copy Update Command" = "Copy Update Command";
 "Copy on select" = "Copy on select";
 "Copy selected terminal text to the clipboard as soon as you finish selecting." = "Copy selected terminal text to the clipboard as soon as you finish selecting.";
@@ -1602,6 +1606,7 @@
 "Project" = "Project";
 "Project %lld" = "Project %lld";
 "Project Color" = "Project Color";
+"Project Command Center" = "Project Command Center";
 "Project Focused" = "Project Focused";
 "Project Logo" = "Project Logo";
 "Project edit is pending: %@" = "Project edit is pending: %@";
@@ -1942,6 +1947,7 @@
 "Show Pairing Code" = "Show Pairing Code";
 "Show Project in File Manager" = "Show Project in File Manager";
 "Show Welcome Tour" = "Show Welcome Tour";
+"Show Project Tabs" = "Show Project Tabs";
 "Show Worktrees" = "Show Worktrees";
 "Show a Muxy tip from time to time in the bottom-right corner of the window." = "Show a Muxy tip from time to time in the bottom-right corner of the window.";
 "Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer." = "Show a one-time code to scan with the Muxy phone app, or a link to paste on another computer.";
@@ -1956,8 +1962,10 @@
 "Show each agent's icon, or the icon of the project it runs in." = "Show each agent's icon, or the icon of the project it runs in.";
 "Show each pane's icon, title and actions above it, in the color of what it shows." = "Show each pane's icon, title and actions above it, in the color of what it shows.";
 "Show how long ago each completed or idle agent finished working." = "Show how long ago each completed or idle agent finished working.";
+"Show how many terminals each project has running on its sidebar icon." = "Show how many terminals each project has running on its sidebar icon.";
 "Show idle time" = "Show idle time";
 "Show in All Projects" = "Show in All Projects";
+"Show in Command Center" = "Show in Command Center";
 "Show in File Manager" = "Show in File Manager";
 "Show or hide the sidebar" = "Show or hide the sidebar";
 "Show other servers in the sidebar" = "Show other servers in the sidebar";
@@ -1969,6 +1977,7 @@
 "Show project colors" = "Show project colors";
 "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed." = "Show project icons or hide the sidebar in Project Focused. Tab Focused and Agents Focused always hide it when collapsed.";
 "Show project names alongside their icons in the workspace sidebar." = "Show project names alongside their icons in the workspace sidebar.";
+"Show running terminal counts on project icons" = "Show running terminal counts on project icons";
 "Show status bar" = "Show status bar";
 "Show the agents panel, or its button when the sidebar is collapsed." = "Show the agents panel, or its button when the sidebar is collapsed.";
 "Show tips" = "Show tips";

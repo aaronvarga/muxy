@@ -128,6 +128,9 @@ pub struct Appearance {
     /// Terminal order in the dashboard, independent of project tabs and splits.
     #[serde(with = "terminal_order")]
     pub command_center_order: Vec<(crate::ServerId, muxy_protocol::SessionId)>,
+    /// Running terminals left out of the dashboard; new ones show by default.
+    #[serde(with = "terminal_order")]
+    pub command_center_hidden: Vec<(crate::ServerId, muxy_protocol::SessionId)>,
     pub dark_theme: String,
     pub light_theme: String,
     pub interface_size: InterfaceSize,
@@ -149,6 +152,8 @@ pub struct Appearance {
     pub onboarding_completed: bool,
     pub auto_expand_worktrees: bool,
     pub worktree_show_unread: bool,
+    /// Each sidebar project icon shows how many terminals it has running.
+    pub project_session_counts: bool,
     pub worktree_recent_order: bool,
     pub worktree_recent: Vec<crate::ProjectId>,
     pub project_recent: Vec<crate::ProjectId>,
@@ -253,6 +258,7 @@ impl Default for Appearance {
             command_center_layout: crate::command_center::GridLayout::Auto,
             command_center_color: String::new(),
             command_center_order: Vec::new(),
+            command_center_hidden: Vec::new(),
             dark_theme: "Muxy".into(),
             light_theme: "Muxy Light".into(),
             interface_size: InterfaceSize::default(),
@@ -270,6 +276,7 @@ impl Default for Appearance {
             onboarding_completed: false,
             auto_expand_worktrees: false,
             worktree_show_unread: true,
+            project_session_counts: true,
             worktree_recent_order: true,
             worktree_recent: Vec::new(),
             project_recent: Vec::new(),

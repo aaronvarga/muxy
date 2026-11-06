@@ -226,6 +226,11 @@ pub(super) fn rows(
             appearance.worktree_show_unread,
         ),
         (
+            WorktreeToggle::SessionCounts,
+            tr_key!("Show running terminal counts on project icons"),
+            appearance.project_session_counts,
+        ),
+        (
             WorktreeToggle::RecentOrder,
             tr_key!("Order the worktree switcher by recent use"),
             appearance.worktree_recent_order,

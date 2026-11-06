@@ -149,7 +149,9 @@ pub(super) fn register_commands(
     }
 }
 
-fn sidebar_menu(model: &AppModel) -> Vec<Item> {
+/// The Command Center button's right-click menu: which running terminals it
+/// shows, then its color.
+pub(super) fn sidebar_menu(model: &AppModel) -> Vec<Item> {
     let current = model.appearance.command_center_color.as_str();
     let mut colors = vec![
         Item::action(tr!("Default"), Command::CenterColor(None))
@@ -159,12 +161,14 @@ fn sidebar_menu(model: &AppModel) -> Vec<Item> {
     colors.extend(color_items(Some(current), |index| {
         Command::CenterColor(Some(index))
     }));
-    vec![Item::submenu(tr!("Color"), colors)]
+    let mut items = model.command_center_session_items();
+    items.push(Item::submenu(tr!("Color"), colors).separated());
+    items
 }
 
 pub(super) fn sidebar_button(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     let m = model.metrics;
-    let active = model.command_center.active;
+    let active = model.command_center.active && model.command_center.scope.is_none();
     let wide = model.appearance.sidebar_expanded;
     let icon_size = model.sidebar_icon();
     let scale = f32::from(icon_size) / f32::from(m.icon_xxl());
@@ -218,6 +222,8 @@ pub(super) fn sidebar_button(model: &AppModel, cx: &mut Context<AppModel>) -> An
                     MouseButton::Right,
                     cx.listener(|model, event: &gpui::MouseDownEvent, window, cx| {
                         cx.stop_propagation();
+                        // Lists come in for the next opening; this one shows what's known.
+                        model.request_all_sessions(cx);
                         model.open_menu(sidebar_menu(model), event.position, window, cx);
                     }),
                 )
@@ -293,6 +299,21 @@ pub(super) fn header(
                     .child(tr!("Loading…")),
             )
         })
+        .when_some(
+            model
+                .command_center
+                .scope
+                .and_then(|scope| model.state.project(scope)),
+            |bar, project| {
+                bar.child(
+                    div()
+                        .text_size(m.font_body())
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(model.theme.fg)
+                        .child(project.name.clone()),
+                )
+            },
+        )
         .when(errors > 0, |bar| {
             bar.child(
                 div()

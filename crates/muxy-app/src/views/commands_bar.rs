@@ -1,6 +1,6 @@
 use gpui::{
     AnyElement, ClickEvent, Context, InteractiveElement, IntoElement, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, div, px,
+    StatefulInteractiveElement, Styled, div, prelude::FluentBuilder, px,
 };
 use muxy_protocol::AgentProvider;
 use muxy_ui::components::{ButtonInteraction, IconGlyph};
@@ -50,6 +50,24 @@ pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Opti
             cx.stop_propagation();
             model.open_menu(menu_items(model), event.position(), window, cx);
         }));
+    let scoped = model.command_center.active;
+    let center_id = SharedString::from("commands-bar-project-command-center");
+    let center = button(center_id.clone(), glyph(Icon::Grid, &center_id), None)
+        .when(scoped, |button| button.bg(theme.surface))
+        .tooltip(super::status_bar::tooltip(
+            if scoped {
+                tr!("Show Project Tabs")
+            } else {
+                tr!("Project Command Center")
+            }
+            .to_string(),
+            model,
+        ))
+        .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(cx.listener(|model, _, _, cx| {
+            cx.stop_propagation();
+            model.toggle_project_command_center(cx);
+        }));
     Some(
         div()
             .debug_selector(|| "commands-bar".into())
@@ -66,6 +84,7 @@ pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Opti
             .text_size(m.font_footnote())
             .text_color(theme.fg_muted)
             .child(menu)
+            .child(center)
             .children(
                 model
                     .available_commands()
@@ -79,6 +98,10 @@ pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Opti
                         );
                         button(element, icon, Some(command.name.clone().into())).button_interaction(
                             cx.listener(move |model, _, window, cx| {
+                                // A command opens in the project's tabs, so show them.
+                                if model.command_center.active {
+                                    model.toggle_project_command_center(cx);
+                                }
                                 model.run_custom_command_in_split(&id, cx);
                                 model.focus_active(window, cx);
                             }),

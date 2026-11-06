@@ -82,6 +82,7 @@ pub(crate) enum BrowserChange {
 pub(crate) enum WorktreeToggle {
     AutoExpand,
     Unread,
+    SessionCounts,
     RecentOrder,
 }
 
@@ -90,6 +91,7 @@ impl WorktreeToggle {
         match self {
             Self::AutoExpand => "auto-expand-worktrees",
             Self::Unread => "worktree-unread",
+            Self::SessionCounts => "project-session-counts",
             Self::RecentOrder => "worktree-recent-order",
         }
     }
@@ -599,6 +601,9 @@ impl AppModel {
                 match toggle {
                     WorktreeToggle::AutoExpand => settings.appearance.auto_expand_worktrees = value,
                     WorktreeToggle::Unread => settings.appearance.worktree_show_unread = value,
+                    WorktreeToggle::SessionCounts => {
+                        settings.appearance.project_session_counts = value;
+                    }
                     WorktreeToggle::RecentOrder => {
                         settings.appearance.worktree_recent_order = value;
                     }
@@ -868,8 +873,13 @@ impl AppModel {
         {
             self.projects_without_tabs_shown = settings.appearance.projects_without_tabs_shown;
         }
+        let session_counts_shown =
+            settings.appearance.project_session_counts && !self.appearance.project_session_counts;
         self.appearance = settings.appearance.clone();
         self.settings = settings;
+        if session_counts_shown {
+            self.refresh_existing_sessions(cx);
+        }
         self.sync_agents_panel(cx);
         self.sync_agent_sessions(cx);
         self.filter_agent_sessions(cx);

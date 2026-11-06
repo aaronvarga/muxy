@@ -1613,7 +1613,7 @@ fn project_row(
     let wide = model.appearance.sidebar_expanded;
     let id = project.id;
     let missing = project.status() == ProjectStatus::Missing;
-    let active = !model.command_center.active
+    let active = (!model.command_center.active || model.command_center.scope.is_some())
         && (model.state.current_project().id == id
             || model.state.current_project().parent_id == Some(id));
     let has_worktrees = model.has_worktrees(project) && !missing;
@@ -1646,6 +1646,11 @@ fn project_row(
     let name = SharedString::from(model.project_title(project));
     let description = project_description(missing, remote_description(project, model), activity);
     let expanded = has_worktrees.then(|| wide && model.expanded_worktrees.contains(&id));
+    let count = if model.appearance.project_session_counts && !missing {
+        model.running_session_count(project)
+    } else {
+        0
+    };
     let drag = DraggedProject {
         id,
         last_target: Cell::new(None),
@@ -1777,7 +1782,9 @@ fn project_row(
                     ),
             )
         })
-        .when(activity != tab_activity::Status::None && !dimmed, |row| {
+        .when(
+            (activity != tab_activity::Status::None || count > 0) && !dimmed,
+            |row| {
             row.child(
                 div()
                     .flex()
@@ -1789,14 +1796,18 @@ fn project_row(
                     .when(!wide, |badge| {
                         badge.absolute().right(m.scaled(-3.0)).top(m.scaled(-3.0))
                     })
-                    .child(tab_activity::status_glyph(
+                    .child(tab_activity::counted_status_glyph(
                         format!("project-activity-{id}"),
                         activity,
+                        count,
                         m.icon_sm(),
+                        None,
+                        None,
                         model,
                     )),
             )
-        })
+            },
+        )
         .when(wide && has_worktrees, |row| {
             row.child(worktrees::disclosure(project, model, cx))
         })
