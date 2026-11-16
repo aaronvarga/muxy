@@ -72,6 +72,72 @@ fn delivery(
 }
 
 #[gpui::test]
+fn composer_sends_to_a_command_center_terminal(cx: &mut TestAppContext) {
+    use super::command_center::{listing, session};
+
+    let state = AppState::bootstrap().expect("state");
+    let home = state.home().id;
+    let (mut boot, requests) = stub_boot(state);
+    boot.settings.composer.presentation = muxy_app_core::settings::ComposerPresentation::Docked;
+    boot.settings.composer.clear_after_sending = true;
+    cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1000.0), px(600.0)));
+    view.update(cx, |model, cx| {
+        model.receive(
+            local(1, Update::Connected(vec![session(home, 41).info])),
+            cx,
+        );
+        acknowledge_catalog(model, cx);
+        model.open_command_center(cx);
+        model.receive_session_page(home, Ok(listing(vec![session(home, 41)])), cx);
+        let pane = model.command_center.tiles[0].pane;
+        model.command_center.visible = vec![pane];
+        model.sync_visible(cx);
+        model.start_attach(pane, Size { cols: 60, rows: 20 }, cx);
+        model.receive(
+            local(
+                1,
+                Update::Attached {
+                    pane,
+                    session: SessionId::new(41).expect("session"),
+                    attachment: attachment(),
+                    created: false,
+                },
+            ),
+            cx,
+        );
+        assert!(model.state.pane_session(pane).is_none());
+        assert!(model.grids[&pane].view.read(cx).attachment().is_some());
+    });
+    cx.run_until_parked();
+    let editor = cx.debug_bounds("composer-editor").expect("editor").center();
+    cx.simulate_click(editor, Modifiers::none());
+    cx.simulate_input("/clear");
+    assert_eq!(composer_text(&view, cx), "/clear");
+    view.read_with(cx, |model, cx| {
+        let pane = model.active_pane().expect("active tile");
+        assert!(model.pane_session(pane).is_some());
+        assert!(model.grids[&pane].view.read(cx).attachment().is_some());
+    });
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    });
+    cx.run_until_parked();
+    view.read_with(cx, |model, cx| {
+        let composer = model.composer.view.as_ref().expect("composer").read(cx);
+        assert!(composer.error.is_none(), "{:?}", composer.error);
+    });
+    let (bytes, completion) = delivery(&requests);
+    assert_eq!(bytes, b"\x15/clear\r");
+    completion.try_send(Ok(())).expect("ack");
+    cx.run_until_parked();
+    assert_eq!(composer_text(&view, cx), "");
+}
+
+#[gpui::test]
 fn composer_delivery_preserves_edits_and_failures_then_clears_confirmed_draft(
     cx: &mut TestAppContext,
 ) {
@@ -440,16 +506,14 @@ fn docked_composer_keeps_a_draft_per_session_and_sends_to_the_clicked_session(
     view.update(cx, |model, cx| {
         model.servers.local.connection = ConnectionState::Ready;
         for (index, pane) in [first, second].into_iter().enumerate() {
-            let mut attachment = attachment();
-            attachment.channel =
-                muxy_protocol::ChannelId(u32::try_from(index + 1).expect("channel"));
+            let attachment = attachment_on(u32::try_from(index + 1).expect("channel"));
             model.receive(
                 (
                     ServerId::local(),
                     1,
                     Update::Attached {
                         pane,
-                        session: model.pane_session(pane).expect("session"),
+                        session: model.pane_session(pane).expect("session").1,
                         attachment,
                         created: false,
                     },
@@ -668,8 +732,7 @@ fn new_tabs_and_splits_focus_their_docked_composer_once_attached(cx: &mut TestAp
         cx.run_until_parked();
         view.update(cx, |model, cx| {
             let pane = model.active_pane().expect("pane");
-            let mut attachment = attachment();
-            attachment.channel = muxy_protocol::ChannelId(u32::try_from(session).expect("id"));
+            let attachment = attachment_on(u32::try_from(session).expect("id"));
             model.receive(
                 (
                     ServerId::local(),
@@ -729,4 +792,108 @@ fn quick_commands_insert_into_draft_without_sending_and_reject_other_projects(
         "ctrl-z"
     });
     assert_eq!(composer_text(&view, cx), "before ");
+}
+
+/// Whether the docked composer draws as the dialog; debug bounds outlive frames.
+fn popped(view: &Entity<AppModel>, cx: &VisualTestContext) -> bool {
+    view.read_with(cx, |model, cx| {
+        let composer = model.composer.view.as_ref().expect("composer").read(cx);
+        assert_eq!(composer.popped, model.composer.popped);
+        composer.popped && model.composer_dialog()
+    })
+}
+
+#[gpui::test]
+fn docked_composer_grows_and_pops_out_without_losing_the_session_draft(cx: &mut TestAppContext) {
+    let mut state = AppState::bootstrap().expect("state");
+    state.open_terminal_tab(state.home().id).expect("tab");
+    let pane = state.home().tabs[0].panes[0].id;
+    let session = SessionId::new(31).expect("session");
+    state
+        .set_pane_session(pane, Some(session))
+        .expect("session");
+    let (mut boot, requests) = stub_boot(state);
+    boot.settings.composer.presentation = muxy_app_core::settings::ComposerPresentation::Docked;
+    boot.settings.composer.clear_on_close = true;
+    cx.update(|cx| crate::views::workspace::bind_keys(&boot.settings.keymap, cx));
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    cx.simulate_resize(size(px(1000.0), px(600.0)));
+    view.update(cx, |model, cx| {
+        model.servers.local.connection = ConnectionState::Ready;
+        model.receive(
+            (
+                ServerId::local(),
+                1,
+                Update::Attached {
+                    pane,
+                    session,
+                    attachment: attachment(),
+                    created: false,
+                },
+            ),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    let single = cx
+        .debug_bounds("composer-editor")
+        .expect("editor")
+        .size
+        .height;
+    let target = cx.debug_bounds("composer-editor").expect("editor").center();
+    cx.simulate_click(target, Modifiers::none());
+    view.update(cx, |model, cx| {
+        let composer = model.composer.view.clone().expect("composer");
+        composer.update(cx, |composer, cx| {
+            composer.input.update(cx, |input, cx| {
+                input.insert_at_selection("one\ntwo\nthree", cx);
+            });
+        });
+    });
+    cx.run_until_parked();
+    // The dock grows upward with the text instead of staying one row tall.
+    // Text height is known only after a paint; the next frame sizes the dock from it.
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("composer-editor")
+            .expect("editor")
+            .size
+            .height
+            > single
+    );
+    let target = cx
+        .debug_bounds("composer-pop-out")
+        .expect("pop out")
+        .center();
+    cx.simulate_click(target, Modifiers::none());
+    cx.run_until_parked();
+    assert!(popped(&view, cx));
+    assert!(cx.debug_bounds("floating-composer-card").is_some());
+    assert_eq!(composer_text(&view, cx), "one\ntwo\nthree");
+    // Escape returns to the dock with the draft, even with clear-on-close.
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!popped(&view, cx));
+    view.read_with(cx, |model, _| assert_eq!(model.composer.pane, Some(pane)));
+    assert_eq!(composer_text(&view, cx), "one\ntwo\nthree");
+    // Sending from the popped-out dialog delivers to the session and docks again.
+    let target = cx
+        .debug_bounds("composer-pop-out")
+        .expect("pop out")
+        .center();
+    cx.simulate_click(target, Modifiers::none());
+    cx.run_until_parked();
+    let target = cx.debug_bounds("composer-send").expect("send").center();
+    cx.simulate_click(target, Modifiers::none());
+    cx.run_until_parked();
+    let bytes = requests
+        .try_iter()
+        .find_map(|(_, work)| match work {
+            Work::WriteInput { bytes, .. } => Some(bytes),
+            _ => None,
+        })
+        .expect("delivery");
+    assert!(bytes.starts_with(b"\x15"));
+    assert!(!popped(&view, cx));
 }

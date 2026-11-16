@@ -8,6 +8,7 @@ pub(crate) mod banners;
 pub(crate) mod browsers;
 pub(crate) mod capabilities;
 mod catalog;
+pub(crate) mod chat;
 mod client_access;
 mod close_check;
 pub(crate) mod command_center;
@@ -46,6 +47,7 @@ mod servers;
 pub(crate) use server_status::ServerStatus;
 pub(crate) mod tab_windows;
 mod tabs;
+pub(crate) use tabs::OpenTerminal;
 pub(crate) mod tips;
 mod updates;
 pub(crate) use updates::UpdateAction;
@@ -146,6 +148,7 @@ pub(crate) struct AppModel {
     pub(crate) window: gpui::AnyWindowHandle,
     pub(crate) state: AppState,
     pub(crate) grids: HashMap<PaneId, PaneView>,
+    pub(crate) chat: chat::ChatRuntime,
     pub(crate) command_center: command_center::CommandCenter,
     #[cfg(target_os = "macos")]
     status_menu: Option<muxy_ui::status_menu::StatusMenu>,
@@ -629,6 +632,7 @@ impl AppModel {
             window: window.window_handle(),
             state: boot.state,
             grids: HashMap::new(),
+            chat: chat::ChatRuntime::default(),
             error: theme_error,
             error_detail: None,
             problem_serial: 0,
@@ -1031,7 +1035,7 @@ impl AppModel {
             && self.edit_tab(|state| state.move_pane(pane, neighbor, None), cx)
         {
             self.changed(cx);
-            self.focus_requested = true;
+            self.focus_owner.request_active_pane();
         }
     }
 
@@ -2119,7 +2123,7 @@ impl AppModel {
 
     /// The project shown is always one the sidebar lists, never a removed
     /// server's, so new tabs never open somewhere the user can't see.
-    fn sync_visible(&mut self, cx: &mut Context<Self>) {
+    fn sync_current_project(&mut self) {
         if !self.project_listed(self.state.current_project()) {
             let home = self.state.home().id;
             let _ = self.state.select_project(home);
@@ -2192,6 +2196,7 @@ impl AppModel {
             }
             self.sync_activity_panes(server, sessions);
         }
+        self.sync_chat(cx);
         for id in visible {
             if self.grids.contains_key(&id) {
                 continue;
@@ -2273,7 +2278,8 @@ impl AppModel {
             PaneEvent::SelectionCopied => {
                 model.show_notice(tr!("Copied to clipboard").to_string(), cx);
             }
-            PaneEvent::Bell | PaneEvent::HeaderBackground | PaneEvent::ResumeCommand => cx.notify(),
+            PaneEvent::Bell | PaneEvent::HeaderBackground => cx.notify(),
+            PaneEvent::ResumeCommand => model.chat_agent_detected(id, cx),
             PaneEvent::Focused => {
                 model.blur_webviews(cx);
                 if !model.is_quick_terminal(id) {
@@ -3266,6 +3272,9 @@ impl AppModel {
 
     fn receive_event(&mut self, server: ServerId, event: ClientEvent, cx: &mut Context<Self>) {
         let local = server.is_local();
+        if matches!(event, ClientEvent::Disconnected) {
+            self.chat_disconnected(server);
+        }
         match event {
             ClientEvent::SessionMetadata { session, metadata } => {
                 self.receive_session_metadata(server, session, &metadata, cx);
@@ -3328,6 +3337,7 @@ impl AppModel {
                 }
             }
             ClientEvent::ServerRestarting if local => self.expect_server_restart(),
+            ClientEvent::Chat(batch) => self.receive_chat(server, batch, cx),
             ClientEvent::RemoteAccessChanged { .. }
             | ClientEvent::ServerRestarting
             | ClientEvent::Attached { .. } => {}
@@ -3336,6 +3346,10 @@ impl AppModel {
                 self.disconnect(server, cx);
                 self.schedule_reconnect(server, None, cx);
             }
+            ClientEvent::Metadata {
+                channel,
+                event: muxy_protocol::MetadataEvent::ChatMode { mode, generation },
+            } => self.chat_mode(server, channel, mode, generation, cx),
             ClientEvent::Metadata { channel, event } => {
                 if let Some(pane) = self.attached_view(server, channel, cx) {
                     pane.update(cx, |pane, cx| pane.metadata(event, cx));
@@ -3479,6 +3493,7 @@ impl Drop for AppModel {
 #[cfg(test)]
 pub(crate) mod tests {
     mod capabilities;
+    mod chat;
     mod command_center;
     mod command_center_collapse;
     mod command_center_groups;

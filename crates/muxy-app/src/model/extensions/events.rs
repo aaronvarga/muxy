@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use gpui::{Context, Task, Window};
 use muxy_app_core::{PaneContent, PaneId, Project, ProjectId, Tab, TabId};
-use muxy_protocol::{AgentProvider, AgentState};
+use muxy_protocol::{AgentProvider, AgentState, FilesAction, FilesRequest};
 use serde_json::{Map, Value, json};
 
 use super::AppModel;

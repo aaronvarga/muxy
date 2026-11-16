@@ -49,7 +49,12 @@ impl AppModel {
         sessions: &[ProjectSession],
         cx: &mut Context<Self>,
     ) {
-        if !self.adoptable_projects().contains(&project) {
+        if self
+            .chat
+            .card_probes
+            .contains(&(ServerId::local(), project))
+            || !self.adoptable_projects().contains(&project)
+        {
             return;
         }
         let server = ServerId::local();

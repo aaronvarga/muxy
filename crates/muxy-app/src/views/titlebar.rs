@@ -1,8 +1,8 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    AnyElement, App, Context, Div, ElementId, FontWeight, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Pixels, Point, Role, SharedString, Stateful, StatefulInteractiveElement, Styled,
-    Window, div, point, px,
+    AnyElement, App, Context, Div, ElementId, FontWeight, InteractiveElement, IntoElement,
+    MouseButton, ParentElement, Pixels, Point, Role, SharedString, Stateful,
+    StatefulInteractiveElement, Styled, Window, div, point, px,
 };
 use muxy_core::shortcuts::ShortcutId;
 use muxy_ui::components::IconGlyph;

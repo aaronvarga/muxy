@@ -87,7 +87,7 @@ impl Composer {
             .justify_center()
             .size(box_size)
             .when(
-                self.settings.presentation == ComposerPresentation::Docked && toolbar,
+                self.presentation() == ComposerPresentation::Docked && toolbar,
                 |button| button.w(m.control_medium()),
             )
             .when(
@@ -358,40 +358,25 @@ impl Composer {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .into_owned();
-            let remove = tr!("Remove %@", name.as_str());
-            row = row.child(
-                div()
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .gap(m.spacing2())
-                    .px(m.spacing4())
-                    .py(m.spacing2())
-                    .rounded(m.radius_md())
-                    .bg(self.theme.surface)
-                    .text_color(self.theme.fg_muted)
-                    .text_size(m.font_xs())
-                    .child(SymbolGlyph::new("doc", m.font_xs(), self.theme.fg_muted).regular())
-                    .child(name)
-                    .child(
-                        div()
-                            .id(("composer-remove-file", index))
-                            .role(Role::Button)
-                            .aria_label(remove)
-                            .button_interaction(cx.listener(move |view, _, _, cx| {
-                                if index < view.draft.file_attachments.len() {
-                                    view.draft.file_attachments.remove(index);
-                                    cx.emit(ComposerEvent::Changed);
-                                    cx.notify();
-                                }
-                            }))
-                            .child(SymbolGlyph::new(
-                                "xmark",
-                                m.font_micro(),
-                                self.theme.fg_muted,
-                            )),
-                    ),
-            );
+            row = row.child(muxy_ui::components::attachment_chip(
+                &format!("composer-file-{index}"),
+                &name,
+                &name,
+                !self.sending,
+                muxy_ui::controls::Style {
+                    theme: &self.theme,
+                    metrics: &m,
+                },
+                |_, _, _| {},
+                cx.listener(move |view, _, window, cx| {
+                    if index < view.draft.file_attachments.len() {
+                        view.draft.file_attachments.remove(index);
+                        gpui::Focusable::focus_handle(&view.input, cx).focus(window);
+                        cx.emit(ComposerEvent::Changed);
+                        cx.notify();
+                    }
+                }),
+            ));
         }
         row.into_any_element()
     }
@@ -482,6 +467,12 @@ impl Composer {
             .into_any_element()
     }
 
+    fn mode_switch(&self, cx: &gpui::App) -> Option<AnyElement> {
+        let owner = self.owner.upgrade()?;
+        let model = owner.read(cx);
+        crate::views::chat::mode_switch(model.composer.pane?, model, &self.owner, cx)
+    }
+
     fn toolbar(&self, cx: &mut Context<Self>) -> AnyElement {
         let m = self.metrics;
         div()
@@ -490,6 +481,7 @@ impl Composer {
             .items_center()
             .gap(m.spacing2())
             .pt(m.spacing4())
+            .children(self.mode_switch(cx))
             .children(self.tools(cx))
             .child(
                 div()
@@ -581,11 +573,14 @@ impl Composer {
         cx: &mut Context<Self>,
     ) -> impl Fn(&gpui::MouseDownEvent, &mut Window, &mut gpui::App) + 'static {
         cx.listener(|view, _, window, cx| {
-            gpui::Focusable::focus_handle(&view.input, cx).focus(window);
+            if !window.default_prevented() {
+                gpui::Focusable::focus_handle(&view.input, cx).focus(window);
+            }
         })
     }
 
-    /// The docked composer: a strip of `dock_height` along a session's bottom.
+    /// The docked composer: a strip of `dock_height` along a session's bottom
+    /// that grows upward over the terminal as the text wraps, up to five lines.
     fn docked_row(&self, cx: &mut Context<Self>) -> AnyElement {
         let m = self.metrics;
         let line = self.input_style.line_height;
@@ -594,14 +589,27 @@ impl Composer {
         let mut trailing = leading.split_off(if cfg!(target_os = "macos") { 3 } else { 2 });
         trailing.reverse();
         trailing.insert(0, self.clear_button(cx));
+        trailing.insert(
+            0,
+            self.glyph_button(
+                "composer-pop-out",
+                "arrow.up.left.and.arrow.down.right",
+                tr_key!("Expand Composer"),
+                Control::Toolbar,
+                |_, _, cx| cx.emit(ComposerEvent::PopOut),
+                cx,
+            ),
+        );
         div()
             .flex()
             .flex_none()
-            .items_center()
+            .items_end()
             .gap(m.spacing2())
-            .h(super::dock_height(m))
+            .min_h(super::dock_height(m))
+            // Centers one row of controls in the dock; they stay at the bottom as it grows.
+            .py((super::dock_height(m) - m.control_large()) / 2.0)
             .px(m.spacing3())
-            .child(div().flex().flex_none().items_center().children(leading))
+            .child(div().flex().flex_none().items_center().gap(m.spacing2()).children(self.mode_switch(cx)).children(leading))
             .child(
                 div()
                     .id("composer-editor")
@@ -613,10 +621,9 @@ impl Composer {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
-                    .h_full()
+                    .min_h(m.control_large())
                     .justify_center()
                     .child(
-                        // One or two rows of text, centered in the dock.
                         div()
                             .flex()
                             .flex_col()
@@ -626,8 +633,7 @@ impl Composer {
                                 .read(cx)
                                 .content_height()
                                 .max(line)
-                                .min(line * 2.0)
-                                .min(super::dock_height(m) - m.spacing3() * 2.0))
+                                .min(line * 5.0))
                             .child(self.input.clone()),
                     ),
             )
@@ -642,7 +648,7 @@ impl Composer {
     )]
     fn body(&self, cx: &mut Context<Self>) -> AnyElement {
         let m = self.metrics;
-        let docked = self.settings.presentation == ComposerPresentation::Docked;
+        let docked = self.presentation() == ComposerPresentation::Docked;
         div()
             .id("composer-body")
             .debug_selector(|| "composer-body".into())
@@ -713,8 +719,8 @@ impl Composer {
             }))
             .when(docked, |body| {
                 let attachments = !self.draft.file_attachments.is_empty();
-                // Status and attachments float above the dock so its height,
-                // and so every terminal's size, never changes.
+                // Status and attachments float above the dock, which itself
+                // grows over the terminal, so no terminal ever resizes.
                 body.child(self.docked_row(cx))
                     .children(self.completions(cx).map(|list| {
                         div()
@@ -755,7 +761,7 @@ impl Composer {
     ) -> gpui::Stateful<gpui::Div> {
         let m = self.metrics;
         body.when(
-            self.settings.presentation == ComposerPresentation::Floating,
+            self.presentation() == ComposerPresentation::Floating,
             |body| body.child(self.metadata(cx)),
         )
         .children(self.completions(cx))
@@ -796,13 +802,13 @@ impl Composer {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        if self.settings.presentation == ComposerPresentation::Docked {
+        if self.presentation() == ComposerPresentation::Docked {
             let style = self.input_style;
             self.input
                 .update(cx, |input, cx| input.set_style(style, cx));
             return self.body(cx);
         }
-        if self.settings.presentation == ComposerPresentation::Floating {
+        if self.presentation() == ComposerPresentation::Floating {
             let progress = self.visibility.sample(window);
             let scale = 0.98 + progress * 0.02;
             let dimensions = self.animated_size(window, cx);

@@ -397,6 +397,8 @@ pub struct OpenerSettings {
     pub url: String,
     pub file: String,
     pub project_target: Option<String>,
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub file_types: BTreeMap<String, String>,
 }
 
 impl Default for OpenerSettings {
@@ -405,13 +407,137 @@ impl Default for OpenerSettings {
             url: "system.browser".into(),
             file: "system.editor".into(),
             project_target: None,
+            file_types: BTreeMap::new(),
         }
+    }
+}
+
+impl OpenerSettings {
+    /// File type mappings override the general opener, without changing older settings.
+    pub fn file_handler(&self, path: &Path) -> &str {
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .and_then(|extension| self.file_types.get(&extension.to_ascii_lowercase()))
+            .map_or(&self.file, String::as_str)
+    }
+
+    pub fn set_file_type(
+        &mut self,
+        previous: Option<&str>,
+        extension: &str,
+        handler: Option<String>,
+    ) -> Result<()> {
+        let extension = extension.trim();
+        let extension = extension
+            .strip_prefix('.')
+            .unwrap_or(extension)
+            .to_ascii_lowercase();
+        if extension.is_empty()
+            || extension.len() > 64
+            || !extension
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        {
+            return Err(Error::new(
+                "file-types",
+                "Enter a file extension such as .md or .txt",
+            ));
+        }
+        if let Some(handler) = handler {
+            if handler.is_empty() || handler.len() > 256 || handler.chars().any(char::is_control) {
+                return Err(Error::new("file-types", "Choose a file handler"));
+            }
+            if previous != Some(extension.as_str()) && self.file_types.contains_key(&extension) {
+                return Err(Error::new(
+                    "file-types",
+                    "A mapping already exists for this file type",
+                ));
+            }
+            if let Some(previous) = previous {
+                self.file_types.remove(previous);
+            }
+            self.file_types.insert(extension, handler);
+        } else {
+            self.file_types.remove(&extension);
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_type_edits_round_trip_without_losing_defaults_or_other_mappings() {
+        let mut settings = Settings::default();
+        settings.openers.file = "system.finder".into();
+        settings
+            .openers
+            .set_file_type(None, " .MD ", Some("markdown-preview:markdown".into()))
+            .unwrap();
+        settings
+            .openers
+            .set_file_type(None, ".txt", Some("files:editor".into()))
+            .unwrap();
+        assert_eq!(
+            settings.openers.file_handler(Path::new("/tmp/NOTES.Md")),
+            "markdown-preview:markdown"
+        );
+        assert_eq!(
+            settings
+                .openers
+                .file_handler(Path::new("/tmp/docs.md/file.rs")),
+            "system.finder"
+        );
+        let before = settings.openers.clone();
+        assert!(
+            settings
+                .openers
+                .set_file_type(Some("md"), "txt", Some("system.application".into()))
+                .is_err()
+        );
+        assert!(
+            settings
+                .openers
+                .set_file_type(None, "txt", Some("system.application".into()))
+                .is_err()
+        );
+        assert!(
+            settings
+                .openers
+                .set_file_type(Some("md"), "../md", Some("system.application".into()))
+                .is_err()
+        );
+        assert_eq!(settings.openers, before);
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("settings.toml");
+        fs::write(
+            &path,
+            "[openers]\nfile = 'system.finder'\n[window]\nconfirm_running_process = false\n",
+        )
+        .unwrap();
+        settings.save_openers(&path).unwrap();
+        let loaded = Settings::load(&path).unwrap();
+        assert_eq!(loaded.openers, settings.openers);
+        assert!(!loaded.window.confirm_running_process);
+        settings
+            .openers
+            .set_file_type(Some("md"), "markdown", Some("files:editor".into()))
+            .unwrap();
+        assert!(!settings.openers.file_types.contains_key("md"));
+        assert_eq!(
+            settings
+                .openers
+                .file_handler(Path::new("/tmp/notes.markdown")),
+            "files:editor"
+        );
+        settings.openers.set_file_type(None, "txt", None).unwrap();
+        assert_eq!(
+            settings.openers.file_handler(Path::new("/tmp/notes.txt")),
+            "system.finder"
+        );
+    }
 
     #[test]
     fn ai_settings_ignore_hand_edit_mistakes_and_saves_keep_hand_edits() -> Result<()> {

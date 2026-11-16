@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use gpui::{Context, Entity, Subscription, Window};
 use muxy_app_core::{
-    PaneContent, PaneId, Tab,
+    PaneContent, PaneId, ProjectId, Tab,
     webview::{ModalOptions, ModalResult, WebviewDescriptor},
 };
 use muxy_core::capability::Feature;
@@ -511,6 +511,16 @@ impl AppModel {
         singleton: bool,
         cx: &mut Context<Self>,
     ) -> Result<PaneId, String> {
+        self.open_webview_tab_in(self.state.current_project().id, descriptor, singleton, cx)
+    }
+
+    pub(super) fn open_webview_tab_in(
+        &mut self,
+        project: ProjectId,
+        descriptor: WebviewDescriptor,
+        singleton: bool,
+        cx: &mut Context<Self>,
+    ) -> Result<PaneId, String> {
         self.capabilities.check(Feature::ExtensionWebviews)?;
         let registered = self
             .webviews
@@ -522,7 +532,6 @@ impl AppModel {
             .entry_url()
             .map_err(|error| error.to_string())?;
         let title = registered.title.clone();
-        let project = self.state.current_project().id;
         let (_, pane) = self
             .transact(
                 |state| {

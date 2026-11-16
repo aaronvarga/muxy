@@ -27,7 +27,14 @@ pub(crate) fn items(
 ) -> Vec<Item> {
     let id = project.id;
     if project.status() != ProjectStatus::Available {
-        return removal(project);
+        let mut items = removal(project);
+        if !project.home && project.parent_id.is_none() {
+            items.insert(
+                0,
+                Item::action(tr!("Change Folder…"), Command::ChangeProjectFolder(id)),
+            );
+        }
+        return items;
     }
     let mut items = vec![
         Item::action(tr!("New Terminal Tab"), Command::NewProjectTab(id)),
@@ -80,6 +87,11 @@ pub(crate) fn items(
             } else {
                 reset
             },
+        );
+    }
+    if !project.home && project.parent_id.is_none() {
+        items.push(
+            Item::action(tr!("Change Folder…"), Command::ChangeProjectFolder(id)).separated(),
         );
     }
     if !project.home {
@@ -383,6 +395,52 @@ impl AppModel {
             ),
             Item::action(tr!("Remove Divider"), Command::RemoveDivider(id)),
         ]
+    }
+
+    pub(crate) fn choose_project_directory(&mut self, project: ProjectId, cx: &mut Context<Self>) {
+        let Some(server) = self.state.project(project).map(|project| project.server_id) else {
+            return;
+        };
+        if !self.server_supports(server, muxy_protocol::Feature::PROJECT_DIRECTORY) {
+            self.fail(
+                tr!("Update and restart the server to change a project folder.").to_string(),
+                cx,
+            );
+            return;
+        }
+        if !server.is_local() {
+            self.open_remote_folders(
+                server,
+                super::project_picker::Purpose::ChangeFolder(project),
+                cx,
+            );
+            return;
+        }
+        let paths = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some(tr!("Change Project Folder")),
+        });
+        cx.spawn(async move |model, cx| {
+            if let Ok(Ok(Some(paths))) = paths.await
+                && let Some(directory) = paths.into_iter().next()
+            {
+                let _ = model.update(cx, |model, cx| {
+                    model.change_project_directory(project, directory, cx);
+                });
+            }
+        })
+        .detach();
+    }
+
+    pub(crate) fn change_project_directory(
+        &mut self,
+        project: ProjectId,
+        directory: std::path::PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        self.edit_project(|state| state.set_project_directory(project, directory), cx);
     }
 
     pub(crate) fn choose_home_folder(cx: &mut Context<Self>) {

@@ -284,6 +284,8 @@ pub enum ShortcutId {
     ScrollToTop,
     ResetFontSize,
     BrowserOpenExternally,
+    ToggleChat,
+    NewClaudeChat,
 }
 
 impl ShortcutId {
@@ -1803,5 +1805,17 @@ pub const ALL: &[Shortcut] = &[
         keys: &[],
         contexts: &[Some("Browser")],
         key_contexts: &[],
+    },
+    Shortcut {
+        id: "toggle_chat",
+        keys: platform_keys!(&["cmd-ctrl-c"], &["ctrl-shift-alt-c"]),
+        contexts: &[Some("WorkspaceTabs")],
+        key_contexts: &[&[Some("WorkspaceTabs")]],
+    },
+    Shortcut {
+        id: "new_claude_chat",
+        keys: platform_keys!(&["cmd-ctrl-n"], &["ctrl-shift-alt-n"]),
+        contexts: &[Some("WorkspaceTabs")],
+        key_contexts: &[&[Some("WorkspaceTabs")]],
     },
 ];

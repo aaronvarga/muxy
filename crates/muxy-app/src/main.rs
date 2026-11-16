@@ -28,6 +28,7 @@ mod views {
     pub(crate) mod banners;
     pub(crate) mod browser;
     pub(crate) mod cached;
+    pub(crate) mod chat;
     pub(crate) mod clients;
     pub(crate) mod command_center;
     pub(crate) mod command_palette;
@@ -109,10 +110,11 @@ use views::workspace::{
     EqualizeSplits, Find, FindNext, FindPrevious, FocusPaneDown, FocusPaneLeft, FocusPaneRight,
     FocusPaneUp, HideApp, HideOthers, IncreaseFontSize, InstallCommandLineTool, Minimize,
     NewBrowserTab, NewHomeTab, NewTab, NewTabInProject, NewWorktree, NextProject, NextPrompt,
-    NextTab, OpenRepository, OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit, SelectCommandOutput,
-    SelectProject, SelectTab, ShowAll, SplitDown, SplitRight, SwitchWorktree, ToggleAgentSessions,
-    ToggleAgentsPanel, ToggleCommandPalette, ToggleComposer, ToggleFloatingTerminals,
-    ToggleFullScreen, ToggleSidebar, ToggleThemePicker, ToggleZoomPane, Zoom, bind_keys,
+    NextTab, OpenRepository, OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit,
+    SelectCommandOutput, SelectProject, SelectTab, ShowAll, SplitDown, SplitRight, SwitchWorktree,
+    ToggleAgentSessions, ToggleAgentsPanel, ToggleCommandPalette, ToggleComposer,
+    ToggleFloatingTerminals, ToggleFullScreen, ToggleSidebar, ToggleThemePicker, ToggleZoomPane,
+    Zoom, bind_keys,
 };
 
 fn main() -> ExitCode {
@@ -416,6 +418,7 @@ fn menus() -> Vec<Menu> {
             name: tr!("File"),
             items: vec![
                 menu_item(NewTab),
+                menu_item(views::chat::NewClaudeChat),
                 menu_item(NewBrowserTab),
                 menu_item(NewHomeTab),
                 menu_item(NewTabInProject),

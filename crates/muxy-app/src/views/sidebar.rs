@@ -204,6 +204,8 @@ pub(crate) fn sidebar(model: &AppModel, window: &Window, cx: &mut Context<AppMod
 fn footer(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
     let m = model.metrics;
     div()
+        .id("sidebar-footer")
+        .debug_selector(|| "sidebar-footer".into())
         .flex()
         .flex_none()
         .items_center()
@@ -215,10 +217,38 @@ fn footer(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
             footer.flex_col().gap(m.spacing3())
         })
         .bg(model.sidebar_background())
-        .child(extensions_button(model, cx))
-        .child(super::remote_servers::section(model, cx))
+        .on_mouse_down(
+            gpui::MouseButton::Right,
+            cx.listener(|model, event: &gpui::MouseDownEvent, window, cx| {
+                cx.stop_propagation();
+                model.open_sidebar_controls_menu(event.position, window, cx);
+            }),
+        )
+        .when(model.appearance.sidebar_extensions_visible, |footer| {
+            footer.child(extensions_button(model, cx))
+        })
+        .when(model.appearance.sidebar_servers_visible, |footer| {
+            footer.child(super::remote_servers::section(model, cx))
+        })
         .child(settings_button(model, cx))
         .into_any_element()
+}
+
+impl AppModel {
+    pub(crate) fn open_sidebar_controls_menu(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let items = vec![
+            Item::action(tr!("Extensions"), Command::ToggleSidebarExtensions)
+                .checked_if(self.appearance.sidebar_extensions_visible),
+            Item::action(tr!("Servers"), Command::ToggleSidebarServers)
+                .checked_if(self.appearance.sidebar_servers_visible),
+        ];
+        self.open_menu(items, position, window, cx);
+    }
 }
 
 /// The side of the square icon buttons at the bottom of the sidebar.
@@ -231,7 +261,7 @@ pub(super) fn footer_button_size(model: &AppModel) -> Pixels {
 }
 
 pub(super) fn collapsed_item_size(model: &AppModel) -> Pixels {
-    model.metrics.scaled(34.0) + model.sidebar_icon_growth()
+    model.metrics.scaled(34.0) + model.sidebar_icon_offset()
 }
 
 /// A footer control: square until a caller gives it a label to fill the row.
@@ -590,13 +620,13 @@ impl AppModel {
             .scaled(f32::from(self.appearance.sidebar_icon_size))
     }
 
-    /// How much icons larger than the default widen collapsed sidebar rows.
-    fn sidebar_icon_growth(&self) -> Pixels {
-        px((f32::from(self.sidebar_icon()) - f32::from(self.metrics.icon_xxl())).max(0.0))
+    /// The icon size difference shared by collapsed rows and the sidebar.
+    fn sidebar_icon_offset(&self) -> Pixels {
+        self.sidebar_icon() - self.metrics.icon_xxl()
     }
 
     pub(crate) fn collapsed_sidebar_width(&self) -> Pixels {
-        self.metrics.sidebar_collapsed_width() + self.sidebar_icon_growth()
+        self.metrics.sidebar_collapsed_width() + self.sidebar_icon_offset()
     }
 
     pub(crate) fn sidebar_width(&self) -> f32 {
@@ -974,7 +1004,6 @@ impl AppModel {
     pub(crate) fn dividers_shown(&self) -> bool {
         self.appearance.sidebar_project_order == ProjectOrder::Manual
             && !self.appearance.sidebar_focus
-            && !self.state.remote_servers_selected()
     }
 
     /// The dividers below each of `parents`. A divider below a project the
@@ -1198,9 +1227,9 @@ fn project_visibility_button(model: &AppModel, cx: &mut Context<AppModel>) -> An
         .rounded(m.radius_md())
         .cursor_pointer()
         .hover(|style| style.bg(model.theme.hover))
-        .tooltip(super::status_bar::tooltip(
+        .tooltip(muxy_ui::components::tooltip(
             tr!("Show or Hide Projects").to_string(),
-            model,
+            &model.theme,
         ))
         .on_click(cx.listener(|model, event: &gpui::ClickEvent, window, cx| {
             model.open_project_visibility_menu(event.position(), window, cx);
@@ -1392,7 +1421,10 @@ impl DraggedProject {
             Row::Project(id) => {
                 *id != self.id
                     && model.state.project(*id).is_some_and(|project| {
-                        !project.home && project.status() == ProjectStatus::Available && model.state.project_server(*id) == model.state.project_server(self.id)
+                        !project.home
+                            && project.status() == ProjectStatus::Available
+                            && model.state.project_server(*id)
+                                == model.state.project_server(self.id)
                     })
             }
             Row::Divider(_) => true,
@@ -1570,7 +1602,10 @@ fn grouped_rows(
                     && project.status() == ProjectStatus::Available)
                     .then_some(Row::Project(project.id)),
             );
-            if group.projects.get(position + 1).is_none_or(|next| next.parent_id.is_none())
+            if group
+                .projects
+                .get(position + 1)
+                .is_none_or(|next| next.parent_id.is_none())
                 && let Some(dividers) = dividers.get(&project.parent_id.unwrap_or(project.id))
             {
                 for divider in dividers {
@@ -1736,7 +1771,7 @@ fn project_row(
                     // A folder group's hover menu stays open over its row; close it
                     // so the rows below take the drag.
                     let _ = model.update(cx, |model, cx| {
-                        if matches!(model.overlay, Some(super::overlays::Overlay::Menu(_))) {
+                        if matches!(model.overlay, Some(Overlay::Menu(_))) {
                             model.dismiss_overlay(cx);
                         }
                     });
@@ -1785,27 +1820,27 @@ fn project_row(
         .when(
             (activity != tab_activity::Status::None || count > 0) && !dimmed,
             |row| {
-            row.child(
-                div()
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .justify_center()
-                    .min_w(m.scaled(18.0))
-                    .h(m.scaled(18.0))
-                    .when(!wide, |badge| {
-                        badge.absolute().right(m.scaled(-3.0)).top(m.scaled(-3.0))
-                    })
-                    .child(tab_activity::counted_status_glyph(
-                        format!("project-activity-{id}"),
-                        activity,
-                        count,
-                        m.icon_sm(),
-                        None,
-                        None,
-                        model,
-                    )),
-            )
+                row.child(
+                    div()
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .justify_center()
+                        .min_w(m.scaled(18.0))
+                        .h(m.scaled(18.0))
+                        .when(!wide, |badge| {
+                            badge.absolute().right(m.scaled(-3.0)).top(m.scaled(-3.0))
+                        })
+                        .child(tab_activity::counted_status_glyph(
+                            format!("project-activity-{id}"),
+                            activity,
+                            count,
+                            m.icon_sm(),
+                            None,
+                            None,
+                            model,
+                        )),
+                )
             },
         )
         .when(wide && has_worktrees, |row| {
@@ -1841,9 +1876,6 @@ fn press_project(
 ) {
     if opens_worktrees && wide {
         model.toggle_worktree_list(id, cx);
-    } else if opens_worktrees {
-        model.expanded_worktrees.insert(id);
-        model.toggle_sidebar(window, cx);
     } else {
         model.select_project(model.preferred_worktree(id), cx);
         model.focus_active(window, cx);
@@ -1926,7 +1958,7 @@ fn divider_row(divider: &Divider, model: &AppModel, cx: &mut Context<AppModel>) 
         }))
         .when(wide, |row| row.w_full().px(m.spacing2()))
         .when(!wide, |row| {
-            row.w(m.scaled(34.0) + model.sidebar_icon_growth())
+            row.w(m.scaled(34.0) + model.sidebar_icon_offset())
         })
         .on_mouse_down(
             gpui::MouseButton::Right,
@@ -1956,32 +1988,8 @@ fn divider_row(divider: &Divider, model: &AppModel, cx: &mut Context<AppModel>) 
         .into_any_element()
 }
 
-/// Marks another computer's project, naming it in a tooltip.
-pub(super) fn remote_marker(project: &Project, model: &AppModel) -> Option<AnyElement> {
-    let tooltip = remote_description(project, model)?;
-    let id = project.id;
-    let m = model.metrics;
-    Some(
-        div()
-            .id(SharedString::from(format!("project-remote-{id}")))
-            .debug_selector(move || format!("project-remote-{id}"))
-            .flex()
-            .flex_none()
-            .items_center()
-            .justify_center()
-            .size(m.scaled(18.0))
-            .tooltip(muxy_ui::components::tooltip(tooltip, &model.theme))
-            .child(IconGlyph::new(
-                Icon::Network,
-                m.font_caption(),
-                model.theme.fg_muted,
-            ))
-            .into_any_element(),
-    )
-}
-
 pub(crate) fn project_color(project: &Project, model: &AppModel) -> gpui::Rgba {
-    if let Some(super::overlays::Overlay::ProjectEditor(editor)) = &model.overlay
+    if let Some(Overlay::ProjectEditor(editor)) = &model.overlay
         && let Some(color) = editor.color_preview(project.id)
     {
         return color;

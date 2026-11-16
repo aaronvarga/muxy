@@ -27,7 +27,8 @@ fn session(model: &AppModel, directory: &std::path::Path) -> Session {
         id: "session-123".into(),
         title: "Fix regression".into(),
         directory: model.state.current_project().directory.clone(),
-        path,
+        path: Some(path),
+        target: None,
         modified: std::time::SystemTime::UNIX_EPOCH,
     }
 }

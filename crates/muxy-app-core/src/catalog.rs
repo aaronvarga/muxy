@@ -71,7 +71,7 @@ impl Project {
         self.folders = descriptor
             .folders
             .iter()
-            .map(|folder| PathBuf::from(std::ffi::OsString::from_vec(folder.0.clone())))
+            .map(|folder| PathBuf::from(folder.clone()))
             .collect();
         self.refresh_status();
         Ok(())

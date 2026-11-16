@@ -13,11 +13,7 @@ fn drag_to(
         model.layout_drag.preview.clone().expect("preview")
     });
     release(cx, target);
-    assert_eq!(
-        cx.debug_bounds(format!("pane-frame-{source}").leak())
-            .expect("pane frame"),
-        preview.bounds
-    );
+    assert_eq!(pane_bounds(view, source, cx), preview.bounds);
     view.read_with(cx, |model, _| {
         assert_eq!(store::load(&model.path).expect("saved"), model.state);
         assert!(!model.layout_drag_pending());
@@ -43,10 +39,7 @@ fn outer_edge_gesture_makes_three_columns_instead_of_splitting_one_pane(cx: &mut
         point(bounds.right() - px(6.0), bounds.center().y),
         cx,
     );
-    let rectangles = [a, b, c].map(|pane| {
-        cx.debug_bounds(format!("pane-frame-{pane}").leak())
-            .expect("pane frame")
-    });
+    let rectangles = [a, b, c].map(|pane| pane_bounds(&view, pane, cx));
     for rectangle in rectangles {
         assert_eq!(rectangle.top(), bounds.top());
         assert_eq!(rectangle.bottom(), bounds.bottom());

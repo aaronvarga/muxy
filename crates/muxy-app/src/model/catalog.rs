@@ -75,6 +75,17 @@ impl AppModel {
     ) {
         let accepted = result.is_ok();
         let created = self.created_project(server, operation);
+        let changed_folder = self
+            .state
+            .project_intents(server)
+            .iter()
+            .find_map(|intent| match &intent.mutation {
+                ProjectMutation::Patch {
+                    project,
+                    patch: muxy_protocol::ProjectPatch::Directory(_),
+                } if intent.operation == operation => Some(*project),
+                _ => None,
+            });
         let Some(runtime) = self.servers.get_mut(server) else {
             return;
         };
@@ -110,6 +121,9 @@ impl AppModel {
             self.dismiss_overlay(cx);
         }
         if accepted {
+            if let Some(project) = changed_folder {
+                self.invalidate_project_git(project);
+            }
             self.sync_git(cx);
             if let Some(project) = created {
                 self.sync_worktrees(project, cx);
@@ -274,6 +288,15 @@ impl AppModel {
                 kept,
                 cx,
             );
+        }
+        for project in previous.projects() {
+            if self
+                .state
+                .project(project.id)
+                .is_some_and(|updated| updated.directory != project.directory)
+            {
+                self.invalidate_project_git(project.id);
+            }
         }
         self.forget_expired_calls(cx);
         true

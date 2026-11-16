@@ -78,8 +78,7 @@ fn project_sections_group_interleaved_tiles_and_collapse_without_ending_sessions
                 .command_center_group_by_project
         );
         model.start_attach(panes[0], Size { cols: 60, rows: 20 }, cx);
-        let mut attached = attachment();
-        attached.channel = ChannelId(88);
+        let attached = attachment_on(88);
         model.receive(
             local(
                 1,

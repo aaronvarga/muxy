@@ -96,6 +96,10 @@ struct StoredState {
 impl TryFrom<StoredState> for AppState {
     type Error = AppError;
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "loading migrates every stored field in one place"
+    )]
     fn try_from(stored: StoredState) -> Result<Self, Self::Error> {
         if !(1..=VERSION).contains(&stored.version) {
             return Err(AppError::UnsupportedVersion(stored.version));
@@ -414,7 +418,7 @@ impl AppState {
             muxy_protocol::FolderEntry {
                 id: muxy_protocol::FolderEntryId::new(),
                 name,
-                directory: muxy_protocol::ServerPath(directory.into_os_string().into_vec()),
+                directory: muxy_protocol::ServerPath::from(directory),
                 command: String::new(),
             },
         )
@@ -428,7 +432,7 @@ impl AppState {
         let record = self
             .project(project)
             .ok_or(AppError::UnknownProject(project))?;
-        let directory = PathBuf::from(std::ffi::OsString::from_vec(entry.directory.0));
+        let directory = PathBuf::from(entry.directory);
         if record.server_id.is_local() && !directory.is_dir() {
             return Err(AppError::InvalidState("saved folder does not exist".into()));
         }
@@ -466,8 +470,7 @@ impl AppState {
             descriptor.folder_entries = removed.folder_entries;
             descriptor.auto_subfolders = removed.auto_subfolders;
             if removed.kind == Some(ProjectKind::FolderGroup) {
-                descriptor.directory =
-                    muxy_protocol::ServerPath(removed.directory.into_os_string().into_vec());
+                descriptor.directory = muxy_protocol::ServerPath::from(removed.directory);
             }
         })
     }
@@ -521,6 +524,36 @@ impl AppState {
         }
         self.patch_project(id, muxy_protocol::ProjectPatch::Name(name.trim().into()))?;
         name.trim().clone_into(&mut self.project_mut(id)?.name);
+        Ok(())
+    }
+
+    /// Changes the starting folder, retaining the project's identity and existing panes.
+    pub fn set_project_directory(
+        &mut self,
+        id: ProjectId,
+        directory: PathBuf,
+    ) -> Result<(), AppError> {
+        let project = self.project_mut(id)?;
+        if project.home
+            || project.parent_id.is_some()
+            || !directory.is_absolute()
+            || (project.server_id.is_local() && !directory.is_dir())
+        {
+            return Err(AppError::InvalidState(
+                "choose an existing absolute project folder".into(),
+            ));
+        }
+        let patch =
+            muxy_protocol::ProjectPatch::Directory(muxy_protocol::ServerPath::from(&directory));
+        let mut descriptor = project.descriptor();
+        patch.apply(&mut descriptor);
+        descriptor.validate().map_err(|_| {
+            AppError::InvalidState("project folder overlaps an extra folder".into())
+        })?;
+        self.patch_project(id, patch)?;
+        let project = self.project_mut(id)?;
+        project.directory = directory;
+        project.refresh_status();
         Ok(())
     }
 

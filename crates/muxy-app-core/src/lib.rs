@@ -42,9 +42,7 @@ mod workspace;
 pub use divider::{Divider, DividerSize};
 pub use error::AppError;
 pub use groups::{TabGroup, TabGroups};
-pub use ids::{
-    DividerId, GroupId, PaneId, ProjectId, ServerId, TabId, TabWindowId, WorkspaceId,
-};
+pub use ids::{DividerId, GroupId, PaneId, ProjectId, ServerId, TabId, TabWindowId, WorkspaceId};
 pub use layout::{Axis, Branch, Direction, Layout};
 pub use pane::{Pane, PaneContent};
 pub use panes::PlacedPane;

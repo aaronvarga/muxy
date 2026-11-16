@@ -235,6 +235,7 @@ impl Delivery {
                 | ClientEvent::ActivityChanged { .. }
                 | ClientEvent::Progress { .. }
                 | ClientEvent::FilesChanged { .. }
+                | ClientEvent::Chat(_)
                 | ClientEvent::GitChanged { .. }
                 | ClientEvent::SessionsChanged { .. }
                 | ClientEvent::CatalogChanged { .. }

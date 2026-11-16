@@ -105,9 +105,7 @@ impl AppState {
         let id = self.home().id;
         self.patch_project(
             id,
-            muxy_protocol::ProjectPatch::HomeDirectory(ServerPath(
-                directory.clone().into_os_string().into_vec(),
-            )),
+            muxy_protocol::ProjectPatch::HomeDirectory(ServerPath::from(&directory)),
         )?;
         let home = self.project_mut(id)?;
         home.directory = directory;

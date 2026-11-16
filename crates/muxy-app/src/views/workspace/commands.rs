@@ -20,11 +20,11 @@ use super::{
     MoveTabLeft, MoveTabRight, MoveTabToMainWindow, MoveTabToNewWindow, NavigateBack,
     NavigateForward, NewBrowserTab, NewHomeTab, NewTab, NewTabInProject, NewTabToTheLeft,
     NewTabToTheRight, NewWorkspace, NewWorktree, NextProject, NextPrompt, NextTab, OpenAbout,
-    OpenConfiguration, OpenKeyboardShortcuts, OpenProjectInDefaultApp, OpenSettings,
-    PreviousProject, PreviousPrompt, PreviousTab, Quit, ReloadConfiguration, RemoveProject,
-    RenameProject, RenameTab, ResetFontSize, ResetTabTitle, ResizePaneDown, ResizePaneLeft,
-    ResizePaneRight, ResizePaneUp, RevealProject, ScrollToBottom, ScrollToTop, SelectAllInTerminal,
-    SelectCommandOutput, ShowAll, ShowFloatingTerminalInAllProjects,
+    OpenConfiguration, OpenKeyboardShortcuts, OpenProjectInDefaultApp, OpenRepository,
+    OpenSettings, PreviousProject, PreviousPrompt, PreviousTab, Quit, ReloadConfiguration,
+    RemoveProject, RenameProject, RenameTab, ResetFontSize, ResetTabTitle, ResizePaneDown,
+    ResizePaneLeft, ResizePaneRight, ResizePaneUp, RevealProject, ScrollToBottom, ScrollToTop,
+    SelectAllInTerminal, SelectCommandOutput, ShowAll, ShowFloatingTerminalInAllProjects,
     ShowFloatingTerminalInItsProject, ShowServers, ShowTip, ShowWelcomeTour, SplitDown, SplitRight,
     SwitchProject, SwitchWorkspace, SwitchWorktree, ToggleAgentSessions, ToggleAgentsPanel,
     ToggleCommandPalette, ToggleComposer, ToggleFloatingTerminals, ToggleFullScreen,
@@ -302,6 +302,22 @@ static COMMANDS: &[CommandDef] = &[
             model.equalize_splits(pane, cx);
         }
     }),
+    row::<crate::views::chat::ToggleChat>(
+        ShortcutId::ToggleChat,
+        Label::Key(tr_key!("Switch Between Chat and Console")),
+    )
+    .available(has_pane)
+    .run(|model, _, cx| {
+        if let Some(pane) = model.active_pane() {
+            model.toggle_chat(pane, cx);
+        }
+    }),
+    row::<crate::views::chat::NewClaudeChat>(
+        ShortcutId::NewClaudeChat,
+        Label::Key(tr_key!("New Chat")),
+    )
+    .keywords("claude chat agent")
+    .run(|model, _, cx| model.new_claude_chat(cx)),
     row::<NextProject>(ShortcutId::NextProject, Label::Key(tr_key!("Next Project")))
         .available(has_other_project)
         .run(|model, _, cx| model.cycle_project(true, cx)),
@@ -613,6 +629,10 @@ static COMMANDS: &[CommandDef] = &[
     .run(|model, window, cx| {
         model.toggle_command_palette(window, cx);
     }),
+    // Fork: the app menu's link to the repository, opened by the app's handler.
+    unbound::<OpenRepository>("open_repository", Label::Key(tr_key!("Muxy on GitHub")))
+        .hidden()
+        .run(|_, _, cx| cx.propagate()),
     row::<HideApp>(ShortcutId::HideApp, Label::WithAppName(tr_key!("Hide %@")))
         .hidden()
         .run(|model, _, cx| {

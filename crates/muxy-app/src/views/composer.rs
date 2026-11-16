@@ -7,7 +7,7 @@ use gpui::{
 };
 use muxy_app_core::{
     composer::ComposerDraft,
-    settings::{ComposerPosition, ComposerSettings},
+    settings::{ComposerPosition, ComposerPresentation, ComposerSettings},
 };
 use muxy_ui::{
     l10n::tr_key,
@@ -42,16 +42,21 @@ pub(crate) enum ComposerEvent {
     QuickCommand(usize),
     ManageQuickCommands,
     Preferences(ComposerSettings),
+    /// Pops a docked composer out into the floating dialog.
+    PopOut,
 }
 
 const SMALLEST_PANEL: f32 = 120.0;
 
 pub(crate) struct Composer {
+    owner: gpui::WeakEntity<crate::model::AppModel>,
     pub(crate) input: Entity<TextInput>,
     pub(crate) draft: ComposerDraft,
     pub(crate) settings: ComposerSettings,
     pub(crate) error: Option<String>,
     pub(crate) sending: bool,
+    /// A docked composer drawn as the floating dialog, keeping its session draft.
+    pub(crate) popped: bool,
     theme: Theme,
     metrics: Metrics,
     resize: PanelResizeState,
@@ -82,6 +87,7 @@ impl EventEmitter<ComposerEvent> for Composer {}
 
 impl Composer {
     pub(crate) fn new(
+        model: gpui::WeakEntity<crate::model::AppModel>,
         draft: ComposerDraft,
         settings: ComposerSettings,
         theme: Theme,
@@ -136,11 +142,13 @@ impl Composer {
         });
         let input_style = InputStyle::field(&theme, &metrics);
         let mut view = Self {
+            owner: model,
             input,
             draft,
             settings,
             error: None,
             sending: false,
+            popped: false,
             theme,
             metrics,
             resize: PanelResizeState::default(),
@@ -198,6 +206,15 @@ impl Composer {
             PanelSizeBounds::new(minimum * scale, maximum * scale),
             self.resize.clone(),
         )
+    }
+
+    /// How the composer draws now; a popped-out dock draws as floating.
+    pub(crate) fn presentation(&self) -> ComposerPresentation {
+        if self.popped && self.settings.presentation == ComposerPresentation::Docked {
+            ComposerPresentation::Floating
+        } else {
+            self.settings.presentation
+        }
     }
 
     pub(crate) fn placement(&self) -> PanelPlacement {

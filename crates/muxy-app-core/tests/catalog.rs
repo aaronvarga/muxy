@@ -282,3 +282,61 @@ fn custom_home_folder_survives_reload_and_catalog_refresh_without_moving_existin
     assert_eq!(restored.home().directory, custom);
     Ok(())
 }
+
+#[test]
+fn changing_project_folder_recovers_missing_root_and_preserves_settings_and_panes() -> Result {
+    let directory = tempfile::tempdir()?;
+    let old = directory.path().join("old");
+    let new = directory.path().join("new");
+    fs::create_dir(&old)?;
+    fs::create_dir(&new)?;
+    let mut state = AppState::bootstrap()?;
+    let id = state.add_project(ServerId::local(), old.clone())?;
+    state.rename_project(id, "Custom name")?;
+    state.set_project_icon(id, Some("sf:briefcase".into()))?;
+    state.set_project_color(id, "#e5484d".parse()?)?;
+    state.set_project_logo(
+        id,
+        Some(
+            include_bytes!("../../muxy-protocol/tests/fixtures/project-logo.png")
+                .as_slice()
+                .into(),
+        ),
+    )?;
+    state.open_terminal_tab(id)?;
+    let pane = state.window().active_pane.ok_or("pane")?;
+    let starting = state.prepare_creation(pane, &old);
+    acknowledge(&mut state)?;
+    let before = state.project(id).ok_or("project")?.clone();
+    let window = state.window().clone();
+    let catalog_before_move = snapshot(&state);
+    fs::remove_dir(&old)?;
+    state.refresh_project_statuses();
+    assert_eq!(
+        state.project(id).ok_or("project")?.status(),
+        muxy_app_core::ProjectStatus::Missing
+    );
+    for invalid in [directory.path().join("missing"), "relative".into()] {
+        let unchanged = state.clone();
+        assert!(state.set_project_directory(id, invalid).is_err());
+        assert_eq!(state, unchanged);
+    }
+    state.set_project_directory(id, new.clone())?;
+    assert_eq!(
+        state.project(id).ok_or("project")?.status(),
+        muxy_app_core::ProjectStatus::Available
+    );
+    let path = directory.path().join("state.json");
+    store::save(&path, &state)?;
+    let mut loaded = store::load(&path)?;
+    loaded.apply_catalog(ServerId::local(), &catalog_before_move)?;
+    let after = loaded.project(id).ok_or("project")?;
+    let mut expected = before.descriptor();
+    expected.directory = ServerPath::from(&new);
+    assert_eq!(after.descriptor(), expected);
+    assert_eq!(after.tabs, before.tabs);
+    assert_eq!(after.created_at, before.created_at);
+    assert_eq!(loaded.window(), &window);
+    assert_eq!(loaded.prepare_creation(pane, &new), starting);
+    Ok(())
+}

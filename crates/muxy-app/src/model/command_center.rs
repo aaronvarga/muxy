@@ -114,7 +114,7 @@ impl AppModel {
         if self.command_center.active && self.command_center.scope.is_some() {
             self.command_center.leave();
             self.changed(cx);
-            self.focus_requested = true;
+            self.focus_owner.request_active_pane();
             cx.notify();
         } else {
             self.enter_command_center(Some(self.project_command_center_scope()), cx);
@@ -153,7 +153,7 @@ impl AppModel {
         self.command_center.active = true;
         self.refresh_existing_sessions(cx);
         self.sync_command_center(cx);
-        self.focus_requested = true;
+        self.focus_owner.request_active_pane();
         cx.notify();
     }
 
@@ -214,7 +214,7 @@ impl AppModel {
         }
         self.command_center.grid = None;
         self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
-        self.focus_requested = true;
+        self.focus_owner.request_active_pane();
         self.sync_visible(cx);
         cx.notify();
     }
@@ -222,7 +222,7 @@ impl AppModel {
     pub(crate) fn toggle_command_center_terminal(&mut self, pane: PaneId, cx: &mut Context<Self>) {
         if !self.command_center.active
             || self.quitting != Quitting::Idle
-            || self.close_prompt.is_some()
+            || self.dialogs.is_open()
             || self.close_request.is_some()
         {
             return;
@@ -242,7 +242,7 @@ impl AppModel {
         }
         self.command_center.grid = None;
         self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
-        self.focus_requested = true;
+        self.focus_owner.request_active_pane();
         self.sync_visible(cx);
         cx.notify();
     }
@@ -250,7 +250,7 @@ impl AppModel {
     pub(crate) fn close_command_center_terminal(&mut self, pane: PaneId, cx: &mut Context<Self>) {
         if !self.command_center.active
             || self.quitting != Quitting::Idle
-            || self.close_prompt.is_some()
+            || self.dialogs.is_open()
             || self.close_request.is_some()
             || self.pending_close.is_some()
         {
@@ -259,14 +259,15 @@ impl AppModel {
         let Some(tile) = self.command_center.tile(pane).cloned() else {
             return;
         };
-        let window = self.window;
         self.dismiss_overlay(cx);
-        self.close_prompt = Some(cx.spawn(async move |model, cx| {
-            let response =
-                crate::views::confirm::prompt_close_terminal(window, &tile.title, cx).await;
-            let _ = model.update(cx, |model, cx| {
-                model.finish_confirmation(cx);
-                model.focus_requested = true;
+        let name = tile.title.clone();
+        self.ask_dialog(
+            self.window,
+            async move |parent, cx| {
+                crate::views::confirm::prompt_close_terminal(parent, &name, cx).await
+            },
+            move |model, response, cx| {
+                model.focus_owner.request_active_pane();
                 match response {
                     Ok(true)
                         if model.quitting == Quitting::Idle
@@ -299,8 +300,9 @@ impl AppModel {
                     Err(error) => model.fail(error, cx),
                     Ok(_) => {}
                 }
-            });
-        }));
+            },
+            cx,
+        );
         cx.notify();
     }
 
@@ -356,7 +358,7 @@ impl AppModel {
         self.command_center.render_epoch = self.command_center.render_epoch.wrapping_add(1);
         self.command_center.focused = Some(source);
         self.command_center.reveal = Some(source);
-        self.focus_requested = true;
+        self.focus_owner.request_active_pane();
         cx.notify();
     }
 
@@ -375,7 +377,8 @@ impl AppModel {
         let quick_session = self
             .state
             .quick_terminal()
-            .and_then(|pane| self.pane_session(pane.id));
+            .and_then(|pane| self.pane_session(pane.id))
+            .map(|(_, session)| session);
         let scope = self.command_center_scope();
         // Hiding applies to the global dashboard; a project's own one shows all its terminals.
         let hidden: HashSet<_> = if scope.is_none() {
@@ -497,7 +500,8 @@ impl AppModel {
         let quick_session = self
             .state
             .quick_terminal()
-            .and_then(|pane| self.pane_session(pane.id));
+            .and_then(|pane| self.pane_session(pane.id))
+            .map(|(_, session)| session);
         let mut items = vec![Item::heading(tr!("Show in Command Center"))];
         let mut project = None;
         for (server, session) in self.running_sessions() {
@@ -600,7 +604,7 @@ impl AppModel {
                     .is_none_or(|pane| !model.command_center.visible.contains(&pane))
                 {
                     model.command_center.focused = model.command_center.visible.first().copied();
-                    model.focus_requested = true;
+                    model.focus_owner.request_active_pane();
                 }
                 model.sync_visible(cx);
                 cx.notify();
@@ -617,7 +621,7 @@ impl AppModel {
             })
         {
             self.command_center.focused = Some(pane);
-            self.focus_requested = true;
+            self.focus_owner.request_active_pane();
             cx.notify();
         }
     }
@@ -701,7 +705,7 @@ impl AppModel {
             session.attached = false;
             self.open_existing_session(session.info.project, &session, cx);
         }
-        self.focus_requested = true;
+        self.focus_owner.request_active_pane();
         cx.notify();
     }
 
@@ -759,6 +763,7 @@ impl AppModel {
         self.send(
             tile.server,
             Work::Attach {
+                tag: crate::boot::attach_tag(),
                 pane,
                 project: tile.session.info.project,
                 session: Some(tile.session.info.id),
@@ -787,12 +792,12 @@ impl AppModel {
                 .tile(pane)
                 .is_some_and(|tile| tile.server == server && tile.session.info.id == session);
         if matches && let Some(view) = self.terminal(&pane).map(|pane| pane.view.clone()) {
-            let channel = attachment.channel;
+            let channel = attachment.terminal.channel();
             if let Some(size) = view.update(cx, |pane, cx| pane.attach(server, attachment, cx)) {
                 self.send(server, Work::Resize(channel, size), cx);
             }
         } else {
-            self.send(server, Work::Detach(attachment.channel), cx);
+            self.send(server, Work::Detach(attachment.terminal.channel()), cx);
         }
     }
 

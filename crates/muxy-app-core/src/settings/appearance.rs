@@ -141,11 +141,15 @@ pub struct Appearance {
     pub sidebar_collapsed_style: SidebarCollapsedStyle,
     /// Project icon size in the sidebar, in unscaled points.
     pub sidebar_icon_size: u8,
+    pub sidebar_extensions_visible: bool,
+    pub sidebar_servers_visible: bool,
     /// Background alpha for colored project tiles; unset uses the theme default.
     pub project_icon_opacity: Option<u8>,
     pub status_bar_visible: bool,
     /// Each pane shows a header with its icon, title and actions.
     pub pane_headers: bool,
+    /// Fork: how much of an unfocused split pane its background covers, from 0 to 100.
+    pub unfocused_pane_dim: u8,
     pub commands_bar_visible: bool,
     pub tips_visible: bool,
     /// The welcome tour was finished or skipped.
@@ -268,9 +272,12 @@ impl Default for Appearance {
             sidebar_expanded_width: None,
             sidebar_collapsed_style: SidebarCollapsedStyle::default(),
             sidebar_icon_size: SIDEBAR_ICON_SIZE.1,
+            sidebar_extensions_visible: true,
+            sidebar_servers_visible: true,
             project_icon_opacity: None,
             status_bar_visible: true,
             pane_headers: true,
+            unfocused_pane_dim: 45,
             commands_bar_visible: true,
             tips_visible: true,
             onboarding_completed: false,

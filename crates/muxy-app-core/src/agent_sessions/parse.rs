@@ -86,7 +86,8 @@ pub(super) fn read(
             .unwrap_or_else(|| id.clone()),
         id,
         directory: normalized(&directory),
-        path: path.to_path_buf(),
+        path: Some(path.to_path_buf()),
+        target: None,
         modified,
     }))
 }

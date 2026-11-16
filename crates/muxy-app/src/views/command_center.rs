@@ -213,9 +213,9 @@ pub(super) fn sidebar_button(model: &AppModel, cx: &mut Context<AppModel>) -> An
                         model.theme.hover
                     })
                 })
-                .tooltip(super::status_bar::tooltip(
+                .tooltip(muxy_ui::components::tooltip(
                     tr!("Command Center").to_string(),
-                    model,
+                    &model.theme,
                 ))
                 .on_click(cx.listener(|model, _, _, cx| model.open_command_center(cx)))
                 .on_mouse_down(
@@ -341,9 +341,9 @@ pub(super) fn header(
                 .hover(|button| button.bg(model.theme.hover))
                 .text_size(m.font_body())
                 .text_color(model.theme.fg)
-                .tooltip(super::status_bar::tooltip(
+                .tooltip(muxy_ui::components::tooltip(
                     tr!("Layout · columns × rows").to_string(),
-                    model,
+                    &model.theme,
                 ))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .on_click(
@@ -439,7 +439,7 @@ impl super::overlays::OverlayView for [u8; 2] {
         &self,
         _mark: Option<super::overlays::Mark>,
         model: &AppModel,
-        _window: &gpui::Window,
+        _window: &Window,
         cx: &mut Context<AppModel>,
     ) -> AnyElement {
         custom_layout_picker(*self, model, cx)
@@ -742,50 +742,55 @@ fn grid(model: &mut AppModel, size: gpui::Size<Pixels>, cx: &mut Context<AppMode
                     Some(current)
                 })
                 .collect();
-            let mut elements = Vec::new();
+            // Built inside the model's update but laid out after it: a tile's chat view
+            // reads the model while it renders, which would double-lease it here.
+            let mut built = Vec::new();
             let _ = owner.update(cx, |model, cx| {
                 let mut visible = Vec::new();
-                window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
-                    for (index, top) in &headers {
-                        let frame = gpui::Bounds::new(
-                            bounds.origin + gpui::point(px(0.0), *top - offset),
-                            gpui::size(bounds.size.width, header_height),
-                        );
-                        if !frame.intersects(&bounds) {
-                            continue;
-                        }
-                        let mut element =
-                            project_header(&model.command_center.tiles[*index], model, cx);
-                        element.layout_as_root(frame.size.into(), window, cx);
-                        element.prepaint_at(frame.origin, window, cx);
-                        elements.push(element);
+                for (index, top) in &headers {
+                    let frame = gpui::Bounds::new(
+                        bounds.origin + gpui::point(px(0.0), *top - offset),
+                        gpui::size(bounds.size.width, header_height),
+                    );
+                    if !frame.intersects(&bounds) {
+                        continue;
                     }
-                    for (index, position) in positions.iter().enumerate() {
-                        let Some((column, top, tile_height)) = position else {
-                            continue;
-                        };
-                        let strip = strips[*column];
-                        let frame = gpui::Bounds::new(
-                            bounds.origin + gpui::point(lefts[*column], *top - offset),
-                            gpui::size(if strip { strip_width } else { width }, *tile_height),
-                        );
-                        if !frame.intersects(&bounds) {
-                            continue;
-                        }
-                        let entry = &model.command_center.tiles[index];
-                        if !model.command_center.is_collapsed(entry) {
-                            visible.push(entry.pane);
-                        }
-                        let mut element = div()
-                            .size_full()
-                            .child(tile(entry, index, strip, model, cx))
-                            .into_any_element();
-                        element.layout_as_root(frame.size.into(), window, cx);
-                        element.prepaint_at(frame.origin, window, cx);
-                        elements.push(element);
+                    built.push((
+                        project_header(&model.command_center.tiles[*index], model, cx),
+                        frame,
+                    ));
+                }
+                for (index, position) in positions.iter().enumerate() {
+                    let Some((column, top, tile_height)) = position else {
+                        continue;
+                    };
+                    let strip = strips[*column];
+                    let frame = gpui::Bounds::new(
+                        bounds.origin + gpui::point(lefts[*column], *top - offset),
+                        gpui::size(if strip { strip_width } else { width }, *tile_height),
+                    );
+                    if !frame.intersects(&bounds) {
+                        continue;
                     }
-                });
+                    let entry = &model.command_center.tiles[index];
+                    if !model.command_center.is_collapsed(entry) {
+                        visible.push(entry.pane);
+                    }
+                    let element = div()
+                        .size_full()
+                        .child(tile(entry, index, strip, model, cx))
+                        .into_any_element();
+                    built.push((element, frame));
+                }
                 model.command_center_visible(visible, window, cx);
+            });
+            let mut elements = Vec::with_capacity(built.len());
+            window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
+                for (mut element, frame) in built {
+                    element.layout_as_root(frame.size.into(), window, cx);
+                    element.prepaint_at(frame.origin, window, cx);
+                    elements.push(element);
+                }
             });
             (bounds, elements)
         },
@@ -865,14 +870,14 @@ fn project_header(entry: &Tile, model: &AppModel, cx: &mut Context<AppModel>) ->
         .font_weight(FontWeight::SEMIBOLD)
         .cursor_pointer()
         .hover(|style| style.bg(model.theme.hover))
-        .tooltip(super::status_bar::tooltip(
+        .tooltip(muxy_ui::components::tooltip(
             if collapsed {
                 tr!("Expand Project")
             } else {
                 tr!("Collapse Project")
             }
             .to_string(),
-            model,
+            &model.theme,
         ))
         .button_interaction(cx.listener(move |model, _, _, cx| {
             model.toggle_command_center_group(server, project, cx);
@@ -1147,10 +1152,20 @@ fn tile(
                     .min_h(px(0.0))
                     .child(model.dock_composer(
                         pane,
-                        model.terminal(&pane).map_or_else(
-                            || div().size_full().bg(model.theme.bg).into_any_element(),
-                            super::super::model::PaneView::element,
-                        ),
+                        if let Some(chat) = model.chat_view(pane) {
+                            chat.clone().into_any_element()
+                        } else {
+                            let terminal = model.terminal(&pane).map_or_else(
+                                || div().size_full().bg(model.theme.bg).into_any_element(),
+                                super::super::model::PaneView::element,
+                            );
+                            // As in splits: a pane starting a chat covers its terminal.
+                            if model.chat_waiting(pane) {
+                                crate::views::chat::waiting(pane, terminal, model)
+                            } else {
+                                terminal
+                            }
+                        },
                         cx,
                     ))
                     .when_some(body_bar, |body, bar| body.child(bar.top_0())),

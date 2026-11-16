@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use gpui::{AppContext, Context, Entity, FocusHandle, Focusable, Subscription, Task, Window};
 use muxy_app_core::agent_sessions::{Catalog, Listing, PROVIDERS, Roots, Session, supported};
 use muxy_app_core::settings::AgentSessionsPosition;
-use muxy_app_core::{ProjectId, ProjectStatus};
+use muxy_app_core::{PaneId, ProjectId, ProjectStatus};
 use muxy_protocol::AgentProvider;
 use muxy_ui::l10n::tr_key;
 use muxy_ui::panel::{PanelId, PanelMode, PanelPlacement, PanelPosition, PanelResizeState};
@@ -179,11 +179,33 @@ impl AppModel {
         if self.agent_sessions.task.is_some() {
             return;
         }
-        let (Some(scope), Some(roots)) = (
+        let (Some(scope), Some(mut roots)) = (
             self.agent_sessions_scope(),
             self.agent_sessions.roots.clone(),
         ) else {
             return;
+        };
+        let api_capable = self.server_supports(
+            self.state.current_project().server_id,
+            muxy_protocol::Feature::CHAT_PROVIDERS,
+        );
+        let native = if api_capable {
+            roots.exclude(AgentProvider::Codex);
+            self.active_pane()
+                .and_then(|pane| self.chat_key(pane))
+                .map(|key| {
+                    self.chat_call(
+                        key.0,
+                        muxy_protocol::ChatRequest::Discover {
+                            session: key.1,
+                            provider: muxy_protocol::ChatProvider::Codex,
+                            features: super::chat::chat_features(),
+                        },
+                        cx,
+                    )
+                })
+        } else {
+            None
         };
         let mut catalog = std::mem::take(&mut self.agent_sessions.catalog);
         let requested = scope.clone();
@@ -192,7 +214,40 @@ impl AppModel {
             (catalog, listing)
         });
         self.agent_sessions.task = Some(cx.spawn(async move |model, cx| {
-            let (catalog, listing) = scan.await;
+            let (catalog, mut listing) = scan.await;
+            if let Some(native) = native {
+                match native.await {
+                    Ok(muxy_protocol::ChatReply::Discovered { threads, .. }) => {
+                        listing
+                            .sessions
+                            .extend(threads.into_iter().map(|thread| Session {
+                                provider: AgentProvider::Codex,
+                                id: thread.target.thread_id.clone(),
+                                title: thread.title,
+                                directory: scope.directory.clone(),
+                                path: None,
+                                target: Some(thread.target),
+                                modified: std::time::UNIX_EPOCH
+                                    + std::time::Duration::from_secs(
+                                        u64::try_from(thread.updated_at).unwrap_or(0),
+                                    ),
+                            }));
+                        listing.sessions.sort_by(|a, b| b.modified.cmp(&a.modified));
+                    }
+                    Err(error) => listing.warnings.push((AgentProvider::Codex, error)),
+                    Ok(_) => listing.warnings.push((
+                        AgentProvider::Codex,
+                        tr!("Codex did not return its native session list.").to_string(),
+                    )),
+                }
+            } else if api_capable {
+                listing.warnings.push((
+                    AgentProvider::Codex,
+                    tr!("Open an idle terminal to load Codex conversations from their engine.")
+                        .to_string(),
+                ));
+            }
+
             let _ = model.update(cx, |model, cx| {
                 model.agent_sessions.task = None;
                 model.agent_sessions.catalog = catalog;
@@ -299,38 +354,80 @@ impl AppModel {
     }
 
     pub(crate) fn resume_agent_session(&mut self, session: &Session, cx: &mut Context<Self>) {
-        if self.quitting != Quitting::Idle
+        self.open_agent_session(session, cx);
+    }
+
+    /// Fork: resumes a Claude session in a terminal, then switches it to chat
+    /// once the server sees Claude Code there.
+    pub(crate) fn resume_agent_session_in_chat(
+        &mut self,
+        session: &Session,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(target) = &session.target {
+            if !self.can_open_agent_session(session) {
+                return;
+            }
+            self.new_tab(cx);
+            if let Some(pane) = self.active_pane() {
+                self.chat.resume_when_idle.insert(pane, target.clone());
+                self.chat_start_when_idle(pane, cx);
+            }
+        } else if let Some(pane) = self.open_agent_session(session, cx) {
+            self.chat_enter_when_ready(pane, cx);
+        }
+    }
+
+    fn can_open_agent_session(&self, session: &Session) -> bool {
+        !(self.quitting != Quitting::Idle
             || self.dialogs.is_open()
             || self.close_request.is_some()
             || self.pending_close.is_some()
             || self.overlay.is_some()
             || self.agent_sessions.scope.is_none()
             || self.agent_sessions.scope != self.agent_sessions_scope()
-            || !self.agent_sessions.listing.sessions.contains(session)
-        {
-            return;
+            || !self.agent_sessions.listing.sessions.contains(session))
+    }
+
+    fn open_agent_session(&mut self, session: &Session, cx: &mut Context<Self>) -> Option<PaneId> {
+        if !self.can_open_agent_session(session) {
+            return None;
         }
-        let Some(command) = session.resume_command() else {
-            return;
-        };
-        if !session.path.is_file() {
+        let command = session.resume_command()?;
+        if session.path.as_ref().is_some_and(|path| !path.is_file())
+            || (session.path.is_none() && session.target.is_none())
+        {
             self.fail(
                 tr!("This session is no longer available. Refresh the session list.").to_string(),
                 cx,
             );
-            return;
+            return None;
         }
+        self.open_command_tab(Some(&session.title), &command, cx)
+    }
+
+    /// Opens a terminal tab in the current project that runs `command`.
+    pub(super) fn open_command_tab(
+        &mut self,
+        title: Option<&str>,
+        command: &str,
+        cx: &mut Context<Self>,
+    ) -> Option<PaneId> {
         let opened = self.open_terminal(
             super::tabs::OpenTerminal {
                 project: self.state.current_project().id,
-                title: Some(&session.title),
-                command: Some(&command),
+                title,
+                command: Some(command),
                 directory: None,
             },
             cx,
         );
-        if let Err(error) = opened {
-            self.fail(error, cx);
+        match opened {
+            Ok(opened) => opened.map(|(_, pane)| pane),
+            Err(error) => {
+                self.fail(error, cx);
+                None
+            }
         }
     }
 }

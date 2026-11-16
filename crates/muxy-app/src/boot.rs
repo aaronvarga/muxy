@@ -355,6 +355,11 @@ pub(crate) enum Work {
         bytes: Vec<u8>,
         completion: async_channel::Sender<Result<(), String>>,
     },
+    /// Fork: sends a chat request without waiting; its reply arrives through the request.
+    Chat {
+        request: muxy_protocol::ChatRequest,
+        reply: async_channel::Sender<Result<muxy_protocol::ChatReply, String>>,
+    },
     ReadActivity,
     AcknowledgeActivity(Vec<u64>),
     ClaimActivity(Vec<u64>),
@@ -477,6 +482,7 @@ impl Work {
             Self::ExtensionClient(..) => "ExtensionClient",
             Self::ExtensionConnection(..) => "ExtensionConnection",
             Self::WriteInput { .. } => "WriteInput",
+            Self::Chat { .. } => "Chat",
             Self::ReadActivity => "ReadActivity",
             Self::AcknowledgeActivity(..) => "AcknowledgeActivity",
             Self::ClaimActivity(..) => "ClaimActivity",
@@ -771,6 +777,7 @@ pub(crate) fn worker(
                         vec![Update::Error(error.into())]
                     }),
                     Work::Input(_, _)
+                    | Work::Chat { .. }
                     | Work::TerminalInput(_, _)
                     | Work::Mouse(_, _)
                     | Work::CellSize(_, _)
@@ -1372,6 +1379,12 @@ fn perform(work: Work, client: &Client, target: &Target) -> Option<Update> {
                     .write_input(channel, bytes)
                     .map_err(|error| error.to_string()),
             );
+            return None;
+        }
+        Work::Chat { request, reply } => {
+            client.chat_async(request).on_complete(move |result| {
+                let _ = reply.try_send(result.map_err(|error| error.to_string()));
+            });
             return None;
         }
         Work::Mouse(channel, event) => client.send_mouse(channel, event),

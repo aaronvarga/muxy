@@ -144,7 +144,7 @@ impl AppModel {
     #[cfg(any(target_os = "macos", test))]
     pub(crate) fn choose_status_session(&mut self, id: &str, cx: &mut gpui::Context<Self>) {
         if self.quitting != super::Quitting::Idle
-            || self.close_prompt.is_some()
+            || self.dialogs.is_open()
             || self.close_request.is_some()
         {
             return;

@@ -76,12 +76,12 @@ async fn prompt(
 
 /// Confirms ending one session, including its running process.
 pub(crate) async fn prompt_close_terminal(
-    window: AnyWindowHandle,
+    parent: &Parent,
     title: &str,
     cx: &mut AsyncApp,
 ) -> Result<bool, String> {
     server_prompt(
-        window,
+        parent,
         &tr!("Close Terminal Session?"),
         &tr!("Close"),
         &tr!(
@@ -307,6 +307,37 @@ async fn install_prompt(
         .await
         .map_err(|error| error.to_string())?;
     Ok(answer.map(|answer| answer.ticked()))
+}
+
+/// Fork: confirms a Chat|Console switch that stops Claude's running work.
+pub(crate) async fn prompt_chat_switch(
+    parent: &Parent,
+    entering: bool,
+    cx: &mut AsyncApp,
+) -> Result<bool, String> {
+    if entering {
+        let message = tr!("Claude is working. Switching to Chat interrupts the current turn.");
+        server_prompt(
+            parent,
+            &tr!("Interrupt Claude?"),
+            &tr!("Interrupt"),
+            &message,
+            cx,
+        )
+        .await
+    } else {
+        let message = tr!(
+            "The agent is still working. Switching to Console stops its turn and background tasks."
+        );
+        server_prompt(
+            parent,
+            &tr!("Stop the agent's running work?"),
+            &tr!("Stop"),
+            &message,
+            cx,
+        )
+        .await
+    }
 }
 
 async fn server_prompt(

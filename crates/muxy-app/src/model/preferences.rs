@@ -47,6 +47,11 @@ pub(crate) enum Change {
     ResetTerminal,
     /// `[openers] file`: a built-in opener, or `<extension>:<opener>`.
     FileOpener(String),
+    FileType {
+        previous: Option<String>,
+        extension: String,
+        handler: Option<String>,
+    },
     /// `[openers] project_target`: the app the Open in IDE control opens.
     ProjectTarget(String),
     Directory(muxy_app_core::settings::NewPaneDirectory),
@@ -213,6 +218,17 @@ impl AppModel {
         }
     }
 
+    /// Fork: [`Self::show_settings_at`] for an event handler with no window at hand.
+    pub(crate) fn show_settings_soon(&mut self, category: Category, cx: &mut Context<Self>) {
+        let window = self.window;
+        cx.spawn(async move |model, cx| {
+            let _ = window.update(cx, |_, window, cx| {
+                model.update(cx, |model, cx| model.show_settings_at(category, window, cx))
+            });
+        })
+        .detach();
+    }
+
     /// Opens Settings at Servers and reads which clients may reach this computer.
     pub(crate) fn show_servers_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.show_settings(window, cx) {
@@ -228,7 +244,7 @@ impl AppModel {
     /// Opens Settings at `category`.
     pub(crate) fn show_settings_category(
         &mut self,
-        category: crate::views::settings::Category,
+        category: Category,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -690,6 +706,16 @@ impl AppModel {
                 settings.appearance.sidebar_vibrancy_level = level;
                 settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
             }
+            Change::Field("unfocused-pane-dim", value) => {
+                let dim: u8 = value
+                    .parse()
+                    .map_err(|_| tr!("Enter a whole number from 0 to 100").to_string())?;
+                if dim > 100 {
+                    return Err(tr!("Enter a whole number from 0 to 100").to_string().into());
+                }
+                settings.appearance.unfocused_pane_dim = dim;
+                settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
+            }
             Change::StatusBar(value) => {
                 settings.appearance.status_bar_visible = value;
                 settings.appearance = settings.appearance.save_changes(&self.appearance, &path)?;
@@ -733,6 +759,16 @@ impl AppModel {
             }
             Change::FileOpener(value) => {
                 settings.openers.file = value;
+                settings.save_openers(&path)?;
+            }
+            Change::FileType {
+                previous,
+                extension,
+                handler,
+            } => {
+                settings
+                    .openers
+                    .set_file_type(previous.as_deref(), &extension, handler)?;
                 settings.save_openers(&path)?;
             }
             Change::ProjectTarget(value) => {
@@ -1452,6 +1488,7 @@ fn change_id(change: &Change) -> &str {
         Change::UsagePing(_) => "usage-ping",
         Change::CloseBehavior(_) => "close-behavior",
         Change::FileOpener(_) => "file-opener",
+        Change::FileType { .. } => "file-types",
         Change::ProjectTarget(_) => "project-target",
         Change::Directory(_) => "directory",
         Change::Terminal("padding-left" | "padding-right", _) => "window-padding-x",

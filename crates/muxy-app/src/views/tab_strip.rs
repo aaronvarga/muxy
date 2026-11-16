@@ -293,11 +293,24 @@ fn new_tab_items(anchor: Option<TabId>, model: &AppModel) -> Vec<Item> {
             browser.disabled()
         },
     ];
+    // Fork: only servers that run chats offer it.
+    if cfg!(target_os = "macos")
+        && model.server_supports(
+            model.state.current_project().server_id,
+            muxy_protocol::Feature::AGENT_CHAT,
+        )
+    {
+        items.push(
+            Item::action(tr!("New Chat"), Command::NewClaudeChat)
+                .icon(MenuIcon::Glyph(Icon::Sparkles)),
+        );
+    }
+    let fixed = items.len();
     for (index, command) in model.available_commands() {
         let icon = super::commands_bar::agent(command)
             .map_or(MenuIcon::Glyph(Icon::Terminal), MenuIcon::Agent);
         let item = Item::action(command.name.clone(), Command::RunCommandInTab(index)).icon(icon);
-        let item = if items.len() == 2 {
+        let item = if items.len() == fixed {
             item.separated()
         } else {
             item
@@ -372,7 +385,7 @@ pub(super) fn settings_button(model: &AppModel, cx: &mut Context<AppModel>) -> A
 }
 
 /// How much smaller the buttons on a single pane are than the titlebar's.
-const PANE_BUTTON_SCALE: f32 = 12.0 / 14.0;
+pub(super) const PANE_BUTTON_SCALE: f32 = 12.0 / 14.0;
 
 /// Splits `pane`, or the active pane when `None`, toward `direction`.
 pub(super) fn split_button(
@@ -421,169 +434,6 @@ pub(super) fn split_button(
             }
             model.focus_active(window, cx);
         }))
-        .into_any_element()
-}
-
-/// Opens a menu moving `pane` to where a neighbor is, swapping the two.
-fn move_button(pane: PaneId, model: &AppModel, cx: &Context<AppModel>) -> AnyElement {
-    titlebar::scaled_icon_button(
-        SharedString::from(format!("move-pane-{pane}")),
-        Icon::Move,
-        PANE_BUTTON_SCALE,
-        tr!("Move Pane"),
-        model,
-    )
-    .debug_selector(|| "move-pane-button".into())
-    .on_click(
-        cx.listener(move |model, event: &gpui::ClickEvent, window, cx| {
-            use super::menu::{Command, Item};
-            cx.stop_propagation();
-            let items = [
-                (tr!("Move Left"), Direction::Left),
-                (tr!("Move Right"), Direction::Right),
-                (tr!("Move Up"), Direction::Up),
-                (tr!("Move Down"), Direction::Down),
-            ]
-            .into_iter()
-            .map(|(label, direction)| {
-                let item = Item::action(label, Command::MovePane(pane, direction));
-                if model.state.neighbor(pane, direction).is_some() {
-                    item
-                } else {
-                    item.disabled()
-                }
-            })
-            .collect();
-            model.open_menu(items, event.position(), window, cx);
-        }),
-    )
-    .into_any_element()
-}
-
-/// Copies the command reopening the agent session last run in `pane`.
-fn resume_button(
-    pane: PaneId,
-    command: String,
-    model: &AppModel,
-    cx: &Context<AppModel>,
-) -> AnyElement {
-    titlebar::scaled_icon_button(
-        SharedString::from(format!("copy-resume-{pane}")),
-        Icon::Overlap,
-        PANE_BUTTON_SCALE,
-        tr!("Copy Resume Command"),
-        model,
-    )
-    .debug_selector(|| "copy-resume-button".into())
-    .on_click(cx.listener(move |model, _, _, cx| {
-        cx.stop_propagation();
-        cx.write_to_clipboard(gpui::ClipboardItem::new_string(command.clone()));
-        model.show_notice(tr!("Copied the resume command").to_string(), cx);
-    }))
-    .into_any_element()
-}
-
-/// Terminal title and pane controls; a tab's only pane gets just the split buttons.
-pub(super) fn pane_controls(
-    pane: PaneId,
-    only: bool,
-    model: &AppModel,
-    cx: &Context<AppModel>,
-) -> AnyElement {
-    let title = model
-        .state
-        .current_project()
-        .tabs
-        .iter()
-        .flat_map(|tab| &tab.panes)
-        .find(|candidate| {
-            candidate.id == pane
-                && matches!(
-                    candidate.content,
-                    muxy_app_core::PaneContent::Terminal { .. }
-                )
-        })
-        .map(|pane| pane.title.clone());
-    let resume = model
-        .terminal(&pane)
-        .and_then(|terminal| terminal.view.read(cx).resume_command.clone());
-    let label = tr!("Close Pane");
-    let tooltip = model
-        .settings
-        .keymap
-        .chord(ShortcutId::ClosePane)
-        .map_or_else(|| label.to_string(), |chord| format!("{label} ({chord})"));
-    let close = titlebar::scaled_icon_button(
-        SharedString::from(format!("close-pane-{pane}")),
-        Icon::X,
-        PANE_BUTTON_SCALE,
-        tooltip,
-        model,
-    )
-    .debug_selector(|| "close-pane-button".into())
-    .on_click(cx.listener(move |model, _, window, cx| {
-        cx.stop_propagation();
-        model.close_pane(pane, cx);
-        model.focus_active(window, cx);
-    }));
-    let label = tr!("Equalize Splits");
-    let tooltip = model
-        .settings
-        .keymap
-        .chord(ShortcutId::EqualizeSplits)
-        .map_or_else(|| label.to_string(), |chord| format!("{label} ({chord})"));
-    let equalize = titlebar::scaled_icon_button(
-        SharedString::from(format!("equalize-splits-{pane}")),
-        Icon::LayoutSplit,
-        PANE_BUTTON_SCALE,
-        tooltip,
-        model,
-    )
-    .debug_selector(|| "equalize-splits-button".into())
-    .on_click(cx.listener(move |model, _, window, cx| {
-        cx.stop_propagation();
-        model.equalize_splits(pane, cx);
-        model.focus_active(window, cx);
-    }));
-    div()
-        .debug_selector(|| "pane-controls".into())
-        .flex()
-        .flex_none()
-        .min_w(px(0.0))
-        .items_center()
-        .justify_end()
-        .h(
-            px((f32::from(model.metrics.control_medium()) * PANE_BUTTON_SCALE).round())
-                + model.metrics.spacing2(),
-        )
-        .bg(model.theme.bg)
-        .border_b_1()
-        .border_color(model.theme.border)
-        .when_some(title, |bar, title| {
-            bar.child(
-                div()
-                    .id(SharedString::from(format!("pane-title-{pane}")))
-                    .flex_1()
-                    .min_w(px(0.0))
-                    // shortcut: clip long titles; restore ellipsis when GPUI preserves runs across measurements.
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .pl(model.metrics.spacing4())
-                    .pr(model.metrics.spacing2())
-                    .text_size(model.metrics.font_footnote())
-                    .text_color(model.theme.fg_muted)
-                    .tooltip(super::status_bar::tooltip(title.clone(), model))
-                    .child(title.clone())
-                    .debug_selector(move || format!("pane-title-{pane}-{title}")),
-            )
-        })
-        .when_some(resume, |bar, command| {
-            bar.child(resume_button(pane, command, model, cx))
-        })
-        .when(!only, |bar| bar.child(move_button(pane, model, cx)))
-        .child(split_button(Some(pane), Direction::Right, model, cx))
-        .child(split_button(Some(pane), Direction::Down, model, cx))
-        .when(!only, |bar| bar.child(equalize).child(close))
         .into_any_element()
 }
 

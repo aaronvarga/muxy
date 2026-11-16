@@ -23,11 +23,7 @@ fn every_command_has_one_id_and_a_shortcut_slot() {
             row.palette_id
         );
         let Some(shortcut) = row.shortcut else {
-            assert_eq!(
-                row.palette_id, "open_about",
-                "{} can't be bound",
-                row.palette_id
-            );
+            assert!(["open_about", "open_repository"].contains(&row.palette_id));
             continue;
         };
         assert_eq!(row.palette_id, shortcut.name());

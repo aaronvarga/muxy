@@ -388,10 +388,10 @@ impl AppModel {
 
 impl OverlayView for Editor {
     #[allow(
-    clippy::too_many_lines,
-    reason = "Keep the editor layout and its event handlers together"
-)]
-fn render(
+        clippy::too_many_lines,
+        reason = "Keep the editor layout and its event handlers together"
+    )]
+    fn render(
         &self,
         mark: Option<Mark>,
         model: &AppModel,
@@ -515,25 +515,33 @@ fn render(
         )
         .child(
             muxy_ui::popover::footer(theme, m)
-                .child(muxy_ui::controls::button(
-                    muxy_ui::controls::Style { theme, metrics: &m },
-                    "project-editor-cancel",
-                    muxy_ui::controls::Button::secondary(&tr!("Cancel")),
-                    cx.listener(|model, _, _, cx| model.dismiss_overlay(cx)),
-                ).debug_selector(|| "project-editor-cancel".into()))
-                .child(muxy_ui::controls::button(
-                    muxy_ui::controls::Style { theme, metrics: &m },
-                    "save-project-editor",
-                    muxy_ui::controls::Button::primary(&if matches!(
-                        editor.target,
-                        Target::NewWorkspace(_) | Target::NewServerGroup(_) | Target::NewFolderGroup
-                    ) {
-                        tr!("Create")
-                    } else {
-                        tr!("Save")
-                    }),
-                    cx.listener(|model, _, _, cx| model.submit_project_editor(cx)),
-                ).debug_selector(|| "save-project-editor".into())),
+                .child(
+                    muxy_ui::controls::button(
+                        muxy_ui::controls::Style { theme, metrics: &m },
+                        "project-editor-cancel",
+                        muxy_ui::controls::Button::secondary(&tr!("Cancel")),
+                        cx.listener(|model, _, _, cx| model.dismiss_overlay(cx)),
+                    )
+                    .debug_selector(|| "project-editor-cancel".into()),
+                )
+                .child(
+                    muxy_ui::controls::button(
+                        muxy_ui::controls::Style { theme, metrics: &m },
+                        "save-project-editor",
+                        muxy_ui::controls::Button::primary(&if matches!(
+                            editor.target,
+                            Target::NewWorkspace(_)
+                                | Target::NewServerGroup(_)
+                                | Target::NewFolderGroup
+                        ) {
+                            tr!("Create")
+                        } else {
+                            tr!("Save")
+                        }),
+                        cx.listener(|model, _, _, cx| model.submit_project_editor(cx)),
+                    )
+                    .debug_selector(|| "save-project-editor".into()),
+                ),
         )
         .into_any_element()
 }

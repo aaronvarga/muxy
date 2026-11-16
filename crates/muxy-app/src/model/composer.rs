@@ -51,6 +51,8 @@ pub(crate) struct ComposerRuntime {
     pub(crate) release: bool,
     /// A focused session whose composer appears once its terminal attaches.
     pub(crate) awaiting: Option<PaneId>,
+    /// The docked composer is popped out into the floating dialog.
+    pub(crate) popped: bool,
     /// The agent and folder the open composer's skills come from.
     skills_source: Option<SkillSource>,
     skill_cache: HashMap<SkillSource, Arc<Vec<Skill>>>,
@@ -74,6 +76,7 @@ impl ComposerRuntime {
             preferences_dirty: false,
             release: false,
             awaiting: None,
+            popped: false,
             skills_source: None,
             skill_cache: HashMap::new(),
             skill_scan: None,
@@ -96,9 +99,49 @@ impl AppModel {
         self.settings.composer.presentation == ComposerPresentation::Docked
     }
 
+    /// Whether the composer draws as the dialog over the workspace: floating,
+    /// or a docked one popped out.
+    pub(crate) fn composer_dialog(&self) -> bool {
+        self.settings.composer.presentation == ComposerPresentation::Floating
+            || (self.composer_docked() && self.composer.popped)
+    }
+
+    /// Puts a sent dialog away: a popped-out dock goes back, a floating one closes.
+    fn leave_composer_dialog(&mut self, cx: &mut Context<Self>) {
+        if self.composer.popped {
+            self.pop_composer(false, cx);
+        } else if self.settings.composer.presentation == ComposerPresentation::Floating {
+            self.dismiss_composer(false, cx);
+        }
+    }
+
+    /// Pops the docked composer out into the dialog or back into its dock,
+    /// keeping its session draft and the keyboard.
+    pub(crate) fn pop_composer(&mut self, popped: bool, cx: &mut Context<Self>) {
+        let Some(view) = self.composer.view.clone() else {
+            return;
+        };
+        self.composer.popped = popped && self.composer_docked();
+        let popped = self.composer.popped;
+        view.update(cx, |view, cx| {
+            view.popped = popped;
+            if popped {
+                view.visibility = muxy_ui::motion::VisibilityMotion::showing(
+                    crate::views::composer::TRANSITION,
+                    cx.background_executor().clone(),
+                );
+            }
+            cx.notify();
+        });
+        let focus = view.focus_handle(cx);
+        let _ = self.window.update(cx, |_, window, _| focus.focus(window));
+        self.focus_owner.settle();
+        cx.notify();
+    }
+
     /// The draft of a pane's terminal session, in a project tab or the command center.
     pub(crate) fn session_draft(&self, pane: PaneId) -> Option<DraftId> {
-        let session = self.pane_session(pane)?;
+        let (_, session) = self.pane_session(pane)?;
         let (server, project) = self.pane_project(pane)?;
         Some(DraftId::for_session(server, project, session))
     }
@@ -119,7 +162,7 @@ impl AppModel {
 
     /// The Claude or Codex agent running in a local pane, and its project folder.
     fn pane_skill_source(&self, pane: PaneId) -> Option<SkillSource> {
-        let session = self.pane_session(pane)?;
+        let (_, session) = self.pane_session(pane)?;
         let (server, project) = self.pane_project(pane)?;
         if !server.is_local() {
             return None;
@@ -204,24 +247,31 @@ impl AppModel {
         if self.composer.awaiting != self.active_pane() {
             self.composer.awaiting = None;
         }
-        let desired = self.active_pane().and_then(|pane| self.session_draft(pane));
+        let pane = self
+            .active_pane()
+            .filter(|pane| self.chat_view(*pane).is_none() && !self.chat_waiting(*pane));
+        let desired = pane.and_then(|pane| self.session_draft(pane));
         if self.composer.key == desired
             && self.composer.view.is_some() == desired.is_some()
-            && self.composer.pane == self.active_pane()
+            && self.composer.pane == pane
         {
             return;
         }
-        let requested = self.focus_requested;
+        // Swapping the docked draft leaves focus where it was asked to go.
+        let requested = std::mem::take(&mut self.focus_owner);
         if self.composer.view.is_some() {
             self.dismiss_composer(false, cx);
         }
         if desired.is_some() {
             self.open_composer(cx);
         }
-        self.focus_requested = requested;
+        self.focus_owner = requested;
+        if pane.is_none() {
+            self.focus_owner.request_active_pane();
+        }
         if self.composer.view.is_some() && self.composer.awaiting == self.composer.pane {
             self.composer.awaiting = None;
-            self.focus_requested = true;
+            self.focus_owner.request_active_pane();
         }
     }
 
@@ -240,7 +290,7 @@ impl AppModel {
         if let Some(view) = &self.composer.view {
             self.blur_webviews(cx);
             view.focus_handle(cx).focus(window);
-            self.focus_requested = false;
+            self.focus_owner.settle();
         }
         cx.notify();
     }
@@ -253,6 +303,9 @@ impl AppModel {
         content: gpui::AnyElement,
         cx: &Context<Self>,
     ) -> gpui::AnyElement {
+        if self.chat_view(pane).is_some() || self.chat_waiting(pane) {
+            return content;
+        }
         let Some(key) = self
             .composer_docked()
             .then(|| self.session_draft(pane))
@@ -261,7 +314,24 @@ impl AppModel {
             return content;
         };
         let dock = match &self.composer.view {
-            Some(view) if self.composer.pane == Some(pane) => view.clone().into_any_element(),
+            Some(view) if self.composer.pane == Some(pane) && !self.composer.popped => {
+                // Holds the dock's height while the composer grows over the terminal.
+                div()
+                    .relative()
+                    .flex_none()
+                    .w_full()
+                    .h(crate::views::composer::dock_height(self.metrics) + gpui::px(1.0))
+                    .child(
+                        div()
+                            .absolute()
+                            .left_0()
+                            .right_0()
+                            .bottom_0()
+                            .occlude()
+                            .child(view.clone()),
+                    )
+                    .into_any_element()
+            }
             _ => {
                 let m = self.metrics;
                 let text = self
@@ -298,6 +368,13 @@ impl AppModel {
                             .items_center()
                             .h(crate::views::composer::dock_height(m))
                             .px(m.spacing6())
+                            .gap(m.spacing3())
+                            .children(crate::views::chat::mode_switch(
+                                pane,
+                                self,
+                                &cx.weak_entity(),
+                                cx,
+                            ))
                             .text_size(m.scaled(self.settings.composer.font_size))
                             .text_color(if text.is_some() {
                                 self.theme.fg_muted
@@ -326,16 +403,21 @@ impl AppModel {
     }
 
     pub(crate) fn toggle_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Never hand the keyboard to a terminal hidden behind the popped-out dialog.
+        if self.composer.popped {
+            self.pop_composer(false, cx);
+            return;
+        }
         if self.composer_docked() {
             self.sync_docked_composer(cx);
             if let Some(view) = &self.composer.view {
                 if view.focus_handle(cx).is_focused(window) {
                     self.composer.release = true;
-                    self.focus_requested = true;
+                    self.focus_owner.request_active_pane();
                 } else {
                     self.blur_webviews(cx);
                     view.focus_handle(cx).focus(window);
-                    self.focus_requested = false;
+                    self.focus_owner.settle();
                 }
                 cx.notify();
             }
@@ -385,8 +467,10 @@ impl AppModel {
                 (!store.load_status().is_ready()).then(|| store.load_status().warnings.join("; ")),
             )
         };
+        let owner = cx.weak_entity();
         let view = cx.new(|cx| {
             Composer::new(
+                owner,
                 draft,
                 self.settings.composer.clone(),
                 self.theme.clone(),
@@ -402,9 +486,11 @@ impl AppModel {
         self.composer.subscription = Some(cx.subscribe(&view, |model, _, event, cx| match event {
             ComposerEvent::Changed => model.composer_changed(cx),
             // Docked composers stay; Escape hands the keyboard back to the session.
+            ComposerEvent::Close if model.composer.popped => model.pop_composer(false, cx),
+            ComposerEvent::PopOut => model.pop_composer(true, cx),
             ComposerEvent::Close if model.composer_docked() => {
                 model.composer.release = true;
-                model.focus_requested = true;
+                model.focus_owner.request_active_pane();
                 cx.notify();
             }
             ComposerEvent::Close => model.close_composer(cx),
@@ -417,7 +503,7 @@ impl AppModel {
             ComposerEvent::QuickCommands => model.composer_menu(true, cx),
             ComposerEvent::QuickCommand(index) => model.insert_quick_command(*index, cx),
             ComposerEvent::ManageQuickCommands => {
-                model.show_settings_at(crate::views::settings::Category::Commands, cx);
+                model.show_settings_soon(crate::views::settings::Category::Commands, cx);
             }
             ComposerEvent::Preferences(settings) => {
                 if model.settings.composer.presentation != settings.presentation
@@ -551,6 +637,7 @@ impl AppModel {
             }));
         }
         self.composer.subscription = None;
+        self.composer.popped = false;
         self.composer.key = None;
         self.composer.pane = None;
         self.focus_owner.request_active_pane();
@@ -953,7 +1040,7 @@ impl AppModel {
         else {
             return div().into_any_element();
         };
-        if self.settings.composer.presentation != ComposerPresentation::Floating {
+        if !self.composer_dialog() {
             return div().into_any_element();
         }
         div()
@@ -967,7 +1054,13 @@ impl AppModel {
             .occlude()
             .on_mouse_down(
                 gpui::MouseButton::Left,
-                cx.listener(|model, _, _, cx| model.close_composer(cx)),
+                cx.listener(|model, _, _, cx| {
+                    if model.composer.popped {
+                        model.pop_composer(false, cx);
+                    } else {
+                        model.close_composer(cx);
+                    }
+                }),
             )
             .child(view.clone())
             .into_any_element()
@@ -1205,7 +1298,6 @@ async fn send_remote(
     let (files, session) = model
         .update(cx, |model, cx| {
             let (_, session) = model
-                .state
                 .pane_session(pane)
                 .ok_or_else(|| tr!("The terminal closed before sending.").to_string())?;
             Ok::<_, String>((model.remote_files(server, cx)?, session))
@@ -1258,8 +1350,16 @@ impl AppModel {
         let mut sessions = std::collections::HashSet::new();
         let mut targets = Vec::new();
         for id in requested {
+            // Fork: typing into a session in chat would reach nothing; chat sends one at a time.
+            if self.chat_mode_of(id) != muxy_protocol::ChatMode::Console
+                || self
+                    .chat_session(id)
+                    .is_some_and(|session| session.local.is_some())
+            {
+                continue;
+            }
             let Some((session, attachment, modes)) =
-                self.state.pane_session(id).and_then(|(_, session)| {
+                self.pane_session(id).and_then(|(_, session)| {
                     let pane = self.grids.get(&id)?.view.read(cx);
                     Some((session, pane.attachment()?, pane.grid.as_ref()?.modes))
                 })
@@ -1320,6 +1420,10 @@ impl AppModel {
         else {
             return;
         };
+        // Fork: a session in chat takes the draft as one prompt, never a broadcast.
+        if self.submit_chat_composer(enter, &key, &view, cx) {
+            return;
+        }
         let targets = match self.composer_targets(cx) {
             Ok(targets) => targets,
             Err(error) => {
@@ -1348,10 +1452,7 @@ impl AppModel {
             let result = async {
                 let steps = prepared?;
                 let _ = model.update(cx, |model, cx| {
-                    if model.composer.key.as_ref() == Some(&key)
-                        && model.settings.composer.presentation == ComposerPresentation::Floating {
-                        model.dismiss_composer(false, cx);
-                    }
+                    if model.composer.key.as_ref() == Some(&key) { model.leave_composer_dialog(cx); }
                 });
                 let pastes_images = steps.iter().any(|step| matches!(step, Step::Image(_))) && targets.iter().any(|(_, (server, _), _)| server.is_local());
                 let mut clipboard = if pastes_images { Some(muxy_ui::pasteboard::Lease::capture()?) } else { None };
@@ -1437,4 +1538,172 @@ pub(super) async fn deliver(
         .recv()
         .await
         .map_err(|_| tr!("Terminal connection closed before delivery was confirmed").to_string())?
+}
+
+impl AppModel {
+    /// Fork: when the active pane is in chat, sends the draft there as one
+    /// prompt with its images inline, and returns true.
+    fn submit_chat_composer(
+        &mut self,
+        enter: bool,
+        key: &DraftId,
+        view: &Entity<Composer>,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(pane) = self
+            .active_pane()
+            .filter(|pane| self.chat_mode_of(*pane) != muxy_protocol::ChatMode::Console)
+        else {
+            return false;
+        };
+        let refusal = match self.chat_mode_of(pane) {
+            _ if !enter => Some(tr!("Chat takes whole messages. Use Send instead.")),
+            muxy_protocol::ChatMode::Chat => None,
+            muxy_protocol::ChatMode::Blocked => Some(tr!(
+                "Claude Code didn't stop. Switch to Console to try again."
+            )),
+            _ => Some(tr!("Claude is switching. Send again in a moment.")),
+        };
+        if let Some(refusal) = refusal {
+            self.composer_error(refusal.to_string(), cx);
+            return true;
+        }
+        let Some(target) = self.grids.get(&pane).and_then(|terminal| {
+            let terminal = terminal.view.read(cx);
+            Some((pane, terminal.attachment()?, terminal.grid.as_ref()?.modes))
+        }) else {
+            self.composer_error(tr!("Open a live terminal before sending.").to_string(), cx);
+            return true;
+        };
+        let server = target.1.0;
+        let Some((revision, mut plan)) = self.composer_plan(key, view, &[target], false, cx) else {
+            return true;
+        };
+        let capture = match self.chat_capture(pane, cx) {
+            Ok(capture) => capture,
+            Err(error) => {
+                self.composer_error(error, cx);
+                return true;
+            }
+        };
+        let lease = (capture.key, capture.id);
+        plan.image_strategy = ImageSubmissionStrategy::Clipboard;
+        let clear = self.settings.composer.clear_after_sending;
+        view.update(cx, |view, cx| {
+            view.sending = true;
+            view.error = None;
+            cx.notify();
+        });
+        let store = self.composer.store.clone();
+        let key = key.clone();
+        self.composer.submission = Some(cx.spawn(async move |model, cx| {
+            let prepared = cx
+                .background_executor()
+                .spawn(async move {
+                    prepare(
+                        &plan,
+                        &mut store.lock().unwrap_or_else(PoisonError::into_inner),
+                    )
+                })
+                .await;
+            let result = async {
+                let mut text = String::new();
+                let mut images = Vec::new();
+                for step in prepared? {
+                    match step {
+                        Step::Text(part) => text.push_str(&part),
+                        Step::File(path) if !server.is_local() => {
+                            let upload = Upload::Files(vec![path]);
+                            text.push_str(&send_remote(&model, cx, pane, server, upload).await?);
+                        }
+                        Step::File(path) => text.push_str(
+                            &quoted(std::slice::from_ref(&path))
+                                .ok_or_else(|| tr!("Invalid attachment path").to_string())?,
+                        ),
+                        Step::Image(bytes) => images.push(muxy_protocol::ChatImage {
+                            mime: muxy_protocol::ChatImageType::Png,
+                            bytes,
+                        }),
+                    }
+                }
+                chat_images_fit(&images)?;
+                model
+                    .update(cx, |model, cx| {
+                        model.chat_send_captured(capture, text, images, cx)
+                    })
+                    .map_err(|error| error.to_string())?
+                    .await
+            }
+            .await;
+            let _ = model.update(cx, |model, cx| {
+                model.chat_finish_preparing(lease.0, lease.1, cx);
+                model.finish_chat_composer(&key, revision, clear, result, cx);
+            });
+        }));
+        true
+    }
+
+    fn finish_chat_composer(
+        &mut self,
+        key: &DraftId,
+        revision: u64,
+        clear: bool,
+        result: Result<(), String>,
+        cx: &mut Context<Self>,
+    ) {
+        self.composer.submission = None;
+        if let Some(view) = &self.composer.view {
+            view.update(cx, |view, cx| {
+                view.sending = false;
+                cx.notify();
+            });
+        }
+        match result {
+            Ok(()) if clear => {
+                let cleared = self
+                    .composer
+                    .store
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clear_if_revision(key, revision);
+                match cleared {
+                    Ok(true) => {
+                        if self.composer.key.as_ref() == Some(key)
+                            && let Some(view) = &self.composer.view
+                        {
+                            view.update(cx, |view, cx| {
+                                view.set_draft(ComposerDraft::default(), cx);
+                            });
+                        }
+                        self.save_composer(cx);
+                    }
+                    Ok(false) => {}
+                    Err(error) => self.composer_error(error.to_string(), cx),
+                }
+            }
+            Ok(()) => {}
+            Err(error) => self.composer_error(
+                tr!("Delivery not confirmed: %@ The draft is kept.", &error).to_string(),
+                cx,
+            ),
+        }
+    }
+}
+
+/// Fork: the server's bounds on one prompt's images.
+fn chat_images_fit(images: &[muxy_protocol::ChatImage]) -> Result<(), String> {
+    let total: usize = images.iter().map(|image| image.bytes.len()).sum();
+    if images.len() > muxy_protocol::MAX_CHAT_IMAGES
+        || total > muxy_protocol::MAX_CHAT_IMAGES_BYTES
+        || images
+            .iter()
+            .any(|image| image.bytes.len() > muxy_protocol::MAX_CHAT_IMAGE_BYTES)
+    {
+        return Err(tr!(
+            "Chat takes up to %lld images, 5 MiB each and 12 MiB in all.",
+            muxy_protocol::MAX_CHAT_IMAGES
+        )
+        .to_string());
+    }
+    Ok(())
 }

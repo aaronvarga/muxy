@@ -96,11 +96,14 @@ pub(crate) enum Command {
     /// Add Project's folders on a server.
     AddProject(muxy_app_core::ServerId),
     SetProjectHidden(muxy_app_core::ProjectId, bool),
+    ChangeProjectFolder(muxy_app_core::ProjectId),
     ChangeHomeFolder,
     ResetHomeFolder,
     /// Shows or hides a project from the sidebar's project list menu, which
     /// stays open for the next toggle.
     ToggleProjectVisibility(muxy_app_core::ProjectId),
+    ToggleSidebarExtensions,
+    ToggleSidebarServers,
     AddDivider(muxy_app_core::ProjectId),
     EditDivider(muxy_app_core::DividerId),
     RemoveDivider(muxy_app_core::DividerId),
@@ -110,7 +113,6 @@ pub(crate) enum Command {
     /// Removes a project's extra folder, named by `project_menu::folder_key`
     /// so a list another device changed meanwhile loses the right one.
     RemoveProjectFolder(muxy_app_core::ProjectId, u64),
-    AddProject,
     NewFolderGroup,
     OpenFolderEntry(muxy_app_core::ProjectId, muxy_protocol::FolderEntryId),
     EditFolderEntry(
@@ -153,6 +155,8 @@ pub(crate) enum Command {
     RunCommandInTab(usize),
     NewTab,
     NewBrowserTab,
+    /// Fork: a new terminal tab that starts a Claude chat.
+    NewClaudeChat,
     /// Swaps a pane with its neighbor in a direction.
     MovePane(muxy_app_core::PaneId, muxy_app_core::Direction),
     /// Shows or hides the titlebar button at this index of the titlebar menu.
@@ -909,6 +913,7 @@ impl AppModel {
             Command::SetProjectHidden(id, hidden) => {
                 self.edit_workspaces(|state| state.set_project_hidden(id, hidden), cx);
             }
+            Command::ChangeProjectFolder(id) => self.choose_project_directory(id, cx),
             Command::ChangeHomeFolder => Self::choose_home_folder(cx),
             Command::ResetHomeFolder => {
                 if let Some(directory) = std::env::home_dir() {
@@ -919,6 +924,18 @@ impl AppModel {
                 let hidden = self.state.hidden_projects().any(|project| project.id == id);
                 self.edit_workspaces(|state| state.set_project_hidden(id, !hidden), cx);
                 self.open_project_visibility_menu(position, window, cx);
+                return;
+            }
+            Command::ToggleSidebarExtensions | Command::ToggleSidebarServers => {
+                let visible = match command {
+                    Command::ToggleSidebarExtensions => {
+                        &mut self.appearance.sidebar_extensions_visible
+                    }
+                    _ => &mut self.appearance.sidebar_servers_visible,
+                };
+                *visible = !*visible;
+                self.save_appearance(cx);
+                self.open_sidebar_controls_menu(position, window, cx);
                 return;
             }
             Command::AddDivider(id) => {
@@ -1064,6 +1081,7 @@ impl AppModel {
             }
             Command::NewTab => self.new_tab(cx),
             Command::NewBrowserTab => self.new_browser_tab(cx),
+            Command::NewClaudeChat => self.new_claude_chat(cx),
             Command::BrowserInspect(pane) => {
                 if let Some(view) = self.browser_view(pane)
                     && let Err(error) = view.read(cx).native.browser().open_devtools()

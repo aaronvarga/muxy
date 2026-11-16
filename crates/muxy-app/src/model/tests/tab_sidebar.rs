@@ -340,24 +340,109 @@ fn collapsed_project_tiles_fill_their_squares(cx: &mut TestAppContext) {
             muxy_app_core::settings::SidebarCollapsedStyle::Icons;
         cx.notify();
     });
-    cx.run_until_parked();
-    let metrics = view.read_with(cx, |model, _| model.metrics);
-    let sidebar = cx.debug_bounds("workspace-sidebar").expect("sidebar");
-    assert_eq!(sidebar.size.width, metrics.sidebar_collapsed_width());
-    let square = metrics.scaled(34.0);
-    for selector in [
-        "project-row-0",
-        "sidebar-extensions",
-        "remote-servers-section",
-        "settings-button",
-    ] {
-        let bounds = cx.debug_bounds(selector).expect(selector);
-        assert_eq!(bounds.size, size(square, square), "{selector}");
+    for icon_size in [48, 28, 20, 36] {
+        view.update(cx, |model, cx| {
+            model.appearance.sidebar_icon_size = icon_size;
+            cx.notify();
+        });
+        cx.run_until_parked();
+        let metrics = view.read_with(cx, |model, _| model.metrics);
+        let icon = metrics.scaled(f32::from(icon_size));
+        let sidebar = cx.debug_bounds("workspace-sidebar").expect("sidebar");
+        assert_eq!(sidebar.size.width, icon + metrics.scaled(16.0));
+        let square = icon + metrics.scaled(6.0);
+        for selector in [
+            "project-row-0",
+            "sidebar-extensions",
+            "remote-servers-section",
+            "settings-button",
+        ] {
+            let bounds = cx.debug_bounds(selector).expect(selector);
+            assert_eq!(bounds.size, size(square, square), "{selector}");
+            assert!(bounds.left() >= sidebar.left() && bounds.right() <= sidebar.right());
+        }
+        let tile = cx
+            .debug_bounds(format!("project-tile-{with_tab}").leak())
+            .expect("tile");
+        assert_eq!(tile.size, size(icon, icon));
     }
-    let tile = cx
-        .debug_bounds(format!("project-tile-{with_tab}").leak())
-        .expect("tile");
-    assert_eq!(tile.size, size(metrics.icon_xxl(), metrics.icon_xxl()));
+}
+
+#[gpui::test]
+fn sidebar_controls_can_be_hidden_and_restored_from_settings(cx: &mut TestAppContext) {
+    let (state, _, _) = three_projects();
+    let (view, cx) = open(state, AppLayout::ProjectFocused, cx);
+    cx.run_until_parked();
+    let original_height = cx
+        .debug_bounds("sidebar-footer")
+        .expect("footer")
+        .size
+        .height;
+    let extensions = cx.debug_bounds("sidebar-extensions").expect("extensions");
+    cx.simulate_mouse_down(
+        extensions.center(),
+        gpui::MouseButton::Right,
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    for label in ["Extensions", "Servers"] {
+        let item = cx
+            .debug_bounds(format!("menu-label-{label}").leak())
+            .expect("visibility item");
+        cx.simulate_click(item.center(), Modifiers::none());
+        cx.run_until_parked();
+        view.read_with(cx, |model, _| {
+            assert!(!model.appearance.sidebar_extensions_visible);
+            assert_eq!(
+                model.appearance.sidebar_servers_visible,
+                label == "Extensions"
+            );
+        });
+    }
+    view.read_with(cx, |model, _| {
+        let saved = Appearance::load(&model.path.with_file_name("settings.toml")).expect("saved");
+        assert!(!saved.sidebar_extensions_visible);
+        assert!(!saved.sidebar_servers_visible);
+    });
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    let settings = cx
+        .debug_bounds("settings-button")
+        .expect("settings stays visible");
+    // Debug bounds retain removed elements; footer height verifies they leave the layout.
+    let padding = view.read_with(cx, |model, _| model.metrics.spacing3());
+    assert_eq!(
+        cx.debug_bounds("sidebar-footer")
+            .expect("footer")
+            .size
+            .height,
+        settings.size.height + padding
+    );
+    cx.simulate_mouse_down(
+        settings.center(),
+        gpui::MouseButton::Right,
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    for label in ["Extensions", "Servers"] {
+        let item = cx
+            .debug_bounds(format!("menu-label-{label}").leak())
+            .expect("visibility item");
+        cx.simulate_click(item.center(), Modifiers::none());
+        cx.run_until_parked();
+    }
+    view.read_with(cx, |model, _| {
+        let saved = Appearance::load(&model.path.with_file_name("settings.toml")).expect("saved");
+        assert!(saved.sidebar_extensions_visible);
+        assert!(saved.sidebar_servers_visible);
+    });
+    assert_eq!(
+        cx.debug_bounds("sidebar-footer")
+            .expect("footer")
+            .size
+            .height,
+        original_height
+    );
 }
 
 #[gpui::test]

@@ -45,6 +45,7 @@ pub(crate) enum PickerKind {
     AiProvider(crate::repository_actions::Action),
     ExtensionSidebar,
     FileOpener,
+    FileType,
     AppLanguage,
     CommandProject,
 }
@@ -71,6 +72,7 @@ impl PickerKind {
             Self::AiProvider(action) => super::ai::provider_id(action),
             Self::ExtensionSidebar => "extension-sidebar",
             Self::FileOpener => "file-opener",
+            Self::FileType => "file-type-handler",
             Self::AppLanguage => "app-language",
             Self::CommandProject => "command-project",
         }

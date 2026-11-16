@@ -134,6 +134,7 @@ fn draft_toggle(
     controls::toggle(
         pane.style(),
         id,
+        &super::control_name(id),
         pane.command_editor.as_ref().is_some_and(value),
         cx.listener(move |pane, _, _, cx| {
             if let Some(command) = &mut pane.command_editor {
@@ -142,6 +143,7 @@ fn draft_toggle(
             }
         }),
     )
+    .into_any_element()
 }
 
 #[allow(
@@ -242,20 +244,22 @@ pub(super) fn row(pane: &SettingsView, index: usize, cx: &mut Context<SettingsVi
         .children([false, true].into_iter().map(|down| {
             let command_id = command.id.clone();
             let direction = if down { "down" } else { "up" };
+            let label = if down {
+                tr!("Move Down")
+            } else {
+                tr!("Move Up")
+            };
             controls::button(
                 pane.style(),
                 &format!("move-{direction}-{id}"),
-                &if down {
-                    tr!("Move Down")
-                } else {
-                    tr!("Move Up")
-                },
-                enabled
-                    && if down {
-                        index + 1 < pane.snapshot.settings.commands.len()
-                    } else {
-                        index > 0
-                    },
+                controls::Button::secondary(&label).enabled(
+                    enabled
+                        && if down {
+                            index + 1 < pane.snapshot.settings.commands.len()
+                        } else {
+                            index > 0
+                        },
+                ),
                 cx.listener(move |pane, _, _, cx| {
                     pane.recording = None;
                     cx.emit(SettingsEvent::Change(Change::MoveCommand(

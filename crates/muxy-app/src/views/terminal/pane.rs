@@ -198,6 +198,8 @@ pub(crate) struct TerminalPane {
     pub(crate) process: Option<ForegroundProcess>,
     /// Reopens the agent session last run here, even after it exited.
     pub(crate) resume_command: Option<String>,
+    /// Fork: the agent of `resume_command`, which decides whether the pane offers chat.
+    pub(crate) agent: Option<muxy_protocol::AgentProvider>,
     title: String,
     directory: ServerPath,
     pub(crate) bell_flashing: bool,
@@ -253,11 +255,6 @@ impl TerminalPane {
                 &self.directory,
             )
         })
-    }
-
-    /// The folder the pane's header shows beside its title.
-    pub(crate) fn header_directory(&self, home: Option<&std::path::Path>) -> Option<String> {
-        muxy_app_core::title::directory_for_header(&self.directory, home)
     }
 
     #[allow(
@@ -345,6 +342,7 @@ impl TerminalPane {
             state: PaneState::Connecting,
             process: None,
             resume_command: None,
+            agent: None,
             title: String::new(),
             directory: ServerPath(Vec::new()),
             bell_flashing: false,
@@ -978,12 +976,15 @@ impl TerminalPane {
             } => {
                 let command =
                     muxy_app_core::agent_sessions::resume_command(provider, &id, &arguments);
-                if self.resume_command != command {
+                if self.resume_command != command || self.agent != Some(provider) {
                     self.resume_command = command;
+                    self.agent = Some(provider);
                     cx.emit(PaneEvent::ResumeCommand);
                 }
                 return;
             }
+            // Fork: the model keeps chat mode per session; see `AppModel::chat_mode`.
+            MetadataEvent::ChatMode { .. } => return,
             MetadataEvent::Title(title) => self.title = title,
             MetadataEvent::Directory(directory) => {
                 self.directory = directory;
@@ -1741,7 +1742,7 @@ impl TerminalPane {
     pub(crate) fn type_command(&mut self, command: &str, cx: &mut Context<Self>) {
         if let Some(grid) = &self.grid {
             let mut bytes = vec![0x15];
-            bytes.extend(clipboard::paste(command, grid.modes));
+            bytes.extend(muxy_client::input::paste(command, grid.modes));
             self.send_paste(&bytes, cx);
         }
     }

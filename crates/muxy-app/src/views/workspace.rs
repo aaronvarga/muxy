@@ -17,6 +17,9 @@ use crate::model::focus::Next;
 use crate::model::tab_windows::Surface;
 
 pub(crate) mod commands;
+pub(crate) mod new_session;
+
+const NEW_SESSION_WIDTH: f32 = 960.0;
 
 actions!(
     muxy,
@@ -282,7 +285,7 @@ impl AppModel {
             && self.composer.pane.is_some()
             && self.composer.pane == self.active_pane()
         {
-            view.focus_handle(cx).focus(window);
+            gpui::Focusable::focus_handle(view.read(cx), cx).focus(window);
         } else if let Some(pane) = self.active_pane().and_then(|id| self.grids.get(&id)) {
             pane.focus(window, cx);
         } else {
@@ -375,7 +378,9 @@ impl AppModel {
                     pane.below_header = below_header;
                     cx.notify();
                 }
-                pane.set_native_visible(!coverage.hides_terminal_scroll(), cx);
+                // Fork: a pane showing chat hides its terminal's native scroll view.
+                let chat = self.chat_view(*id).is_some() || self.chat_waiting(*id);
+                pane.set_native_visible(!(coverage.hides_terminal_scroll() || chat), cx);
             });
         }
     }
@@ -384,6 +389,7 @@ impl AppModel {
 impl AppModel {
     fn prepare_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let _span = crate::profiler::span(crate::profiler::Metric::WorkspacePrepare);
+        self.prepare_card_composer(cx);
         self.sync_docked_composer(cx);
         self.sync_composer_skills(cx);
         let overlay = self.overlay.is_some();
@@ -626,6 +632,10 @@ fn sidebar_divider(model: &AppModel, sidebar_width: f32, window: &Window) -> gpu
         .bg(model.theme.border)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Launch screen and empty-project fallback"
+)]
 fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
     let theme = &model.theme;
     let m = model.metrics;
@@ -634,36 +644,94 @@ fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
         .available_commands()
         .any(|(_, command)| !command.hidden);
     let cards = (!missing && has_commands).then(|| command_cards(model, cx));
-    div()
-        .bg(theme.bg)
-        .size_full()
+    let composer = model.card_composer().cloned();
+    if let Some(cards) = cards {
+        return div()
+            .id("empty-workspace")
+            .bg(theme.bg)
+            .size_full()
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .id("new-session-actions")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .px(m.spacing10())
+                    .py(m.scaled(48.0))
+                    .child(
+                        div()
+                            .w_full()
+                            .max_w(m.scaled(NEW_SESSION_WIDTH))
+                            .flex()
+                            .flex_col()
+                            .flex_none()
+                            .gap(m.spacing7())
+                            .child(
+                                div()
+                                    .text_size(m.font_display())
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(accessibility::label(
+                                        "empty-title",
+                                        tr!("Start a session"),
+                                    )),
+                            )
+                            .child(cards),
+                    ),
+            )
+            .children(composer.map(|composer| {
+                div()
+                    .debug_selector(|| "new-session-footer".into())
+                    .flex()
+                    .flex_col()
+                    .flex_none()
+                    .items_center()
+                    .border_t_1()
+                    .border_color(theme.border)
+                    .px(m.spacing10())
+                    .py(m.spacing7())
+                    .child(composer)
+            }))
+            .into_any_element();
+    }
+    let has_composer = composer.is_some();
+    let content = div()
+        .w_full()
+        .min_h_full()
         .flex()
         .flex_col()
         .items_center()
         .justify_center()
-        // Sits above the middle, where centered content looks centered.
-        .pb(m.scaled(96.0))
+        .px(m.spacing6())
+        .py(m.spacing8())
         .gap(m.spacing7())
-        .child(IconGlyph::new(
+        .when(!has_composer, |view| view.child(IconGlyph::new(
             Icon::AppWindow,
             m.icon_xxl(),
             theme.fg_muted,
-        ))
+        )))
         .child(
             div()
-                .text_size(m.font_headline())
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(accessibility::label("empty-title", if missing { tr!("Project folder is missing") } else { tr!("No tabs in %@", &model.state.current_project().name) })),
+                .max_w_full()
+                .text_center()
+                .text_size(if has_composer { m.scaled(28.0) } else { m.font_headline() })
+                .font_weight(FontWeight::MEDIUM)
+                .mb(if has_composer { m.spacing5() } else { px(0.0) })
+                .child(accessibility::label("empty-title", if has_composer { tr!("What would you like to work on?") } else if missing { tr!("Project folder is missing") } else { tr!("No tabs in %@", &model.state.current_project().name) })),
         )
-        .child(
+        .when(!has_composer, |view| view.child(
             div()
                 .max_w(m.scaled(360.0))
                 .text_center()
                 .text_size(m.font_body())
                 .text_color(theme.fg_muted)
-                .child(accessibility::label("empty-detail", if missing { tr!("This project’s folder could not be found. Remove the project from the sidebar to clear its tabs.") } else if cards.is_some() { tr!("Open a new tab to start working in this project.") } else { tr!("Open a new terminal tab to start working in this project.") })),
-        )
-        .children(cards)
+                .child(accessibility::label("empty-detail", if missing { tr!("This project’s folder could not be found. Remove the project from the sidebar to clear its tabs.") } else { tr!("Open a new terminal tab to start working in this project.") })),
+        ))
+        .children(composer)
         .when(!missing && !has_commands, |view| view.child(
             div()
                 .id("empty-new-tab")
@@ -690,50 +758,109 @@ fn empty(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::AnyElement {
                         .opacity(0.72)
                         .child(chord.to_string()),
                 )),
-        ))
+        ));
+    div()
+        .id("empty-workspace")
+        .bg(theme.bg)
+        .size_full()
+        .overflow_y_scroll()
+        .child(content)
         .into_any_element()
 }
 
-/// A card per commands-bar command, each opening a tab that runs it.
+/// Keep each provider's launch actions together, in their configured order.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Provider cards and their command rows"
+)]
 fn command_cards(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
     let theme = &model.theme;
     let m = model.metrics;
+    let mut groups: Vec<(_, Vec<_>)> = Vec::new();
+    for (_, command) in model
+        .available_commands()
+        .filter(|(_, command)| !command.hidden)
+    {
+        let agent = super::commands_bar::agent(command);
+        if let Some((_, commands)) = groups.iter_mut().find(|(provider, _)| *provider == agent) {
+            commands.push(command);
+        } else {
+            groups.push((agent, vec![command]));
+        }
+    }
     div()
-        .flex()
-        .flex_wrap()
-        .justify_center()
-        .gap(m.spacing5())
-        .max_w(m.scaled(720.0))
-        .children(
-            model
-                .available_commands()
-                .filter(|(_, command)| !command.hidden)
-                .map(|(_, command)| {
-                    let id = command.id.clone();
-                    let group = gpui::SharedString::from(format!("empty-command-{id}"));
-                    let icon = super::commands_bar::agent(command).map_or_else(
-                        || {
-                            IconGlyph::new(Icon::Terminal, m.icon_xxl(), theme.fg)
-                                .into_any_element()
-                        },
-                        |agent| super::tab_activity::provider_icon(agent, m.icon_xxl(), model),
-                    );
+        .debug_selector(|| "new-session-cards".into())
+        .grid()
+        .grid_cols(3)
+        .w_full()
+        .min_w_0()
+        .gap(m.spacing7())
+        .children(groups.into_iter().map(|(agent, commands)| {
+            let name = agent.map_or_else(|| tr!("Shell"), |agent| agent.name().into());
+            let icon = agent.map_or_else(
+                || IconGlyph::new(Icon::Terminal, m.icon_sm(), theme.fg_muted).into_any_element(),
+                |agent| super::tab_activity::provider_icon(agent, m.icon_lg(), model),
+            );
+            div()
+                .debug_selector({
+                    let name = name.clone();
+                    move || format!("new-session-provider-{name}")
+                })
+                .flex()
+                .flex_col()
+                .min_w_0()
+                .min_h(m.scaled(236.0))
+                .p(m.spacing4())
+                .rounded(m.radius_xl())
+                .border_1()
+                .border_color(theme.border)
+                .bg(theme.surface)
+                .child(
                     div()
-                        .id(group.clone())
-                        .group(group.clone())
-                        .w(m.scaled(196.0))
                         .flex()
-                        .flex_col()
                         .items_center()
                         .gap(m.spacing5())
+                        .p(m.spacing3())
+                        .mb(m.spacing2())
+                        .child(
+                            div()
+                                .flex()
+                                .flex_none()
+                                .items_center()
+                                .justify_center()
+                                .size(m.scaled(28.0))
+                                .rounded(m.radius_lg())
+                                .bg(theme.hover)
+                                .child(icon),
+                        )
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_size(m.font_emphasis())
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(name),
+                        ),
+                )
+                .children(commands.into_iter().map(|command| {
+                    let id = command.id.clone();
+                    let element = gpui::SharedString::from(format!("empty-command-{id}"));
+                    let (title, detail) = command_text(command);
+                    div()
+                        .id(element.clone())
+                        .debug_selector(move || element.to_string())
+                        .flex()
+                        .items_center()
+                        .gap(m.spacing4())
+                        .min_w_0()
+                        .min_h(m.scaled(44.0))
                         .px(m.spacing6())
-                        .py(m.spacing7())
-                        .rounded(m.radius_xl())
-                        .border_1()
-                        .border_color(theme.border)
-                        .bg(theme.surface)
+                        .py(m.spacing3())
+                        .rounded(m.radius_lg())
+                        .role(Role::Button)
+                        .aria_label(command.name.clone())
                         .cursor_pointer()
-                        .hover(|style| style.bg(theme.hover).border_color(theme.accent))
+                        .hover(|style| style.bg(theme.hover))
                         .on_click(cx.listener(move |model, _, window, cx| {
                             model.run_custom_command(&id, cx);
                             model.focus_active(window, cx);
@@ -741,37 +868,73 @@ fn command_cards(model: &AppModel, cx: &mut Context<AppModel>) -> gpui::Div {
                         .child(
                             div()
                                 .flex()
-                                .items_center()
-                                .justify_center()
-                                .size(m.scaled(56.0))
-                                .rounded(m.radius_lg())
-                                .bg(theme.bg)
-                                .child(icon),
-                        )
-                        .child(
-                            div()
-                                .flex()
                                 .flex_col()
-                                .items_center()
+                                .flex_1()
+                                .min_w_0()
                                 .gap(m.spacing1())
-                                .max_w_full()
                                 .child(
                                     div()
-                                        .max_w_full()
-                                        .truncate()
                                         .text_size(m.font_emphasis())
-                                        .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(theme.fg)
-                                        .child(command.name.clone()),
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .child(title),
                                 )
                                 .child(
                                     div()
                                         .text_size(m.font_footnote())
                                         .text_color(theme.fg_muted)
-                                        .group_hover(group, |style| style.text_color(theme.fg))
-                                        .child(tr!("New Tab")),
+                                        .child(detail),
                                 ),
                         )
-                }),
-        )
+                        .when_some(
+                            model.settings.keymap.binding(&command.shortcut_id()),
+                            |row, chord| {
+                                row.child(
+                                    div()
+                                        .flex_none()
+                                        .text_size(m.font_caption())
+                                        .text_color(theme.fg_muted)
+                                        .child(gpui::Keystroke::parse(chord.as_str()).map_or_else(
+                                            |_| chord.to_string(),
+                                            |key| key.to_string(),
+                                        )),
+                                )
+                            },
+                        )
+                }))
+        }))
+}
+
+fn command_text(
+    command: &muxy_app_core::settings::CustomCommand,
+) -> (gpui::SharedString, gpui::SharedString) {
+    if command.command.trim().is_empty() {
+        return (
+            command.name.clone().into(),
+            tr!("Plain shell in this folder"),
+        );
+    }
+    if super::commands_bar::agent(command).is_some() {
+        let action = command
+            .name
+            .split_once('(')
+            .map_or(command.name.as_str(), |(_, action)| {
+                action.trim_end_matches(')')
+            })
+            .trim()
+            .to_ascii_lowercase();
+        return match action.as_str() {
+            "cc" | "claude" | "claude code" | "cx" | "codex" => (tr!("New"), tr!("Fresh session")),
+            "resume" => (tr!("Resume"), tr!("Pick up a previous session")),
+            "clipboard" => (tr!("Clipboard"), tr!("Start with clipboard as prompt")),
+            "handoff resume" => (tr!("Handoff resume"), tr!("Continue from a handoff")),
+            _ => (
+                command.name.clone().into(),
+                tr!("Run command in this folder"),
+            ),
+        };
+    }
+    (
+        command.name.clone().into(),
+        tr!("Run command in this folder"),
+    )
 }

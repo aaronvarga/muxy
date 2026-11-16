@@ -517,9 +517,6 @@ fn pane_state(focused: bool, zoomed: bool) -> Option<SharedString> {
     ])
 }
 
-/// How much of a pane that isn't focused is covered by its background.
-const UNFOCUSED_DIM: f32 = 0.35;
-
 /// A named region around what a pane shows, so a client can tell the panes of a
 /// split apart.
 fn pane_element(
@@ -540,8 +537,11 @@ fn pane_element(
         },
     );
     let group = SharedString::from(format!("pane-{id}"));
-    let dimmed =
-        model.active_pane().is_some_and(|active| active != id) && model.visible_panes().len() > 1;
+    // How much of a pane that isn't focused is covered by its background.
+    let dim = f32::from(model.appearance.unfocused_pane_dim.min(100)) / 100.0;
+    let dimmed = dim > 0.0
+        && model.active_pane().is_some_and(|active| active != id)
+        && model.visible_panes().len() > 1;
     let actions = model.grids.contains_key(&id).then(|| {
         super::sidebar::client_button(
             format!("pane-actions-{id}"),
@@ -593,7 +593,7 @@ fn pane_element(
                     .debug_selector(move || format!("pane-dim-{id}"))
                     .absolute()
                     .inset_0()
-                    .bg(header::colors(id, model, cx).0.opacity(UNFOCUSED_DIM)),
+                    .bg(header::colors(id, model, cx).0.opacity(dim)),
             )
         })
         .into_any_element()
@@ -670,6 +670,14 @@ fn pane_content(id: muxy_app_core::PaneId, model: &AppModel, cx: &Context<AppMod
     let Some(pane) = model.grids.get(&id) else {
         return div().size_full().into_any_element();
     };
+    // Fork: a session in chat shows its conversation instead of the terminal.
+    if let Some(chat) = model.chat_view(id) {
+        return model.dock_composer(id, chat.clone().into_any_element(), cx);
+    }
+    if model.chat_waiting(id) {
+        let waiting = super::chat::waiting(id, pane.element(), model);
+        return model.dock_composer(id, waiting, cx);
+    }
     let offline = model.state.pane_server(id).filter(|server| {
         !server.is_local()
             && model.status_of(*server) != crate::model::ServerStatus::Connected
@@ -678,12 +686,16 @@ fn pane_content(id: muxy_app_core::PaneId, model: &AppModel, cx: &Context<AppMod
     let Some(server) = offline else {
         return model.dock_composer(id, pane.element(), cx);
     };
-    model.dock_composer(id, div()
-        .relative()
-        .size_full()
-        .child(pane.element())
-        .child(offline_notice(id, server, model, cx))
-        .into_any_element(), cx)
+    model.dock_composer(
+        id,
+        div()
+            .relative()
+            .size_full()
+            .child(pane.element())
+            .child(offline_notice(id, server, model, cx))
+            .into_any_element(),
+        cx,
+    )
 }
 
 /// A terminal of another computer's server that has nothing to show yet: the

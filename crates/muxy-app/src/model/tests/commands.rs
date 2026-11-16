@@ -412,7 +412,7 @@ fn commands_are_typed_into_the_active_terminal_without_submitting(cx: &mut TestA
         assert_eq!(model.active_pane(), pane);
     });
     cx.run_until_parked();
-    let channel = attachment().channel;
+    let channel = attachment().terminal.channel();
     assert!(requests.try_iter().any(|(_, work)| matches!(
         work,
         Work::Input(actual, bytes) if actual == channel && bytes == b"\x15cargo test"

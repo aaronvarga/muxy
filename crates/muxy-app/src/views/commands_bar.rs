@@ -54,14 +54,14 @@ pub(crate) fn commands_bar(model: &AppModel, cx: &mut Context<AppModel>) -> Opti
     let center_id = SharedString::from("commands-bar-project-command-center");
     let center = button(center_id.clone(), glyph(Icon::Grid, &center_id), None)
         .when(scoped, |button| button.bg(theme.surface))
-        .tooltip(super::status_bar::tooltip(
+        .tooltip(muxy_ui::components::tooltip(
             if scoped {
                 tr!("Show Project Tabs")
             } else {
                 tr!("Project Command Center")
             }
             .to_string(),
-            model,
+            &model.theme,
         ))
         .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(cx.listener(|model, _, _, cx| {

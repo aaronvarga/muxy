@@ -12,6 +12,7 @@ pub(super) fn session(project: ProjectId, id: u64) -> ProjectSession {
         status: SessionStatus::Live,
         owner: None,
         attached: true,
+        name: None,
     }
 }
 
@@ -53,7 +54,10 @@ fn command_center_excludes_quick_terminal_without_hiding_home_sessions(cx: &mut 
             );
             assert_eq!(model.command_center.tiles.len(), 1);
             assert_eq!(model.command_center.tiles[0].session.info.id.get(), 702);
-            assert_eq!(model.pane_session(quick), Some(quick_session));
+            assert_eq!(
+                model.pane_session(quick).map(|(_, session)| session),
+                Some(quick_session)
+            );
         }
         assert!(
             !requests
@@ -105,8 +109,8 @@ fn sidebar_command_center_icon_stays_below_the_titlebar_and_fits_large_icons(
             let below = home.top() - button.bottom();
             assert!(above > px(0.0), "the shortcut needs space below the filter");
             assert!(
-                below > px(0.0) && below < above,
-                "Home should sit close to Command Center"
+                below > px(0.0),
+                "Home and its server heading must stay below Command Center"
             );
         } else {
             let selection = cx
@@ -223,9 +227,8 @@ fn dashboard_attaches_existing_sessions_without_editing_projects_or_closing_proc
         model.sync_visible(cx);
         for (index, pane) in tiles.iter().enumerate() {
             model.start_attach(*pane, Size { cols: 60, rows: 20 }, cx);
-            let mut attached = attachment();
-            attached.channel = ChannelId(u32::try_from(index + 10).expect("channel"));
-            let session = model.pane_session(*pane).expect("session");
+            let attached = attachment_on(u32::try_from(index + 10).expect("channel"));
+            let (_, session) = model.pane_session(*pane).expect("session");
             model.receive(
                 local(
                     1,
@@ -374,8 +377,8 @@ fn closing_dashboard_terminals_confirms_and_only_ends_the_selected_session(
         cx.run_until_parked();
         view.read_with(cx, |model, _| {
             assert!(model.command_center.active);
-            assert!(model.pane_tab(a).is_none());
-            assert!(model.pane_tab(b).is_some());
+            assert!(model.state.pane_tab(a).is_none());
+            assert!(model.state.pane_tab(b).is_some());
             assert!(
                 !model
                     .command_center
@@ -1070,7 +1073,9 @@ fn open_in_project_reuses_the_original_pane_and_only_adds_a_tab_for_a_detached_s
         assert_eq!(model.state.current_project().id, first);
         assert_eq!(model.state.current_project().tabs.len(), 2);
         assert_eq!(
-            model.pane_session(model.active_pane().expect("opened pane")),
+            model
+                .pane_session(model.active_pane().expect("opened pane"))
+                .map(|(_, session)| session),
             SessionId::new(43)
         );
     });

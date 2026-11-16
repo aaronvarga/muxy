@@ -251,7 +251,9 @@ fn settings_takes_the_keyboard_back_when_the_focused_control_goes_away(cx: &mut 
     let (model, cx) = restored_settings_tab_with_keys(cx);
     click_preference(cx, "settings-field-width");
     let view = model.read_with(cx, |model, _| settings_view(model));
-    view.update(cx, crate::views::settings::SettingsView::show_browser);
+    view.update(cx, |view, cx| {
+        view.show_category(crate::views::settings::Category::Browser, cx);
+    });
     cx.run_until_parked();
     assert!(settings_holds_focus(&model, cx));
 }
@@ -449,12 +451,23 @@ fn sidebar_icon_slider_resizes_sidebar_live_and_saves(cx: &mut TestAppContext) {
     let bounds = settings
         .debug_bounds("sidebar-icon-size-slider")
         .expect("icon size slider");
+    // The wrapper holds the track and its value; dragging past the end picks the maximum.
     settings.simulate_event(gpui::MouseDownEvent {
-        position: gpui::point(bounds.right() - px(1.0), bounds.center().y),
+        position: gpui::point(bounds.left() + px(1.0), bounds.center().y),
         button: gpui::MouseButton::Left,
         click_count: 1,
         ..Default::default()
     });
+    settings.simulate_mouse_move(
+        gpui::point(bounds.right() + px(40.0), bounds.center().y),
+        Some(gpui::MouseButton::Left),
+        Modifiers::none(),
+    );
+    settings.simulate_mouse_up(
+        gpui::point(bounds.right() + px(40.0), bounds.center().y),
+        gpui::MouseButton::Left,
+        Modifiers::none(),
+    );
     settings.run_until_parked();
     model.read_with(settings, |model, _| {
         assert_eq!(model.appearance.sidebar_icon_size, SIDEBAR_ICON_SIZE.2);
@@ -950,7 +963,8 @@ fn the_interface_size_resizes_the_app_live_and_is_saved(cx: &mut TestAppContext)
     let (model, cx) = settings_tab(boot, cx);
     assert_eq!(
         cx.debug_bounds("tab-strip").expect("strip").size.height,
-        px(32.0)
+        // Fork: the strip includes its 1px bottom line.
+        px(33.0)
     );
     let view = model.read_with(cx, |model, _| settings_view(model));
     assert_eq!(
@@ -971,7 +985,7 @@ fn the_interface_size_resizes_the_app_live_and_is_saved(cx: &mut TestAppContext)
     );
     assert_eq!(
         cx.debug_bounds("tab-strip").expect("strip").size.height,
-        px((32.0_f32 * 1.40).round())
+        px((32.0_f32 * 1.40).round() + 1.0)
     );
     let saved = std::fs::read_to_string(&path).expect("saved settings");
     assert!(saved.contains("interface_size = \"huge\""), "{saved}");
@@ -982,7 +996,8 @@ fn the_interface_size_resizes_the_app_live_and_is_saved(cx: &mut TestAppContext)
     });
     assert_eq!(
         cx.debug_bounds("tab-strip").expect("strip").size.height,
-        px(32.0)
+        // Fork: the strip includes its 1px bottom line.
+        px(33.0)
     );
 }
 
@@ -1302,21 +1317,25 @@ fn project_icon_background_opacity_slider_persists_and_reset_restores_the_theme(
 ) {
     let (boot, _requests) = stub_boot(AppState::bootstrap().expect("state"));
     let path = boot.state_path.with_file_name("settings.toml");
-    let (model, settings) = settings_window(boot, cx);
+    let (model, settings) = settings_tab(boot, cx);
     click_preference(settings, "settings-category-Appearance");
     click_preference(settings, "settings-disclosure-Appearance");
     click_preference(settings, "settings-subcategory-Interface");
     let bounds = settings
         .debug_bounds("project-icon-opacity-slider")
         .expect("opacity slider");
-    settings.simulate_click(bounds.center(), Modifiers::none());
+    // The wrapper's left edge is the track's start: the lowest opacity.
+    settings.simulate_click(
+        gpui::point(bounds.left() + px(1.0), bounds.center().y),
+        Modifiers::none(),
+    );
     settings.run_until_parked();
     model.read_with(settings, |model, _| {
         let opacity = model
             .appearance
             .project_icon_opacity
             .expect("custom opacity");
-        assert!((40..=60).contains(&opacity));
+        assert!(opacity <= 5, "{opacity}");
         assert_eq!(
             muxy_app_core::settings::Appearance::load(&path)
                 .expect("saved opacity")

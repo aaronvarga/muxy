@@ -51,10 +51,22 @@ impl AppModel {
             return;
         }
         if let Target::File(file) = &target
-            && let Ok(relative) = file.path.strip_prefix(&context.project_directory)
-            && let Some(relative) = relative.to_str()
-            && let Some((owner, opener)) = self.chosen_file_opener(relative)
+            && let Some((project, relative)) = self.file_opener_target(&file.path, &context)
+            && let Some((owner, opener)) = self.chosen_file_opener(&relative)
         {
+            let project = if let Some(project) = project {
+                project
+            } else {
+                let Some(directory) = file.path.parent() else {
+                    return;
+                };
+                let Some(project) =
+                    self.add_project_on(context.server, directory.to_owned(), false, cx)
+                else {
+                    return;
+                };
+                project
+            };
             let mut data = serde_json::json!({
                 "filePath": relative,
                 "source": "terminal",
@@ -71,10 +83,8 @@ impl AppModel {
                 kind: opener.tab_type,
                 data,
             };
-            if self.command_center.active {
-                self.select_project(context.project, cx);
-            }
-            if let Err(error) = self.open_webview_tab(descriptor, opener.singleton, cx) {
+            if let Err(error) = self.open_webview_tab_in(project, descriptor, opener.singleton, cx)
+            {
                 self.fail(tr!("Could not open file: %@", &error).to_string(), cx);
             }
             return;
@@ -109,19 +119,66 @@ impl AppModel {
         }
     }
 
-    /// The extension opener picked under Open files with, when it is enabled
-    /// and handles `relative`. As on main, extensions never open files unasked.
-    pub(super) fn chosen_file_opener(&self, relative: &str) -> Option<(String, FileOpener)> {
-        let (owner, id) = self.settings.openers.file.split_once(':')?;
-        let opener = self
-            .extensions
-            .registry
-            .enabled(owner)?
-            .manifest
-            .file_openers
+    /// Use the source project first, then a containing project on the same server.
+    /// Otherwise the caller adds the containing folder after choosing an extension handler.
+    fn file_opener_target(
+        &self,
+        path: &std::path::Path,
+        context: &OpenContext,
+    ) -> Option<(Option<muxy_app_core::ProjectId>, String)> {
+        if let Ok(relative) = path.strip_prefix(&context.project_directory) {
+            return Some((Some(context.project), relative.to_str()?.to_owned()));
+        }
+        let project = self
+            .state
+            .projects()
             .iter()
-            .find(|opener| opener.id == id && opener.matches(relative))?;
-        Some((owner.to_owned(), opener.clone()))
+            .filter(|project| {
+                project.server_id == context.server
+                    && project.kind != Some(muxy_protocol::ProjectKind::FolderGroup)
+                    && path.starts_with(&project.directory)
+            })
+            .max_by_key(|project| project.directory.components().count());
+        let relative = match project {
+            Some(project) => path.strip_prefix(&project.directory).ok()?,
+            None => std::path::Path::new(path.file_name()?),
+        };
+        Some((
+            project.map(|project| project.id),
+            relative.to_str()?.to_owned(),
+        ))
+    }
+
+    /// Mappings take precedence; unavailable or unsupported extension handlers use the default.
+    pub(super) fn chosen_file_opener(&self, relative: &str) -> Option<(String, FileOpener)> {
+        let settings = &self.settings.openers;
+        let preferred = settings.file_handler(std::path::Path::new(relative));
+        for handler in [preferred, settings.file.as_str()] {
+            if matches!(
+                handler,
+                "system.application" | "system.editor" | "system.finder"
+            ) {
+                return None;
+            }
+            let Some((owner, id)) = handler.split_once(':') else {
+                continue;
+            };
+            if let Some(opener) = self
+                .extensions
+                .registry
+                .enabled(owner)
+                .and_then(|extension| {
+                    extension
+                        .manifest
+                        .file_openers
+                        .iter()
+                        .find(|opener| opener.id == id && opener.matches(relative))
+                })
+            {
+                return Some((owner.to_owned(), opener.clone()));
+            }
+        }
+        None
     }
 
     /// Enabled extensions' file openers as `(setting value, label)`.
@@ -160,7 +217,20 @@ impl AppModel {
         if missing || (alone && tab.detached() && !tab.floating()) {
             to_window = to_window.disabled();
         }
-        let mut items = Vec::new();
+        // Fork: swap the pane with a neighbor.
+        let mut items: Vec<Item> = [
+            (tr!("Move Left"), Direction::Left),
+            (tr!("Move Right"), Direction::Right),
+            (tr!("Move Up"), Direction::Up),
+            (tr!("Move Down"), Direction::Down),
+        ]
+        .into_iter()
+        .filter(|(_, direction)| self.state.neighbor(id, *direction).is_some())
+        .map(|(label, direction)| Item::action(label, Command::MovePane(id, direction)))
+        .collect();
+        if let Some(first) = items.first_mut() {
+            *first = first.clone().separated();
+        }
         if tab.detached() {
             let label = if tab.floating() {
                 tr!("Dock as Tab")
@@ -303,6 +373,134 @@ impl AppModel {
                     }
                 });
             });
+        });
+    }
+}
+
+#[cfg(test)]
+mod file_mapping_tests {
+    use super::*;
+    use gpui::TestAppContext;
+    use muxy_app_core::{AppState, ServerId};
+
+    #[gpui::test]
+    fn mapped_extensions_respect_support_and_disabled_handler_fallback(cx: &mut TestAppContext) {
+        let profile = tempfile::tempdir().unwrap();
+        let folder = profile.path().join("extensions/preview");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("index.html"), "<html></html>").unwrap();
+        std::fs::write(
+            folder.join("package.json"),
+            serde_json::json!({
+                "name": "preview", "version": "1.0.0",
+                "muxy": {
+                    "tabTypes": [{"id":"view", "title":"Preview", "entry":"index.html"}],
+                    "fileOpeners": [{"id":"markdown", "tabType":"view", "patterns":["*.md"]}],
+                    "permissions": ["files:read"]
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            profile.path().join("extension-enabled.json"),
+            "[\"preview\"]",
+        )
+        .unwrap();
+        let registry = muxy_app_core::extensions::Registry::load(profile.path());
+        assert!(registry.errors.is_empty(), "{:?}", registry.errors);
+        let (boot, _) = crate::model::tests::stub_boot(AppState::bootstrap().unwrap());
+        let (model, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+        cx.run_until_parked();
+        model.update(cx, |model, _| {
+            model.extensions.registry = registry;
+            model
+                .settings
+                .openers
+                .file_types
+                .insert("md".into(), "preview:markdown".into());
+            assert_eq!(
+                model.chosen_file_opener("docs/README.MD").unwrap().0,
+                "preview"
+            );
+            model
+                .settings
+                .openers
+                .file_types
+                .insert("txt".into(), "preview:markdown".into());
+            assert!(model.chosen_file_opener("notes.txt").is_none());
+            model.settings.openers.file = "preview:markdown".into();
+            model
+                .settings
+                .openers
+                .file_types
+                .insert("md".into(), "missing:view".into());
+            assert!(model.chosen_file_opener("README.md").is_some());
+            model
+                .settings
+                .openers
+                .file_types
+                .insert("md".into(), "system.application".into());
+            assert!(model.chosen_file_opener("README.md").is_none());
+            model.settings.openers.file_types.clear();
+            model
+                .extensions
+                .registry
+                .set_enabled("preview", false)
+                .unwrap();
+            assert!(model.chosen_file_opener("README.md").is_none());
+        });
+    }
+
+    #[gpui::test]
+    fn outside_files_use_their_containing_project_without_crossing_servers(
+        cx: &mut TestAppContext,
+    ) {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source");
+        let notes = root.path().join("notes");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::create_dir_all(&notes).unwrap();
+        let mut state = AppState::bootstrap().unwrap();
+        let home = state.home().id;
+        let home_directory = state.home().directory.clone();
+        state.add_folder_group("Folders").unwrap();
+        let source_project = state
+            .add_project(ServerId::local(), source.clone())
+            .unwrap();
+        let notes_project = state.add_project(ServerId::local(), notes.clone()).unwrap();
+        let (boot, _) = crate::model::tests::stub_boot(state);
+        let (model, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+        model.update(cx, |model, _| {
+            let mut context = OpenContext {
+                project: source_project,
+                pane: PaneId::new(),
+                server: ServerId::local(),
+                directory: source.clone(),
+                project_directory: source.clone(),
+            };
+            assert_eq!(
+                model.file_opener_target(&source.join("README.md"), &context),
+                Some((Some(source_project), "README.md".into()))
+            );
+            assert_eq!(
+                model.file_opener_target(&notes.join("talk.md"), &context),
+                Some((Some(notes_project), "talk.md".into()))
+            );
+            assert_eq!(
+                model.file_opener_target(&root.path().join("outside.md"), &context),
+                Some((None, "outside.md".into()))
+            );
+            assert_eq!(
+                model.file_opener_target(&home_directory.join("Desktop/notes.md"), &context),
+                Some((Some(home), "Desktop/notes.md".into())),
+                "a collection does not grant access to its directory"
+            );
+            context.server = ServerId::new();
+            assert_eq!(
+                model.file_opener_target(&notes.join("talk.md"), &context),
+                Some((None, "talk.md".into()))
+            );
         });
     }
 }

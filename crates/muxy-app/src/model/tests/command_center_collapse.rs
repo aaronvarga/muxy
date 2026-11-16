@@ -43,8 +43,7 @@ fn collapsing_tiles_keeps_sessions_and_attention_without_live_hidden_views(
         model.sync_visible(cx);
         for (index, pane) in panes.iter().enumerate() {
             model.start_attach(*pane, Size { cols: 60, rows: 20 }, cx);
-            let mut attached = attachment();
-            attached.channel = ChannelId(u32::try_from(index + 10).expect("channel"));
+            let attached = attachment_on(u32::try_from(index + 10).expect("channel"));
             model.receive(
                 local(
                     1,

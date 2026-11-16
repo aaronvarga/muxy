@@ -10,6 +10,7 @@ use muxy_ui::icon::Icon;
 use muxy_ui::tr;
 
 use crate::model::AppModel;
+use crate::views::menu::{Command, Item};
 
 /// What a header button does: something to the pane itself, or a command that
 /// acts on the active pane once the pane is made active.
@@ -17,6 +18,8 @@ use crate::model::AppModel;
 enum Perform {
     Pane(fn(&mut AppModel, PaneId, &mut Context<AppModel>)),
     Active(fn(&mut AppModel, &mut Context<AppModel>)),
+    /// Fork: opens a menu of these items at the click.
+    Menu(fn(&AppModel, PaneId) -> Vec<Item>),
 }
 
 impl Perform {
@@ -29,6 +32,8 @@ impl Perform {
                     run(model, cx);
                 }
             }
+            // The click handler opens menus, since they need the window and position.
+            Self::Menu(_) => {}
         }
     }
 }
@@ -66,7 +71,7 @@ pub(super) fn header(
         .terminal(&id)
         .is_some_and(|terminal| terminal.view.read(cx).bell_flashing);
     let zoomed = tab.zoomed == Some(id);
-    let actions = actions(pane, tab, model);
+    let actions = actions(pane, tab, model, cx);
     let count = u16::try_from(actions.len()).unwrap_or(u16::MAX);
     let edges = model.header_edges(id, tab);
     let shown = m.spacing4()
@@ -155,7 +160,7 @@ pub(super) fn header(
         .into_any_element()
 }
 
-/// The pane's icon, title and, for a terminal, its folder. While the pane can
+/// The pane's icon and title; fork: no folder beside it. While the pane can
 /// be moved, they turn into a handle under the pointer: the icon becomes a
 /// move icon and dragging moves the pane, as dragging with Command held does.
 fn handle(
@@ -173,7 +178,6 @@ fn handle(
     let size = m.scaled(13.0);
     let hover = foreground.opacity(0.08);
     let title = title(pane, model, cx);
-    let directory = directory(pane, &title, model, cx);
     div()
         .id(group.clone())
         .debug_selector(move || format!("pane-handle-{id}"))
@@ -237,32 +241,7 @@ fn handle(
                 .truncate()
                 .child(title)
         })
-        .when_some(directory, |handle, directory| {
-            let selector = format!("pane-directory-{id}-{directory}");
-            handle.child(
-                div()
-                    .debug_selector(move || selector.clone())
-                    .min_w(px(0.0))
-                    .map(|mut path| {
-                        path.style().flex_shrink = Some(1000.0);
-                        path
-                    })
-                    .truncate()
-                    .text_color(foreground.opacity(0.55))
-                    .child(directory),
-            )
-        })
         .into_any_element()
-}
-
-/// The folder a terminal works in, unless its title already shows it.
-fn directory(pane: &Pane, title: &str, model: &AppModel, cx: &App) -> Option<String> {
-    model
-        .terminal(&pane.id)?
-        .view
-        .read(cx)
-        .header_directory(model.state.pane_home(pane.id))
-        .filter(|directory| !title.ends_with(directory.as_str()))
 }
 
 /// A terminal names its shell rather than its folder, which the project
@@ -296,12 +275,54 @@ fn glyph(pane: &Pane, bell: bool, foreground: Hsla, model: &AppModel, cx: &App) 
     )
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "The pane header's available controls"
-)]
-fn actions(pane: &Pane, tab: &Tab, model: &AppModel) -> Vec<Action> {
-    let mut actions = vec![
+/// Fork: copies the command reopening the agent session last run in `pane`.
+fn copy_resume(model: &mut AppModel, pane: PaneId, cx: &mut Context<AppModel>) {
+    let command = model
+        .terminal(&pane)
+        .and_then(|terminal| terminal.view.read(cx).resume_command.clone());
+    if let Some(command) = command {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(command));
+        model.show_notice(tr!("Copied the resume command").to_string(), cx);
+    }
+}
+
+/// Fork: moves `pane` to where a neighbor is, swapping the two.
+fn move_items(model: &AppModel, pane: PaneId) -> Vec<Item> {
+    [
+        (tr!("Move Left"), Direction::Left),
+        (tr!("Move Right"), Direction::Right),
+        (tr!("Move Up"), Direction::Up),
+        (tr!("Move Down"), Direction::Down),
+    ]
+    .into_iter()
+    .map(|(label, direction)| {
+        let item = Item::action(label, Command::MovePane(pane, direction));
+        if model.state.neighbor(pane, direction).is_some() {
+            item
+        } else {
+            item.disabled()
+        }
+    })
+    .collect()
+}
+
+#[allow(clippy::too_many_lines, reason = "The pane header controls")]
+fn actions(pane: &Pane, tab: &Tab, model: &AppModel, cx: &App) -> Vec<Action> {
+    let mut actions = Vec::new();
+    // Fork: the resume command leads the pane's actions.
+    if model
+        .terminal(&pane.id)
+        .is_some_and(|terminal| terminal.view.read(cx).resume_command.is_some())
+    {
+        actions.push(Action {
+            name: "copy-resume",
+            icon: Icon::History,
+            label: tr!("Copy Resume Command"),
+            shortcut: None,
+            perform: Perform::Pane(copy_resume),
+        });
+    }
+    actions.extend([
         Action {
             name: "split-right",
             icon: Icon::Columns,
@@ -316,7 +337,7 @@ fn actions(pane: &Pane, tab: &Tab, model: &AppModel) -> Vec<Action> {
             shortcut: Some(ShortcutId::SplitDown),
             perform: Perform::Active(|model, cx| model.split_pane(Direction::Down, cx)),
         },
-    ];
+    ]);
     if !tab.floating() && matches!(pane.content, PaneContent::Terminal { .. }) {
         actions.push(Action {
             name: "float",
@@ -362,6 +383,17 @@ fn actions(pane: &Pane, tab: &Tab, model: &AppModel) -> Vec<Action> {
             perform: Perform::Pane(AppModel::minimize_pane_float),
         });
     }
+    // Fork: the pane toolbar keeps its Move Pane menu.
+    if tab.layout.leaves().len() > 1 {
+        actions.push(Action {
+            name: "move",
+            icon: Icon::Move,
+            label: tr!("Move Pane"),
+            shortcut: None,
+            perform: Perform::Menu(move_items),
+        });
+    }
+    // Fork: no Detach Terminal button; it stays in the pane's right-click menu.
     if tab.detached() {
         actions.push(Action {
             name: "return",
@@ -394,6 +426,16 @@ fn actions(pane: &Pane, tab: &Tab, model: &AppModel) -> Vec<Action> {
             label: tr!("Maximize Pane"),
             shortcut: Some(ShortcutId::ToggleZoomPane),
             perform: Perform::Active(AppModel::toggle_zoom_pane),
+        });
+    }
+    // Fork: the pane toolbar keeps its Equalize Splits button.
+    if tab.layout.leaves().len() > 1 {
+        actions.push(Action {
+            name: "equalize",
+            icon: Icon::LayoutSplit,
+            label: tr!("Equalize Splits"),
+            shortcut: Some(ShortcutId::EqualizeSplits),
+            perform: Perform::Pane(AppModel::equalize_splits),
         });
     }
     if !tab.pinned || tab.panes.len() > 1 {
@@ -438,11 +480,18 @@ fn button(
             .cursor_pointer()
             .hover(move |style| style.bg(hover))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .on_click(cx.listener(move |model, _, window: &mut Window, cx| {
-                cx.stop_propagation();
-                perform.run(model, id, cx);
-                model.focus_active(window, cx);
-            }))
+            .on_click(cx.listener(
+                move |model, event: &gpui::ClickEvent, window: &mut Window, cx| {
+                    cx.stop_propagation();
+                    if let Perform::Menu(items) = perform {
+                        let items = items(model, id);
+                        model.open_menu(items, event.position(), window, cx);
+                        return;
+                    }
+                    perform.run(model, id, cx);
+                    model.focus_active(window, cx);
+                },
+            ))
             .child(
                 svg()
                     .path(action.icon.path())

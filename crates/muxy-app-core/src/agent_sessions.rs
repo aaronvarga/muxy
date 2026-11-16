@@ -43,7 +43,8 @@ pub struct Session {
     pub id: String,
     pub title: String,
     pub directory: PathBuf,
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
+    pub target: Option<muxy_protocol::ChatTarget>,
     pub modified: SystemTime,
 }
 
@@ -58,6 +59,29 @@ impl Session {
     }
 
     pub fn resume_command(&self) -> Option<String> {
+        if let Some(target) = &self.target {
+            let text = |path: &muxy_protocol::ServerPath| {
+                std::str::from_utf8(&path.0)
+                    .ok()
+                    .filter(|text| !text.chars().any(char::is_control))
+                    .map(quoted)
+            };
+            if target.provider != muxy_protocol::ChatProvider::Codex || !valid_id(&target.thread_id)
+            {
+                return None;
+            }
+            let endpoint = target.endpoint.as_ref()?;
+            let endpoint = std::str::from_utf8(&endpoint.0)
+                .ok()
+                .filter(|text| !text.chars().any(char::is_control))?;
+            return Some(format!(
+                "env CODEX_HOME={} {} --remote {} resume {}",
+                text(&target.home)?,
+                text(&target.executable)?,
+                quoted(&format!("unix://{endpoint}")),
+                quoted(&target.thread_id)
+            ));
+        }
         resume_command(self.provider, &self.id, &[])
     }
 }

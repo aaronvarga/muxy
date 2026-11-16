@@ -106,6 +106,13 @@ fn row(
 ) -> AnyElement {
     let m = model.metrics;
     let theme = &model.theme;
+    // Fork: only a server with chat can resume a Claude session in it.
+    let chat = cfg!(target_os = "macos")
+        && (session.provider == muxy_protocol::AgentProvider::Claude || session.target.is_some())
+        && model.server_supports(
+            model.state.current_project().server_id,
+            muxy_protocol::Feature::AGENT_CHAT,
+        );
     let title: SharedString = if session.title == session.id {
         tr!("Untitled session")
     } else {
@@ -172,6 +179,23 @@ fn row(
                                 .child(format!("{} · {}", session.provider.name(), age(&session))),
                         ),
                 )
+                .when(chat, |row| {
+                    let session = session.clone();
+                    row.child(
+                        super::super::titlebar::icon_button(
+                            ("agent-session-chat", index),
+                            muxy_ui::icon::Icon::Quote,
+                            tr!("Resume in Chat"),
+                            model,
+                        )
+                        .flex_none()
+                        .debug_selector(move || format!("agent-session-chat-{index}"))
+                        .on_click(cx.listener(move |model, _, _, cx| {
+                            cx.stop_propagation();
+                            model.resume_agent_session_in_chat(&session, cx);
+                        })),
+                    )
+                })
                 .on_click(
                     cx.listener(move |model, _, _, cx| model.resume_agent_session(&session, cx)),
                 ),

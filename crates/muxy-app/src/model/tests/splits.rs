@@ -582,7 +582,9 @@ fn every_pane_has_a_header_whose_buttons_act_on_that_pane(cx: &mut TestAppContex
             "split-right",
             "split-down",
             "float",
+            "move",
             "maximize",
+            "equalize",
             "close",
         ] {
             assert!(
@@ -591,6 +593,10 @@ fn every_pane_has_a_header_whose_buttons_act_on_that_pane(cx: &mut TestAppContex
                 "{part} of {pane}"
             );
         }
+        assert!(
+            cx.debug_bounds(format!("pane-detach-{pane}").leak())
+                .is_none()
+        );
     }
     view.read_with(cx, |model, _| {
         assert_eq!(model.active_pane(), Some(panes[2]));
@@ -606,6 +612,26 @@ fn every_pane_has_a_header_whose_buttons_act_on_that_pane(cx: &mut TestAppContex
             Some(added)
         );
         added
+    });
+
+    let uneven = view.read_with(cx, |model, _| model.state.home().tabs[0].layout.clone());
+    assert_ne!(uneven.equalized().as_ref(), Some(&uneven));
+    click_selector(cx, &format!("pane-equalize-{}", panes[0]));
+    view.read_with(cx, |model, _| {
+        let layout = &model.state.home().tabs[0].layout;
+        assert_eq!(layout.equalized().as_ref(), Some(layout));
+    });
+
+    let right = view.read_with(cx, |model, _| {
+        model.state.neighbor(panes[0], Direction::Right)
+    });
+    assert!(right.is_some());
+    click_selector(cx, &format!("pane-move-{}", panes[0]));
+    let item = cx.debug_bounds("menu-item-1").expect("Move Right");
+    cx.simulate_click(item.center(), Modifiers::default());
+    cx.run_until_parked();
+    view.read_with(cx, |model, _| {
+        assert_eq!(model.state.neighbor(panes[0], Direction::Left), right);
     });
 
     click_selector(cx, &format!("pane-maximize-{}", panes[1]));
@@ -626,6 +652,48 @@ fn every_pane_has_a_header_whose_buttons_act_on_that_pane(cx: &mut TestAppContex
             [added, panes[1], panes[2]]
         );
     });
+}
+
+#[gpui::test]
+fn restoring_panes_keeps_every_session_open(cx: &mut TestAppContext) {
+    let (state, tab, panes) = split_state();
+    let original = state.home().tabs[0].clone();
+    let (boot, _requests) = stub_boot(state);
+    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    view.update(cx, |model, cx| attach_panes(model, &panes, cx));
+    for width in [1200.0, 800.0, 600.0] {
+        cx.simulate_resize(size(px(width), px(800.0)));
+        for pane in panes {
+            click_selector(cx, &format!("pane-maximize-{pane}"));
+            let restore = cx
+                .debug_bounds(format!("pane-restore-{pane}").leak())
+                .expect("restore button")
+                .center();
+            cx.simulate_mouse_down(restore, gpui::MouseButton::Left, Modifiers::none());
+            cx.run_until_parked();
+            cx.simulate_mouse_up(restore, gpui::MouseButton::Left, Modifiers::none());
+            cx.run_until_parked();
+            view.read_with(cx, |model, _| {
+                assert!(model.close_request.is_none(), "restore requested a close");
+                assert!(model.pending_close.is_none(), "restore queued a close");
+                let restored = model.tab(tab).expect("tab survives restore");
+                assert_eq!(restored.zoomed, None);
+                assert_eq!(restored.layout, original.layout);
+                assert_eq!(
+                    restored
+                        .panes
+                        .iter()
+                        .map(|pane| (pane.id, pane.session()))
+                        .collect::<Vec<_>>(),
+                    original
+                        .panes
+                        .iter()
+                        .map(|pane| (pane.id, pane.session()))
+                        .collect::<Vec<_>>()
+                );
+            });
+        }
+    }
 }
 
 fn shown(cx: &mut VisualTestContext, part: &str, pane: PaneId) -> bool {
@@ -779,102 +847,6 @@ fn a_pane_header_names_the_shell_while_its_tab_keeps_its_title(cx: &mut TestAppC
 }
 
 #[gpui::test]
-fn a_pane_header_shows_its_folder_unless_the_title_already_does(cx: &mut TestAppContext) {
-    use muxy_protocol::MetadataEvent;
-    let (state, _, panes) = split_state();
-    let pane = panes[0];
-    let home = state.home().directory.to_string_lossy().into_owned();
-    let (boot, _requests) = stub_boot(state);
-    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
-    cx.simulate_resize(size(px(1200.0), px(800.0)));
-    let report = |event: MetadataEvent, cx: &mut VisualTestContext| {
-        view.update(cx, |model, cx| {
-            let terminal = model.terminal(&pane).expect("terminal").view.clone();
-            terminal.update(cx, |terminal, cx| terminal.metadata(event, cx));
-        });
-        cx.run_until_parked();
-    };
-    let directory = |name: &str, cx: &mut VisualTestContext| {
-        cx.debug_bounds(format!("pane-directory-{pane}-{name}").leak())
-            .is_some()
-    };
-    view.update(cx, |model, cx| attach_panes(model, &panes, cx));
-    report(
-        MetadataEvent::ForegroundProcess {
-            name: "-zsh".into(),
-            is_shell: true,
-        },
-        cx,
-    );
-    report(
-        MetadataEvent::Directory(format!("{home}/muxy/crates").into()),
-        cx,
-    );
-    assert!(
-        cx.debug_bounds(format!("pane-title-{pane}-zsh").leak())
-            .is_some()
-    );
-    assert!(directory("~/muxy/crates", cx));
-
-    for (title, folder) in [("~/muxy", "muxy"), ("dev@host: ~/api", "api")] {
-        report(MetadataEvent::Title(title.into()), cx);
-        report(
-            MetadataEvent::Directory(format!("{home}/{folder}").into()),
-            cx,
-        );
-        assert!(
-            cx.debug_bounds(format!("pane-title-{pane}-{title}").leak())
-                .is_some()
-        );
-        assert!(!directory(&format!("~/{folder}"), cx), "{title}");
-    }
-}
-
-#[gpui::test]
-fn a_narrow_pane_header_cuts_its_folder_before_its_title(cx: &mut TestAppContext) {
-    use muxy_protocol::MetadataEvent;
-    let (state, _, panes) = split_state();
-    let pane = panes[0];
-    let (boot, _requests) = stub_boot(state);
-    let (view, cx) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
-    cx.simulate_resize(size(px(1200.0), px(800.0)));
-    view.update(cx, |model, cx| attach_panes(model, &panes, cx));
-    let folder = format!("/srv/{}", "deep/".repeat(40));
-    let folder = folder.trim_end_matches('/').to_owned();
-    for event in [
-        MetadataEvent::ForegroundProcess {
-            name: "a-long-running-program-name".into(),
-            is_shell: false,
-        },
-        MetadataEvent::Directory(folder.clone().into()),
-    ] {
-        view.update(cx, |model, cx| {
-            let terminal = model.terminal(&pane).expect("terminal").view.clone();
-            terminal.update(cx, |terminal, cx| terminal.metadata(event, cx));
-        });
-    }
-    cx.run_until_parked();
-    let title = |cx: &mut VisualTestContext| {
-        cx.debug_bounds(format!("pane-title-{pane}-a-long-running-program-name").leak())
-            .expect("title")
-            .size
-            .width
-    };
-    let directory = |cx: &mut VisualTestContext| {
-        cx.debug_bounds(format!("pane-directory-{pane}-{folder}").leak())
-            .expect("folder")
-            .size
-            .width
-    };
-    let wide = title(cx);
-    let wide_directory = directory(cx);
-    cx.simulate_resize(size(px(700.0), px(800.0)));
-    cx.run_until_parked();
-    assert_eq!(title(cx), wide);
-    assert!(directory(cx) < wide_directory);
-}
-
-#[gpui::test]
 fn with_pane_headers_off_panes_have_no_header_but_stay_dimmed(cx: &mut TestAppContext) {
     let (state, _, panes) = split_state();
     let (mut boot, _requests) = stub_boot(state);
@@ -905,6 +877,38 @@ fn the_pane_headers_setting_is_saved(cx: &mut TestAppContext) {
                 .expect("settings");
         assert!(!saved.appearance.pane_headers);
     });
+}
+
+#[gpui::test]
+fn unfocused_pane_dimming_is_saved_rejects_out_of_range_and_zero_turns_it_off(
+    cx: &mut TestAppContext,
+) {
+    use crate::model::preferences::Change;
+
+    let (state, _, panes) = split_state();
+    let (boot, _requests) = stub_boot(state.clone());
+    let (view, window) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    window.simulate_resize(size(px(1200.0), px(800.0)));
+    window.run_until_parked();
+    assert!(shown(window, "dim", panes[0]));
+    view.update(window, |model, cx| {
+        model.change_preference(Change::Field("unfocused-pane-dim", "101".into()), cx);
+        assert_eq!(model.appearance.unfocused_pane_dim, 45);
+        model.change_preference(Change::Field("unfocused-pane-dim", "0".into()), cx);
+        assert_eq!(model.appearance.unfocused_pane_dim, 0);
+        let saved =
+            muxy_app_core::settings::Settings::load(&model.path.with_file_name("settings.toml"))
+                .expect("settings");
+        assert_eq!(saved.appearance.unfocused_pane_dim, 0);
+    });
+
+    // A fresh window: GPUI keeps debug bounds from earlier frames.
+    let (mut boot, _requests) = stub_boot(state);
+    boot.settings.appearance.unfocused_pane_dim = 0;
+    let (_view, window) = cx.add_window_view(|window, cx| AppModel::new(boot, window, cx));
+    window.simulate_resize(size(px(1200.0), px(800.0)));
+    window.run_until_parked();
+    assert!(!shown(window, "dim", panes[0]));
 }
 
 #[gpui::test]

@@ -27,7 +27,7 @@ impl Default for Keymap {
 }
 
 impl Keymap {
-    pub const ACTIONS: [ShortcutId; 81] = [
+    pub const ACTIONS: [ShortcutId; 83] = [
         ShortcutId::OpenSettings,
         ShortcutId::NewHomeTab,
         ShortcutId::NewTabInProject,
@@ -47,6 +47,7 @@ impl Keymap {
         ShortcutId::HideOthers,
         ShortcutId::Minimize,
         ShortcutId::NewTab,
+        ShortcutId::NewClaudeChat,
         ShortcutId::ExistingTerminals,
         ShortcutId::DetachTerminal,
         ShortcutId::CloseTab,
@@ -58,6 +59,7 @@ impl Keymap {
         ShortcutId::FocusPaneDown,
         ShortcutId::ToggleZoomPane,
         ShortcutId::EqualizeSplits,
+        ShortcutId::ToggleChat,
         ShortcutId::ClosePane,
         ShortcutId::NextTab,
         ShortcutId::PreviousTab,
@@ -386,7 +388,7 @@ const RETIRED: [&str; 9] = [
 ];
 
 /// Built-in defaults that give way to a key a user binding already has.
-const YIELDING: [ShortcutId; 74] = [
+const YIELDING: [ShortcutId; 75] = [
     ShortcutId::OpenSettings,
     ShortcutId::NewHomeTab,
     ShortcutId::NewTabInProject,
@@ -461,6 +463,8 @@ const YIELDING: [ShortcutId; 74] = [
     ShortcutId::ApplyLayout,
     ShortcutId::OpenProjectInDefaultApp,
     ShortcutId::ToggleAgentSessions,
+    // Fork: inline skill completion gives Tab up to an explicit binding.
+    ShortcutId::ComposerComplete,
 ];
 
 fn overlaps(left: &Shortcut, right: &Shortcut) -> bool {

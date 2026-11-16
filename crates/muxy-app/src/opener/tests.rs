@@ -239,3 +239,55 @@ fn the_file_manager_comes_before_editors_in_their_preferred_order() {
     assert_eq!(apps[1].name, "Zed");
     assert_eq!(apps[1].path, Path::new("/Applications/Zed.app"));
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+fn mapped_system_handlers_and_missing_extensions_use_the_selected_fallback() {
+    let mut settings = muxy_app_core::settings::OpenerSettings {
+        file: "system.finder".into(),
+        ..Default::default()
+    };
+    settings
+        .set_file_type(None, "txt", Some("system.application".into()))
+        .unwrap();
+    settings
+        .set_file_type(None, "md", Some("missing:preview".into()))
+        .unwrap();
+    for (name, expected) in [
+        (
+            "/tmp/my notes.TXT",
+            Launch::system([OsString::from("/tmp/my notes.TXT")]),
+        ),
+        ("/tmp/notes.md", finder(Path::new("/tmp/notes.md"))),
+    ] {
+        open_with(
+            &OpenRequest {
+                target: Target::File(file(name)),
+                context: context(),
+            },
+            &settings,
+            || &[],
+            |launch| {
+                assert_eq!(*launch, expected);
+                Ok(())
+            },
+        )
+        .unwrap();
+    }
+    open_with(
+        &OpenRequest {
+            target: Target::Url("https://example.com".into()),
+            context: context(),
+        },
+        &settings,
+        || &[],
+        |launch| {
+            assert_eq!(
+                *launch,
+                Launch::system([OsString::from("https://example.com")])
+            );
+            Ok(())
+        },
+    )
+    .unwrap();
+}

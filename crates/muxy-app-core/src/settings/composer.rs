@@ -50,6 +50,26 @@ pub struct ComposerSettings {
     retired_voice_model: IgnoredAny,
     #[serde(default, skip_serializing, rename = "voice_auto_send")]
     retired_voice_auto_send: IgnoredAny,
+    /// Fork: the Claude chat model and effort last chosen in each project.
+    pub chat_models: Vec<ChatChoice>,
+}
+
+/// Fork: projects whose chat choice is kept; the oldest go first.
+pub const MAX_CHAT_CHOICES: usize = 200;
+
+/// Fork: the Claude chat model alias and effort level last chosen in a
+/// project; empty means Claude Code's default.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatChoice {
+    pub server: crate::ServerId,
+    pub project: crate::ProjectId,
+    #[serde(default)]
+    pub provider: muxy_protocol::ChatProvider,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub effort: String,
 }
 
 impl Default for ComposerSettings {
@@ -82,6 +102,7 @@ impl Default for ComposerSettings {
             retired_language: IgnoredAny,
             retired_voice_model: IgnoredAny,
             retired_voice_auto_send: IgnoredAny,
+            chat_models: Vec::new(),
         }
     }
 }
@@ -102,6 +123,18 @@ impl ComposerSettings {
                     format!("must be between {min} and {max}"),
                 ));
             }
+        }
+        if self.chat_models.len() > MAX_CHAT_CHOICES
+            || self.chat_models.iter().any(|choice| {
+                !choice.provider.supported()
+                    || choice.model.len() > muxy_protocol::MAX_CHAT_NAME
+                    || choice.effort.len() > muxy_protocol::MAX_CHAT_NAME
+            })
+        {
+            return Err(Error::new(
+                "composer.chat_models",
+                "Invalid chat model choice",
+            ));
         }
         if self.font_family.len() > 200 {
             return Err(Error::new(

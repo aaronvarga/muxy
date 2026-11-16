@@ -373,11 +373,11 @@ impl Spinners {
         owner: Option<gpui::EntityId>,
         zone: Option<&HoverZone>,
     ) -> AnyElement {
-        self.glyph_with_shape(id, size, color, owner, false)
+        self.glyph_with_shape(id, size, color, owner, zone, false)
     }
 
     pub(super) fn activity_border(&self, id: String, height: Pixels, color: Hsla) -> AnyElement {
-        self.glyph_with_shape(id, height, color, None, true)
+        self.glyph_with_shape(id, height, color, None, None, true)
     }
 
     fn glyph_with_shape(
@@ -386,6 +386,7 @@ impl Spinners {
         size: Pixels,
         color: Hsla,
         owner: Option<gpui::EntityId>,
+        zone: Option<&HoverZone>,
         activity_border: bool,
     ) -> AnyElement {
         let registry = self.0.clone();

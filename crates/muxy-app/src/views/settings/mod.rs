@@ -7,6 +7,7 @@ mod catalog;
 mod commands;
 mod composer;
 pub(crate) mod extensions;
+mod file_types;
 mod keyboard;
 mod layout;
 mod pickers;
@@ -184,6 +185,7 @@ pub(crate) struct SettingsView {
     dirty: HashSet<&'static str>,
     pub(crate) errors: HashMap<String, String>,
     recording: Option<String>,
+    file_type_editor: Option<file_types::Editor>,
     command_editor: Option<muxy_app_core::settings::CustomCommand>,
     focus_initialized: bool,
     compact: bool,
@@ -292,6 +294,7 @@ impl SettingsView {
             errors: HashMap::new(),
             recording: None,
             command_editor: None,
+            file_type_editor: None,
             focus_initialized: false,
             compact: false,
             picker_anchors: [
@@ -303,6 +306,7 @@ impl SettingsView {
                 PickerKind::AiProvider(crate::repository_actions::Action::CreatePullRequest),
                 PickerKind::ExtensionSidebar,
                 PickerKind::FileOpener,
+                PickerKind::FileType,
                 PickerKind::AppLanguage,
                 PickerKind::CommandProject,
             ]
@@ -343,6 +347,14 @@ impl SettingsView {
                         InputEvent::Changed => {
                             cx.notify();
                         }
+                    }
+                    return;
+                }
+                if id == file_types::FIELD {
+                    match event {
+                        InputEvent::Submitted => pane.save_file_type(cx),
+                        InputEvent::Cancelled => pane.cancel_file_type(cx),
+                        InputEvent::Changed => cx.notify(),
                     }
                     return;
                 }
@@ -512,6 +524,7 @@ impl SettingsView {
             self.errors.remove(id);
             match id {
                 "commands" => self.command_editor = None,
+                "file-types" => self.file_type_editor = None,
                 "font-codepoint-map" => self.codepoint_editor = None,
                 "terminal-keybindings" => self.binding_editor = None,
                 "terminal-reset" => {
@@ -841,6 +854,7 @@ fn announced_error(note: gpui::Div, id: &str, error: &str) -> accessibility::Liv
 /// Every text field Settings shows, and whether it takes several lines.
 fn field_ids() -> impl Iterator<Item = (&'static str, bool)> {
     [
+        file_types::FIELD,
         "command-name",
         "command-text",
         "composer-font",
@@ -995,6 +1009,7 @@ mod tests {
                 PickerKind::AiProvider(crate::repository_actions::Action::CreatePullRequest),
                 PickerKind::ExtensionSidebar,
                 PickerKind::FileOpener,
+                PickerKind::FileType,
                 PickerKind::AppLanguage,
             ])
             .map(PickerKind::id);

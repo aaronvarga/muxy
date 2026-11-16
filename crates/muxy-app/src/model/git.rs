@@ -249,6 +249,13 @@ impl AppModel {
         }
     }
 
+    pub(super) fn invalidate_project_git(&mut self, project: ProjectId) {
+        self.git.projects.remove(&project);
+        if self.git.current == Some(project) {
+            self.git.current = None;
+        }
+    }
+
     pub(super) fn sync_git(&mut self, cx: &mut Context<Self>) {
         let current = self.state.current_project().id;
         if let Some(pending) = self

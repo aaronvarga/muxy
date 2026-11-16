@@ -249,7 +249,9 @@ impl SettingsTab {
                 self.open_provider_picker(action, request, window, cx);
             }
             super::PickerKind::ExtensionSidebar => self.open_sidebar_picker(request, window, cx),
-            super::PickerKind::FileOpener => self.open_file_opener_picker(request, window, cx),
+            super::PickerKind::FileOpener | super::PickerKind::FileType => {
+                self.open_file_opener_picker(request, window, cx);
+            }
             super::PickerKind::AppLanguage => self.open_app_language_picker(request, window, cx),
             super::PickerKind::CommandProject => {
                 self.open_command_project_picker(request, window, cx);
@@ -447,7 +449,15 @@ impl SettingsTab {
         cx: &mut Context<Self>,
     ) {
         let view = self.view.read(cx);
-        let current = view.snapshot.settings.openers.file.clone();
+        let mapping = request.kind == super::PickerKind::FileType;
+        let current = if mapping {
+            view.file_type_editor
+                .as_ref()
+                .map(|editor| editor.handler.clone())
+                .unwrap_or_default()
+        } else {
+            view.snapshot.settings.openers.file.clone()
+        };
         let mut openers: Vec<(String, String)> = super::appearance::FILE_OPENERS
             .iter()
             .map(|&(id, label)| (id.to_owned(), translate(label).to_string()))
@@ -481,9 +491,18 @@ impl SettingsTab {
             move |root, _, event, window, cx| match event {
                 PickerEvent::Confirmed(selection) => {
                     let opener = selection.id.to_string();
-                    let _ = root.model.update(cx, |model, cx| {
-                        model.change_preference(Change::FileOpener(opener), cx);
-                    });
+                    if mapping {
+                        root.view.update(cx, |view, cx| {
+                            if let Some(editor) = &mut view.file_type_editor {
+                                editor.handler = opener;
+                            }
+                            cx.notify();
+                        });
+                    } else {
+                        let _ = root.model.update(cx, |model, cx| {
+                            model.change_preference(Change::FileOpener(opener), cx);
+                        });
+                    }
                     root.dismiss_overlay(window, cx);
                 }
                 PickerEvent::Dismissed => root.dismiss_overlay(window, cx),

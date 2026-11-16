@@ -39,6 +39,7 @@ const DIRECTORY_CACHE_ITEMS: usize = 50_000;
 pub(crate) enum Purpose {
     AddProject,
     AddFolder(muxy_app_core::ProjectId),
+    ChangeFolder(muxy_app_core::ProjectId),
     NewTab,
 }
 
@@ -518,6 +519,7 @@ impl ProjectPicker {
             (_, Some(Target::Project(_))) => vec![tr_key!("New Tab")],
             (Purpose::AddProject, None) => vec![add],
             (Purpose::AddFolder(_), None) => vec![tr_key!("Add Folder")],
+            (Purpose::ChangeFolder(_), None) => vec![tr_key!("Change Folder")],
             (Purpose::NewTab, None) if self.session.is_existing_project() => {
                 vec![tr_key!("New Tab")]
             }
@@ -533,7 +535,11 @@ impl ProjectPicker {
                 action.disabled(disabled)
             })
             .collect();
-        if matches!(self.purpose, Purpose::AddProject | Purpose::AddFolder(_)) && self.remote.is_none() {
+        if matches!(
+            self.purpose,
+            Purpose::AddProject | Purpose::AddFolder(_) | Purpose::ChangeFolder(_)
+        ) && self.remote.is_none()
+        {
             actions.push(PickerAction::new("finder", crate::opener::browse_label()));
         }
         actions
@@ -548,32 +554,6 @@ impl ProjectPicker {
             InputMode::Path => self.session.path_state().directory_path,
         };
         cx.emit(PickerEvent::ChooseFolder { directory });
-    }
-
-    /// Picks a folder with the system dialog, then adds it like a typed path.
-    fn choose_folder(cx: &mut Context<Self>) {
-        let result = cx.prompt_for_paths(gpui::PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: Some(tr!("Choose Folder")),
-        });
-        cx.spawn(async move |picker, cx| {
-            let Ok(Ok(Some(paths))) = result.await else {
-                return;
-            };
-            let Some(path) = paths.into_iter().next() else {
-                return;
-            };
-            let _ = picker.update(cx, |_, cx| {
-                cx.emit(PickerEvent::Confirm {
-                    path: path_service::standardize(&path.to_string_lossy()),
-                    create_if_missing: false,
-                    home_terminal: false,
-                });
-            });
-        })
-        .detach();
     }
 
     fn activate(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -670,12 +650,16 @@ impl ProjectPicker {
             return;
         };
         let home_terminal = match self.purpose {
-            Purpose::AddProject | Purpose::AddFolder(_) if secondary => return,
-            Purpose::AddProject | Purpose::AddFolder(_) => false,
+            Purpose::AddProject | Purpose::AddFolder(_) | Purpose::ChangeFolder(_) if secondary => {
+                return;
+            }
+            Purpose::AddProject | Purpose::AddFolder(_) | Purpose::ChangeFolder(_) => false,
             Purpose::NewTab => !secondary,
         };
-        let create_if_missing = !matches!(self.purpose, Purpose::AddFolder(_))
-            && !home_terminal
+        let create_if_missing = !matches!(
+            self.purpose,
+            Purpose::AddFolder(_) | Purpose::ChangeFolder(_)
+        ) && !home_terminal
             && self.session.input_mode() == InputMode::Path
             && (self.remote.is_some()
                 || self.session.typed_path_state() == TypedPathState::Missing);
@@ -797,7 +781,9 @@ impl AppModel {
             .set_skipped_paths(&self.settings.projects.search_skip);
         let paths = self.project_paths(ServerId::local());
         let targets = match purpose {
-            Purpose::AddProject | Purpose::AddFolder(_) => Registry::default(),
+            Purpose::AddProject | Purpose::AddFolder(_) | Purpose::ChangeFolder(_) => {
+                Registry::default()
+            }
             Purpose::NewTab => targets::registry(self),
         };
         let picker = cx.new(|cx| {
@@ -871,7 +857,9 @@ impl AppModel {
         let folders = RemoteFolders::through(client, name, project, &home);
         let paths = self.project_paths(server);
         let targets = match purpose {
-            Purpose::AddProject => Registry::default(),
+            Purpose::AddProject | Purpose::AddFolder(_) | Purpose::ChangeFolder(_) => {
+                Registry::default()
+            }
             Purpose::NewTab => targets::registry(self),
         };
         let picker = cx.new(|cx| {
@@ -1005,6 +993,28 @@ impl AppModel {
         self.dismiss_overlay(cx);
     }
 
+    /// Fork: a confirmed remote path joins the project being added to, or opens.
+    fn use_remote_path(
+        &mut self,
+        server: ServerId,
+        picker: &Entity<ProjectPicker>,
+        path: &str,
+        cx: &mut Context<Self>,
+    ) {
+        let directory = PathBuf::from(path_service::standardize(path));
+        match picker.read(cx).purpose {
+            Purpose::AddFolder(project) => {
+                self.push_project_folder(project, directory, cx);
+                self.dismiss_overlay(cx);
+            }
+            Purpose::ChangeFolder(project) => {
+                self.change_project_directory(project, directory, cx);
+                self.dismiss_overlay(cx);
+            }
+            _ => self.open_remote_project_path(server, path, cx),
+        }
+    }
+
     fn confirm_remote_project_path(
         &mut self,
         server: ServerId,
@@ -1085,16 +1095,7 @@ impl AppModel {
                         );
                     }
                     Ok(Some(TypedPathState::Directory)) => {
-                        if let Purpose::AddFolder(project) = picker.read(cx).purpose {
-                            model.push_project_folder(
-                                project,
-                                PathBuf::from(path_service::standardize(&path)),
-                                cx,
-                            );
-                            model.dismiss_overlay(cx);
-                        } else {
-                            model.open_remote_project_path(server, &path, cx);
-                        }
+                        model.use_remote_path(server, &picker, &path, cx);
                     }
                     Ok(Some(TypedPathState::Missing | TypedPathState::NotDirectory))
                         if home_terminal =>
@@ -1223,9 +1224,12 @@ impl AppModel {
         self.ask_dialog(
             self.window,
             async move |_, cx| folder_prompt(directory, cx).await,
-            |model, response, cx| match response {
+            move |model, response, cx| match response {
                 Ok(Some(path)) => match purpose {
                     Purpose::AddFolder(project) => model.push_project_folder(project, path, cx),
+                    Purpose::ChangeFolder(project) => {
+                        model.change_project_directory(project, path, cx);
+                    }
                     _ => model.open_project_path(path, true, cx),
                 },
                 Ok(None) => {}
@@ -1435,13 +1439,19 @@ async fn folder_prompt(
 fn placeholder(purpose: Purpose, remote: Option<&str>, computer: Option<&str>) -> String {
     match (remote, computer, purpose) {
         (Some(remote), ..) => tr!("Enter a path on %@…", remote),
-        (None, Some(computer), Purpose::AddProject) => {
+        (
+            None,
+            Some(computer),
+            Purpose::AddProject | Purpose::AddFolder(_) | Purpose::ChangeFolder(_),
+        ) => {
             tr!("Search folders on %@ or enter a path…", computer)
         }
         (None, Some(computer), Purpose::NewTab) => {
             tr!("Search projects, or folders on %@…", computer)
         }
-        (None, None, Purpose::AddProject) => tr!("Search folders or enter a path…"),
+        (None, None, Purpose::AddProject | Purpose::AddFolder(_) | Purpose::ChangeFolder(_)) => {
+            tr!("Search folders or enter a path…")
+        }
         (None, None, Purpose::NewTab) => tr!("Search projects, folders or enter a path…"),
     }
     .to_string()

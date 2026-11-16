@@ -1253,6 +1253,51 @@ impl TextInput {
         cx.notify();
     }
 
+    /// The system edit menu: Cut, Copy, Paste and Select All.
+    fn on_context_menu(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        cx.stop_propagation();
+        self.focus_handle.focus(window);
+        let offset = self.index_for_mouse_position(event.position);
+        let range = self.selected_range.clone();
+        // A click outside the selection moves the caret there, as AppKit fields do.
+        if range.is_empty() || !(range.start..=range.end).contains(&offset) {
+            self.move_to(offset, cx);
+        }
+        let copyable = !self.selected_range.is_empty() && !self.secure;
+        let mut items = [
+            crate::tr!("Cut"),
+            crate::tr!("Copy"),
+            crate::tr!("Paste"),
+            crate::tr!("Select All"),
+        ]
+        .map(|label| crate::native_menu::Item::new(label.to_string()));
+        items[0].enabled = copyable;
+        items[1].enabled = copyable;
+        items[3].enabled = !self.content.is_empty();
+        items[3].separator = true;
+        let Some(receiver) = crate::native_menu::show(items.into(), event.position, window, cx)
+        else {
+            return;
+        };
+        cx.spawn_in(window, async move |input, cx| {
+            let Some(choice) = receiver.recv().await.ok().flatten() else {
+                return;
+            };
+            let _ = input.update_in(cx, |input, window, cx| match choice {
+                0 => input.cut(&Cut, window, cx),
+                1 => input.copy(&Copy, window, cx),
+                2 => input.paste(&Paste, window, cx),
+                _ => input.select_all(&SelectAll, window, cx),
+            });
+        })
+        .detach();
+    }
+
     fn restart_blink(&mut self, cx: &mut Context<Self>) {
         self.cursor_visible = true;
         self.blink = Some(cx.spawn(async move |input, cx| {
@@ -1783,6 +1828,7 @@ impl Render for TextInput {
             .on_action(cx.listener(Self::undo))
             .on_action(cx.listener(Self::redo))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_context_menu))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_scroll_wheel(cx.listener(Self::on_scroll_wheel));

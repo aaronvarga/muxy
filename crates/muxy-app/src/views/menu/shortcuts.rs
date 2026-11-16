@@ -40,6 +40,7 @@ impl Command {
             }
             Self::NewTab => Some(ShortcutId::NewTab),
             Self::NewBrowserTab => Some(ShortcutId::NewBrowserTab),
+            Self::NewClaudeChat => Some(ShortcutId::NewClaudeChat),
             Self::AgentsPanel(_) => Some(ShortcutId::ToggleAgentsPanel),
             Self::TerminalCopy(_) => Some(ShortcutId::Copy),
             Self::TerminalPaste(_) => Some(ShortcutId::Paste),

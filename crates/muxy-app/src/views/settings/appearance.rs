@@ -4,8 +4,8 @@ use crate::model::preferences::{AgentsPanelToggle, Change, WorktreeToggle};
 use gpui::{AnyElement, Context, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 use muxy_app_core::localization;
 use muxy_app_core::settings::{
-    AgentsPanelDensity, AgentsPanelGrouping, AgentsPanelIcon, CloseBehavior, InterfaceSize, SIDEBAR_ICON_SIZE,
-    SidebarCollapsedStyle,
+    AgentsPanelDensity, AgentsPanelGrouping, AgentsPanelIcon, CloseBehavior, InterfaceSize,
+    SIDEBAR_ICON_SIZE, SidebarCollapsedStyle,
 };
 use muxy_ui::controls::{self, Choice};
 use muxy_ui::l10n::{tr_key, translate};
@@ -174,6 +174,18 @@ pub(super) fn rows(
             ),
         ));
     }
+    if category == Category::Appearance && pane.matches(category, tr_key!("Unfocused pane dimming"))
+    {
+        rows.push(pane.row(
+            "unfocused-pane-dim",
+            tr_key!("Unfocused pane dimming"),
+            pane.slider(
+                Slider::new("unfocused-pane-dim", (0.0, 100.0), 1.0, "%", Commit::Field),
+                f32::from(appearance.unfocused_pane_dim),
+                cx,
+            ),
+        ));
+    }
     if category == Category::Appearance && pane.matches(category, tr_key!("Show tips")) {
         rows.push(pane.row(
             "tips",
@@ -305,6 +317,9 @@ pub(super) fn rows(
             tr_key!("Open files with"),
             pane.picker(PickerKind::FileOpener, &file_opener(&pane.snapshot), cx),
         ));
+    }
+    if category == Category::General {
+        rows.extend(super::file_types::rows(pane, cx));
     }
     let size = pane.snapshot.settings.window.default_size;
     for (index, id, label, minimum) in [
@@ -721,16 +736,19 @@ fn project_icon_opacity(pane: &SettingsView, cx: &mut Context<SettingsView>) -> 
                         cx,
                     )),
             )
-            .child(controls::button(
-                pane.style(),
-                "project-icon-opacity-reset",
-                controls::Button::secondary(&tr!("Reset"))
-                    .named(&tr!("Reset %@", &tr!("Project icon background opacity")))
-                    .enabled(opacity.is_some()),
-                cx.listener(|_: &mut SettingsView, _, _, cx| {
-                    cx.emit(SettingsEvent::Change(Change::ProjectIconOpacity(None)));
-                }),
-            ))
+            .child(
+                controls::button(
+                    pane.style(),
+                    "project-icon-opacity-reset",
+                    controls::Button::secondary(&tr!("Reset"))
+                        .named(&tr!("Reset %@", &tr!("Project icon background opacity")))
+                        .enabled(opacity.is_some()),
+                    cx.listener(|_: &mut SettingsView, _, _, cx| {
+                        cx.emit(SettingsEvent::Change(Change::ProjectIconOpacity(None)));
+                    }),
+                )
+                .debug_selector(|| "project-icon-opacity-reset".into()),
+            )
             .into_any_element(),
     )
 }

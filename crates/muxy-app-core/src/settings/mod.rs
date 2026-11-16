@@ -33,7 +33,9 @@ pub use appearance::{
 pub use browser::BrowserSettings;
 pub use chord::KeyChord;
 pub use commands::CustomCommand;
-pub use composer::{ComposerPosition, ComposerPresentation, ComposerSettings};
+pub use composer::{
+    ChatChoice, ComposerPosition, ComposerPresentation, ComposerSettings, MAX_CHAT_CHOICES,
+};
 pub use config::{
     ClipboardSettings, CloseBehavior, CommitChoices, NewPaneDirectory, OpenerSettings,
     PaneSettings, PanelLayout, PrivacySettings, ProjectSettings, Settings, WindowSettings,

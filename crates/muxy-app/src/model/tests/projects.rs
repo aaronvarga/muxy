@@ -1524,3 +1524,33 @@ fn project_color_picker_stages_presets_and_validates_custom_hex(cx: &mut TestApp
         assert_eq!(model.state.home().color.as_str(), "#30bfbf");
     });
 }
+
+#[gpui::test]
+fn project_menu_can_repoint_available_and_missing_projects() {
+    use crate::views::menu::{Command, Item};
+    let directory = tempfile::tempdir().expect("folder");
+    let old = directory.path().join("old");
+    std::fs::create_dir(&old).expect("old folder");
+    let mut state = AppState::bootstrap().expect("state");
+    let id = state
+        .add_project(ServerId::local(), old.clone())
+        .expect("project");
+    for missing in [false, true] {
+        if missing {
+            std::fs::remove_dir(&old).expect("remove old folder");
+            state.refresh_project_statuses();
+        }
+        let project = state.project(id).expect("project");
+        let items = crate::views::project_menu::items(
+            &state,
+            project,
+            None,
+            Item::action("Focus", Command::FocusProject(Some(id))),
+            true,
+            false,
+        );
+        assert!(items.iter().filter_map(Item::command).any(
+            |command| matches!(command, Command::ChangeProjectFolder(project) if project == id)
+        ));
+    }
+}

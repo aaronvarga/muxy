@@ -16,6 +16,9 @@ pub struct Roots {
 }
 
 impl Roots {
+    pub fn exclude(&mut self, provider: AgentProvider) {
+        self.sources.retain(|(source, _, _)| *source != provider);
+    }
     pub fn from_home(home: &Path) -> Self {
         Self {
             sources: vec![

@@ -160,7 +160,9 @@ fn menu_selection_reuses_panes_and_rejects_ended_sessions(cx: &mut TestAppContex
         model.choose_status_session(&detached_id, cx);
         assert_eq!(model.state.current_project().id, second);
         assert_eq!(
-            model.pane_session(model.active_pane().expect("pane")),
+            model
+                .pane_session(model.active_pane().expect("pane"))
+                .map(|(_, session)| session),
             SessionId::new(43)
         );
         assert_eq!(

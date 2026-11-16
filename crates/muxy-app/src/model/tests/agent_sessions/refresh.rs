@@ -51,7 +51,7 @@ fn refresh_keeps_selection_and_scroll_while_changed_files_wait_for_a_batch(
         let row = model.agent_sessions.list.entries.iter().position(|entry| matches!(entry, Entry::Session { key: candidate, .. } if candidate == &key)).expect("selected row");
         model.agent_sessions.list.state.scroll_to(ListOffset { item_ix: row, offset_in_item: px(7.0) });
         for session in &model.agent_sessions.listing.sessions {
-            std::fs::OpenOptions::new().write(true).open(&session.path).expect("file").set_len(1024 * 1024 + 1).expect("changed history");
+            std::fs::OpenOptions::new().write(true).open(session.path.as_ref().expect("filesystem path")).expect("file").set_len(1024 * 1024 + 1).expect("changed history");
         }
         for pending in [true, false] {
             model.agent_sessions.listing = catalog.scan(&roots, &cwd);

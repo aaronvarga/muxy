@@ -63,7 +63,7 @@ impl OverlayView for Menu {
 
     fn on_dismiss(&self, _: &mut AppModel, _: &mut Context<AppModel>) -> Dismissal {
         if self.over_remote_servers {
-            Dismissal::Reopen(Overlay::RemoteServers)
+            Dismissal::Reopen(Box::new(Overlay::RemoteServers))
         } else {
             Dismissal::Close
         }

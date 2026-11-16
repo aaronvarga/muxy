@@ -218,6 +218,7 @@ fn events_that_wait_fold_into_the_one_already_waiting_for_the_same_thing() -> Te
         changes: muxy_protocol::FileChanges {
             paths: vec![muxy_protocol::ServerPath::from(path)],
             rescan: false,
+            root: None,
         },
     };
     for event in [

@@ -5,8 +5,8 @@ use crate::{
 use gpui::prelude::FluentBuilder;
 use gpui::{
     AnyElement, AppContext, Context, Entity, Focusable, InteractiveElement, IntoElement,
-    ParentElement, Pixels, Role, ScrollStrategy, SharedString, StatefulInteractiveElement, Styled, Task,
-    UniformListScrollHandle, Window, div, px, uniform_list,
+    ParentElement, Pixels, Role, ScrollStrategy, SharedString, StatefulInteractiveElement, Styled,
+    Task, UniformListScrollHandle, Window, div, px, uniform_list,
 };
 use muxy_app_core::ProjectId;
 use muxy_ui::{

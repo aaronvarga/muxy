@@ -256,7 +256,25 @@ pub(super) const SETTINGS: &[Setting] = &[
         id: "file-opener",
         label: tr_key!("Open files with"),
         description: tr_key!(
-            "Opens files you click in a terminal. An extension opener opens only the files it supports; other files open in the project editor."
+            "The default handler for files opened from chat and terminals. File type mappings take precedence."
+        ),
+        category: Category::General,
+        section: tr_key!("Files"),
+    },
+    Setting {
+        id: "web-link-handler",
+        label: tr_key!("Web links"),
+        description: tr_key!(
+            "Open web links from chat and terminals in your default browser or Muxy."
+        ),
+        category: Category::General,
+        section: tr_key!("Files"),
+    },
+    Setting {
+        id: "file-types",
+        label: tr_key!("File type mappings"),
+        description: tr_key!(
+            "Choose a handler for each file extension. Other files use the default opener. Files outside existing projects add their containing folder as a project."
         ),
         category: Category::General,
         section: tr_key!("Files"),
@@ -368,6 +386,15 @@ pub(super) const SETTINGS: &[Setting] = &[
         label: tr_key!("Show pane headers"),
         description: tr_key!(
             "Show each pane's icon, title and actions above it, in the color of what it shows."
+        ),
+        category: Category::Appearance,
+        section: tr_key!("Interface"),
+    },
+    Setting {
+        id: "unfocused-pane-dim",
+        label: tr_key!("Unfocused pane dimming"),
+        description: tr_key!(
+            "How much panes other than the focused one are dimmed in a split, from 0 to 100."
         ),
         category: Category::Appearance,
         section: tr_key!("Interface"),
@@ -971,6 +998,8 @@ pub(super) const SETTINGS: &[Setting] = &[
 /// the setting's label, or for a field inside a setting, what that field holds.
 pub(super) fn control_label(id: &str) -> Option<&'static str> {
     setting(id).map(|setting| setting.label).or(match id {
+        "file-type-extension" => Some(tr_key!("File extension")),
+        "file-type-handler" => Some(tr_key!("Open with")),
         "command-name" => Some(tr_key!("Name")),
         "command-text" => Some(tr_key!("Command")),
         "quick-width" => Some(tr_key!("Width")),
@@ -998,6 +1027,7 @@ pub(super) fn search_aliases(id: &str) -> &'static str {
         "extension-sidebar" => "custom replace",
         "usage-ping" => "telemetry analytics tracking statistics",
         "server" => "stop restart connect local mac computer",
+        "file-types" => "extension mapping handler open with markdown md txt association",
         _ => "",
     }
 }

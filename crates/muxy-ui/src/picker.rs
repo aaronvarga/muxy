@@ -310,6 +310,7 @@ pub enum PickerLeading {
     Symbol(SharedString),
     Text(SharedString),
     Asset(SharedString),
+    Image(SharedString),
     Swatch(Hsla),
 }
 
@@ -1078,6 +1079,10 @@ impl Picker {
                 .size(metrics.icon_md())
                 .flex_none()
                 .text_color(color)
+                .into_any_element(),
+            PickerLeading::Image(path) => gpui::img(path.clone())
+                .size(metrics.icon_md())
+                .flex_none()
                 .into_any_element(),
             PickerLeading::Swatch(color) => div()
                 .size(metrics.icon_md())

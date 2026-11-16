@@ -117,7 +117,7 @@ impl Placement {
 pub(crate) enum Dismissal {
     Close,
     /// It closes and `next` opens in its place.
-    Reopen(Overlay),
+    Reopen(Box<Overlay>),
     /// It stays open until its page agrees to close.
     Stay,
 }
@@ -231,7 +231,7 @@ impl AppModel {
             Dismissal::Reopen(next) => {
                 view.on_close(self, cx);
                 self.overlay_closed(returns_to.as_ref(), cx);
-                self.overlay = Some(next);
+                self.overlay = Some(*next);
             }
             Dismissal::Stay => self.overlay = Some(overlay),
         }

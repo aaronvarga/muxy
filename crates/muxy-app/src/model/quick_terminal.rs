@@ -153,8 +153,13 @@ impl AppModel {
     }
 
     pub(super) fn attached_panes(&self) -> Vec<PaneId> {
-        let mut panes: Vec<_> = self
-            .main_visible_tabs()
+        // Fork: the command center replaces the main window's tabs with its tiles.
+        let main = if self.command_center.active {
+            Vec::new()
+        } else {
+            self.main_visible_tabs()
+        };
+        let mut panes: Vec<_> = main
             .into_iter()
             .chain(
                 self.state
@@ -165,6 +170,9 @@ impl AppModel {
             .filter_map(|id| self.tab(id))
             .flat_map(muxy_app_core::Tab::visible_panes)
             .collect();
+        if self.command_center.active {
+            panes.extend(self.command_center.visible.iter().copied());
+        }
         if self.quick.visible {
             panes.extend(self.state.quick_terminal().map(|pane| pane.id));
         }

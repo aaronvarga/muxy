@@ -7,6 +7,7 @@ use std::time::Duration;
 #[cfg(target_os = "macos")]
 use std::time::Instant;
 
+pub(crate) mod preview;
 mod process;
 
 use muxy_app_core::opener::{FileLocation, OpenContext, OpenRequest, Registry, Target};
@@ -130,11 +131,12 @@ fn open_with<'a>(
     mut launch: impl FnMut(&Launch) -> io::Result<()>,
 ) -> io::Result<()> {
     let (preferred, fallback) = match request.target {
-        Target::Url(_) => (&settings.url, "system.browser"),
-        Target::File(_) => (&settings.file, "system.editor"),
+        Target::Url(_) => (settings.url.as_str(), "system.browser"),
+        Target::File(ref file) => (settings.file_handler(&file.path), settings.file.as_str()),
     };
     let handler = registry()
         .resolve(request, preferred, fallback)
+        .or_else(|| registry().resolve(request, "system.editor", "system.browser"))
         .ok_or_else(|| io::Error::other(tr!("No opener supports this resource").to_string()))?
         .handler;
     match (&request.target, handler) {

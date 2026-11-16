@@ -42,6 +42,18 @@ impl OverlayView for SessionPicker {
 }
 
 impl AppModel {
+    pub(crate) fn finish_card_probe(
+        &mut self,
+        server: ServerId,
+        project: ProjectId,
+        cx: &mut Context<Self>,
+    ) {
+        // Discard cached probe entries before normal session adoption resumes.
+        self.existing_sessions.projects.remove(&project);
+        self.chat.card_probes.remove(&(server, project));
+        self.refresh_existing_sessions(cx);
+    }
+
     pub(crate) fn open_session_picker(
         &mut self,
         project: ProjectId,
@@ -112,7 +124,13 @@ impl AppModel {
                 .projects()
                 .iter()
                 .filter(|project| {
-                    (self.has_status_menu() || self.project_shown(project))
+                    // The sidebar's counts only need the default server's projects.
+                    (self.has_status_menu()
+                        || if self.command_center.active {
+                            self.project_shown(project)
+                        } else {
+                            self.project_listed(project)
+                        })
                         && self.confirmed(project.server_id)
                 })
                 .map(|project| project.id)
@@ -212,7 +230,8 @@ impl AppModel {
         let quick = (project.home && project.server_id.is_local())
             .then(|| self.state.quick_terminal())
             .flatten()
-            .and_then(|pane| self.pane_session(pane.id));
+            .and_then(|pane| self.pane_session(pane.id))
+            .map(|(_, session)| session);
         self.existing_sessions
             .projects
             .get(&project.id)

@@ -2,8 +2,6 @@
 //! scroll, webviews, browsers, spinners) step aside under it, and drags stop.
 //! A new layer is added here, once.
 
-use muxy_app_core::settings::ComposerPresentation;
-
 use super::AppModel;
 
 /// The layers drawn over the workspace right now.
@@ -92,13 +90,16 @@ impl AppModel {
                     .then_some(OverlayLayer::Unmarked)
             });
         let settings = &self.settings.composer;
-        let composer = if settings.presentation == ComposerPresentation::Floating {
+        // Fork: a popped-out dock is a dialog like the floating composer.
+        let composer = if self.composer_dialog() {
             (self.composer.view.is_some() || self.composer.closing.is_some())
                 .then_some(ComposerLayer::Floating)
         } else if self.composer.closing.is_some() {
             Some(ComposerLayer::PanelClosing)
         } else {
-            (self.composer.view.is_some() && !settings.pinned).then_some(ComposerLayer::LoosePanel)
+            // Fork: a docked composer sits beside its session and covers nothing.
+            (self.composer.view.is_some() && !settings.pinned && !self.composer_docked())
+                .then_some(ComposerLayer::LoosePanel)
         };
         Coverage {
             overlay,

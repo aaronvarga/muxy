@@ -34,7 +34,7 @@ impl Composer {
         let mut clear_close = Item::new(tr!("Clear on Close"));
         clear_close.checked = self.settings.clear_on_close;
         items.push((clear_close, Command::ClearClose));
-        let floating = self.settings.presentation == ComposerPresentation::Floating;
+        let floating = self.presentation() == ComposerPresentation::Floating;
         let mut separator = true;
         for (presentation, label) in [
             (ComposerPresentation::Panel, tr!("Use Composer Panel")),

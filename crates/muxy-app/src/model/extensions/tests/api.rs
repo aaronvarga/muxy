@@ -146,10 +146,7 @@ fn extensions_rename_color_pin_and_move_any_tab(cx: &mut TestAppContext) {
             .expect("listed tab")
     };
     assert_eq!(entry(a)["customTitle"], "Logs");
-    assert_eq!(
-        entry(b)["color"],
-        muxy_app_core::PROJECT_COLORS[8].1.to_lowercase()
-    );
+    assert_eq!(entry(b)["color"], "#3e63dd");
     assert_eq!(entry(c)["isPinned"], true);
     assert_eq!(entry(a)["paneIDs"].as_array().map(Vec::len), Some(1));
 
@@ -493,6 +490,9 @@ fn running_a_custom_command_asks_first(cx: &mut TestAppContext) {
                 id: "deploy".into(),
                 name: "Deploy".into(),
                 command: "make deploy".into(),
+                hidden: false,
+                project: None,
+                status_bar: false,
             });
         let (reply, _replies) = std::sync::mpsc::sync_channel(1);
         let mut call = Call {

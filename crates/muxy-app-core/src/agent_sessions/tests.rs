@@ -198,7 +198,8 @@ fn resume_commands_never_interpolate_transcript_text_or_paths() {
         id: "a123-456".into(),
         title: "$(touch /tmp/unsafe)".into(),
         directory: PathBuf::from("/project"),
-        path: PathBuf::from("/home/'$(unsafe)/session.jsonl"),
+        path: Some(PathBuf::from("/home/'$(unsafe)/session.jsonl")),
+        target: None,
         modified: SystemTime::UNIX_EPOCH,
     };
     for (provider, command) in [
