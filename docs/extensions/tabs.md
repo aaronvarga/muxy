@@ -109,8 +109,14 @@ terminal, in one of its tab types.
 | `patterns` | Globs matched against the project-relative path, case-insensitive. Default `["*"]`. |
 | `singleton` | Reuse one tab. Default `true`. |
 
-Users pick it in **Settings → General → Open files with**; extensions never
-open files unasked. The tab receives `data` like
+Users pick it as the default in **Settings → General → Open files with**, or
+for individual extensions under **File type mappings**. Mappings override the
+default and match extensions case-insensitively. Disabled or unsupported
+handlers fall back to the default. Extensions never open files unasked.
+
+Files outside the source project open in a containing project on the same
+server, including Home. If none covers the file, its containing folder is
+added as a project. The extension still receives a project-relative path. The tab receives `data` like
 `{ "filePath": "docs/README.md", "line": 12, "column": 3, "source": "terminal" }`,
 with `filePath` relative to the project.
 

@@ -13,3 +13,5 @@ __pycache__/
 /vendor/*/target
 /vendor/*/Cargo.lock
 /scripts/mux-bench/
+# Session handoff (local, not shared)
+handoff.md

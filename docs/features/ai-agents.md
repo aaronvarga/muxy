@@ -181,3 +181,55 @@ that run an agent.
   [Events](../extensions/events.md).
 - Agents can build extensions for you. See
   [Build with an agent](../extensions/agents.md).
+
+
+## Chat on macOS
+
+When a project has no tabs, its command-card screen also offers a new-session
+composer. Enter a prompt, choose OpenAI or Anthropic, a model and effort, then
+press Enter or **Start Chat** to start and send in Chat mode. The **CLI / Chat**
+switch defaults to Chat. Choose CLI to launch the selected provider's terminal
+interface with the same prompt, model and effort. Multiline prompts are preserved.
+Shift-Enter adds a newline. The + button continues to offer its existing tab choices.
+
+The Models menu offers discovered models and saved choices on that server; you
+can also type a model alias. The provider validates the selection when the new
+session starts. Startup and delivery failures preserve the prompt. Branch and
+New Worktree controls use the existing Git flows, and the draft follows newly
+created worktrees within the same repository. Both modes start in the selected
+project or worktree folder, on its selected branch. CLI drafts clear after the
+startup command is delivered to the terminal; startup failures retain the draft.
+
+**New Chat** opens a local draft. The composer picker offers **OpenAI / model**
+(Codex CLI) and **Anthropic / model** (Claude Code), using the installed CLIs and
+existing account configuration. Changing provider keeps text and attachments.
+Provider is remembered per project; model and effort are remembered separately
+for each provider. Existing saved choices belong to Claude.
+
+Model discovery sends no prompt. A conversation starts on first Send. The first
+message freezes its provider, model, effort and attachments. The composer clears
+only after provider acknowledgment; edits made while delivery is pending remain.
+An uncertain send is checked against operation status and native history and is
+never automatically resent. Keep its draft until acceptance is established.
+After startup, provider stays fixed for that conversation; offered model and
+effort settings can change while idle.
+
+Codex history comes from its verified app-server, including paginated history and
+threads without JSONL paths. Select the exact thread in the engine-scoped picker
+or use **Resume in Chat** from the agent sessions panel. Console recovery keeps
+the exact native thread ID, executable, configuration home and engine endpoint.
+Leaving a shared daemon detaches without interrupting its work. Leaving an owned
+standalone engine requires confirmed completion before shutdown and recovery.
+
+The server verifies native process start time and socket ownership before taking
+over a running Codex terminal. Unsupported profiles, CLI overrides, remote
+transports, custom backends and standalone TUIs without a verifiable API endpoint
+stay in Console with an explanation. No shared daemon is terminated. Native
+approval choices keep their once, session and rule scopes; requests Muxy cannot
+represent remain pending for Console or another capable client.
+
+Codex Chat requires compatible desktop and server builds. Older clients get an
+upgrade explanation and read-only Console access while Chat owns the session.
+API-capable servers do not fall back to filesystem-only Codex discovery. Existing
+Claude rendering, selection, tool errors, questions and approvals share the same
+transcript and composer components.

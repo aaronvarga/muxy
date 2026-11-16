@@ -28,13 +28,14 @@ to read the full text. Renaming a tab does not replace its panes' session titles
   the title, dimmed, the header shows the folder the terminal works in, such as
   `~/Projects/muxy`, unless the title already shows it. The focused pane, or
   the one under the pointer, shows buttons there to split it right or down,
-  float it, maximize it, or close it.
+  copy an agent’s resume command, move it, float it, maximize it, or close it.
   Drag a pane by its title to move it, as with `Cmd`-drag.
   A terminal's header takes the background a full-screen app paints its screen
   in, so it blends with the app. Turn headers off with **Settings → Appearance
   → Show pane headers**.
 - Panes that aren't focused are dimmed, and the focused pane's tab is
-  underlined.
+  underlined. Set how much with **Settings → Appearance → Unfocused pane
+  dimming**; 0 turns it off.
 - New tabs and panes open in the project folder. Turn on **Settings → Terminal →
   Keep working directory** to open them in the focused pane's folder instead. A
   new tab in another project still opens in that project's folder.
@@ -116,7 +117,14 @@ plain text and case-insensitive; **Aa** makes it case-sensitive.
 
 - `Cmd`-click a URL or file path to open it. Paths with `:line:column` jump to
   that line in supported editors.
-- **Settings → General → Open files with** picks the app for files.
+- **Settings → General → Open files with** picks the default handler for files.
+- **File type mappings** overrides it by extension, such as `.md` → Markdown Preview
+  or `.txt` → the Muxy file editor. Add, edit, or remove mappings in Settings.
+  Matching ignores case. Unavailable or unsupported handlers use the default.
+- **Web links** chooses the default browser or Muxy browser for chat and terminal links.
+- Extension handlers open files in their containing project, including Home for
+  files outside the current project. If none covers the file, Muxy adds its
+  containing folder as a project. Remote files stay on their own server.
 - Web links open in your system browser, or in the
   [built-in browser](browser.md) when **Settings → Browser** says so.
 - Dropping files on a terminal pastes their paths.
