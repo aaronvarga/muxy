@@ -1,3 +1,4 @@
+mod fork;
 mod status;
 #[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
 mod tests;
@@ -20,6 +21,12 @@ use std::io::Write;
 
 #[derive(Default)]
 pub(super) struct Updater {
+    fork_release: Option<String>,
+    fork_check: Option<Task<()>>,
+    fork_poll: Option<Task<()>>,
+    fork_session: Option<muxy_app_core::PaneId>,
+    #[cfg(test)]
+    fork_lookup: Option<fork::Lookup>,
     installation: Option<Installation>,
     download: AppUpdatePhase,
     app_error: Option<String>,
@@ -76,6 +83,7 @@ impl Updater {
 
 impl AppModel {
     pub(super) fn start_update_checks(&mut self, cx: &mut Context<Self>) {
+        self.start_fork_release_checks(cx);
         if !self.supports(Feature::Updates) {
             return;
         }

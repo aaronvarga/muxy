@@ -230,6 +230,7 @@ fn footer(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {
         .when(model.appearance.sidebar_servers_visible, |footer| {
             footer.child(super::remote_servers::section(model, cx))
         })
+        .children(fork_update_button(model, cx))
         .child(settings_button(model, cx))
         .into_any_element()
 }
@@ -379,6 +380,29 @@ fn extensions_button(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement
             )
         })
         .into_any_element()
+}
+
+pub(super) fn fork_update_button(
+    model: &AppModel,
+    cx: &mut Context<AppModel>,
+) -> Option<Stateful<Div>> {
+    const ID: &str = "fork-update-button";
+    let tag = model.fork_update_release()?;
+    Some(
+        footer_button(
+            ID,
+            tr!("Update available: %@. Open Codex to rebase the fork.", tag),
+            model,
+        )
+        .button_interaction(cx.listener(|model, _, _, cx| model.rebase_fork_update(cx)))
+        .child(footer_icon(
+            ID,
+            Icon::ArrowUpCircle,
+            model.theme.accent,
+            None,
+            model,
+        )),
+    )
 }
 
 fn settings_button(model: &AppModel, cx: &mut Context<AppModel>) -> AnyElement {

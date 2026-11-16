@@ -491,6 +491,7 @@
 "Choose a target branch that exists on the remote" = "Choose a target branch that exists on the remote";
 "Choose an available provider and model before sending." = "Choose an available provider and model before sending.";
 "Choose an existing absolute folder path." = "Choose an existing absolute folder path.";
+"Choose an existing folder for the muxy project before updating the fork." = "Choose an existing folder for the muxy project before updating the fork.";
 "Choose an existing folder for the terminal." = "Choose an existing folder for the terminal.";
 "Choose an existing folder, or use Create & Add Project." = "Choose an existing folder, or use Create & Add Project.";
 "Choose an extension folder containing package.json or a built dist folder" = "Choose an extension folder containing package.json or a built dist folder";
@@ -2431,6 +2432,7 @@
 "Update and restart app…" = "Update and restart app…";
 "Update and restart the server to change a project folder." = "Update and restart the server to change a project folder.";
 "Update available" = "Update available";
+"Update available: %@. Open Codex to rebase the fork." = "Update available: %@. Open Codex to rebase the fork.";
 "Update download checksum mismatch" = "Update download checksum mismatch";
 "Update feed is too large" = "Update feed is too large";
 "Update from %@" = "Update from %@";

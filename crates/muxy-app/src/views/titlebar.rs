@@ -74,6 +74,7 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
     let notifications = shown(NOTIFICATIONS);
     let controls = u8::from(sessions)
         + u8::from(settings)
+        + u8::from(settings && model.fork_update_release().is_some())
         + 2 * u8::from(split)
         + u8::from(existing_count > 0)
         + u8::from(browser)
@@ -166,7 +167,11 @@ pub(super) fn actions(model: &AppModel, window: &Window, cx: &mut Context<AppMod
             bar.child(super::agent_sessions::button(model, cx))
         })
         .when(settings, |bar| {
-            bar.child(super::tab_strip::settings_button(model, cx))
+            bar.children(
+                super::sidebar::fork_update_button(model, cx)
+                    .map(|button| button.size(model.metrics.control_medium())),
+            )
+            .child(super::tab_strip::settings_button(model, cx))
         });
     #[cfg(target_os = "linux")]
     if let Some(controls) = linux::controls(
