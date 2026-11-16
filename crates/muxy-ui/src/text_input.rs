@@ -2,7 +2,7 @@ use muxy_core::shortcuts::ShortcutId;
 
 use crate::scrollbar::{MINIMUM_THUMB_LENGTH, TRACK_INSET, ThumbGeometry, WIDTH};
 use crate::theme::{Metrics, Theme};
-use gpui::accesskit::ActionData;
+use gpui::accesskit::{ActionData, Node, NodeId, Rect, TextDirection, TextPosition, TextSelection};
 use gpui::{
     AccessibleAction, App, Bounds, ClipboardItem, ContentMask, Context, CursorStyle, DispatchPhase,
     Element, ElementId, ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle,
@@ -563,6 +563,9 @@ pub struct TextInput {
     accessible_name: Option<SharedString>,
     /// The stable ID accessibility clients find the input by.
     accessibility_id: Option<SharedString>,
+    a11y_content: Option<SharedString>,
+    a11y_revision: usize,
+    a11y_runs: Vec<(NodeId, Range<usize>)>,
 }
 
 impl EventEmitter<InputEvent> for TextInput {}
@@ -607,6 +610,9 @@ impl TextInput {
             accessible_label: None,
             accessible_name: None,
             accessibility_id: None,
+            a11y_content: None,
+            a11y_revision: 0,
+            a11y_runs: Vec::new(),
         }
     }
 
@@ -1574,6 +1580,181 @@ impl TextInput {
     fn range_from_utf16(&self, range: &Range<usize>) -> Range<usize> {
         self.offset_from_utf16(range.start)..self.offset_from_utf16(range.end)
     }
+
+    fn a11y_position(&self, offset: usize) -> Option<TextPosition> {
+        let (node, range) = self
+            .a11y_runs
+            .iter()
+            .rev()
+            .find(|(_, range)| range.contains(&offset) || range.end == offset)?;
+        Some(TextPosition {
+            node: *node,
+            character_index: self.content[range.start..offset].chars().count(),
+        })
+    }
+
+    fn a11y_offset(&self, position: TextPosition) -> Option<usize> {
+        let (_, range) = self.a11y_runs.iter().find(|(id, _)| *id == position.node)?;
+        self.content
+            .get(range.clone())?
+            .char_indices()
+            .map(|(index, _)| range.start + index)
+            .chain(std::iter::once(range.end))
+            .nth(position.character_index)
+    }
+
+    fn set_a11y_selection(
+        &mut self,
+        selection: TextSelection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // Ignore positions from a tree that predates the current text.
+        if self.secure || self.a11y_content.as_ref() != Some(&self.content) {
+            return;
+        }
+        let (Some(anchor), Some(focus)) = (
+            self.a11y_offset(selection.anchor),
+            self.a11y_offset(selection.focus),
+        ) else {
+            return;
+        };
+        self.selected_range = anchor.min(focus)..anchor.max(focus);
+        self.selection_reversed = focus < anchor;
+        self.unmark_text(window, cx);
+        self.history.coalesce = false;
+        self.follow_caret = true;
+        self.goal_x = None;
+        window.invalidate_character_coordinates();
+        cx.notify();
+    }
+
+    fn a11y_action(
+        &mut self,
+        action: AccessibleAction,
+        data: Option<&ActionData>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match (action, data) {
+            (AccessibleAction::Click, _) => window.focus(&self.focus_handle),
+            (AccessibleAction::SetValue, Some(ActionData::Value(value))) => {
+                self.set_text(value.to_string(), cx);
+                cx.emit(InputEvent::Changed);
+                window.invalidate_character_coordinates();
+            }
+            (AccessibleAction::SetTextSelection, Some(ActionData::SetTextSelection(selection))) => {
+                self.set_a11y_selection(*selection, window, cx);
+            }
+            (AccessibleAction::ReplaceSelectedText, Some(ActionData::Value(value))) => {
+                let text = normalized_paste_text(value.to_string(), self.multiline);
+                self.replace_text_in_range(None, &text, window, cx);
+            }
+            _ => {}
+        }
+    }
+
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "Text rows use the same f32 coordinates as GPUI's painted layout."
+    )]
+    fn publish_a11y_text(&mut self, layout: &Layout, scroll: Point<Pixels>, window: &mut Window) {
+        self.a11y_runs.clear();
+        if self.secure || !window.is_a11y_active() {
+            self.a11y_content = None;
+            return;
+        }
+        if self.a11y_content.as_ref() != Some(&self.content) {
+            self.a11y_revision = self.a11y_revision.wrapping_add(1);
+        }
+        let scale = window.scale_factor();
+        let origin = layout.bounds.origin - scroll;
+        let mut row = 0;
+        for (line, hard_range) in layout.ranges.iter().enumerate() {
+            let Some(shaped) = layout.lines.get(line) else {
+                continue;
+            };
+            let mut start = hard_range.start;
+            for end in shaped
+                .wrap_boundaries()
+                .iter()
+                .map(|boundary| hard_range.start + wrap_index(shaped, *boundary))
+                .chain(std::iter::once(hard_range.end))
+            {
+                // Placeholders and ghost completions are not part of the editable value.
+                let range = if self.content.is_empty() {
+                    0..0
+                } else {
+                    let newline =
+                        end == hard_range.end && self.content.as_bytes().get(end) == Some(&b'\n');
+                    start..end + usize::from(newline)
+                };
+                let base = layout.x_of_offset(line, start);
+                let width = if self.content.is_empty() {
+                    px(0.0)
+                } else {
+                    layout.x_of_offset(line, end) - base
+                };
+                let top = origin.y + layout.line_height * row as f32;
+                let mut node = Node::new(Role::TextRun);
+                node.set_value(self.content[range.clone()].to_owned());
+                node.set_bounds(Rect {
+                    x0: f64::from(f32::from(origin.x) * scale),
+                    y0: f64::from(f32::from(top) * scale),
+                    x1: f64::from(f32::from(origin.x + width) * scale),
+                    y1: f64::from(f32::from(top + layout.line_height) * scale),
+                });
+                node.set_text_direction(TextDirection::LeftToRight);
+                let mut lengths = Vec::new();
+                let mut positions = Vec::new();
+                let mut widths = Vec::new();
+                for (offset, character) in self.content[range.clone()].char_indices() {
+                    let offset = range.start + offset;
+                    let x = layout.x_of_offset(line, offset);
+                    lengths.push(u8::try_from(character.len_utf8()).unwrap_or(4));
+                    positions.push(f32::from(x - base) * scale);
+                    widths.push(
+                        f32::from(
+                            (layout.x_of_offset(line, offset + character.len_utf8()) - x)
+                                .max(px(0.0)),
+                        ) * scale,
+                    );
+                }
+                node.set_character_lengths(lengths);
+                node.set_character_positions(positions);
+                node.set_character_widths(widths);
+                let id = window
+                    .with_global_id(("text-revision", self.a11y_revision).into(), |_, window| {
+                        window.add_a11y_child(("text-run", range.start), node)
+                    });
+                if let Some(id) = id {
+                    self.a11y_runs.push((id, range));
+                }
+                row += 1;
+                start = end;
+                if self.content.is_empty() {
+                    break;
+                }
+            }
+            if self.content.is_empty() {
+                break;
+            }
+        }
+        self.a11y_content = Some(self.content.clone());
+        let anchor = if self.selection_reversed {
+            self.selected_range.end
+        } else {
+            self.selected_range.start
+        };
+        if let (Some(anchor), Some(focus)) = (
+            self.a11y_position(anchor),
+            self.a11y_position(self.cursor_offset()),
+        ) {
+            window.update_a11y_node(|node| {
+                node.set_text_selection(TextSelection { anchor, focus });
+            });
+        }
+    }
 }
 
 impl EntityInputHandler for TextInput {
@@ -1767,22 +1948,6 @@ impl Render for TextInput {
             .when(!self.secure, |input| {
                 crate::accessibility::value(input, self.content.clone())
             })
-            .on_a11y_action(AccessibleAction::Click, {
-                let focus = self.focus_handle.clone();
-                move |_, window, _| window.focus(&focus)
-            })
-            .on_a11y_action(AccessibleAction::SetValue, {
-                let input = cx.entity().downgrade();
-                move |data, _, cx| {
-                    if let Some(ActionData::Value(value)) = data {
-                        let value = value.to_string();
-                        let _ = input.update(cx, |input, cx| {
-                            input.set_text(value, cx);
-                            cx.emit(InputEvent::Changed);
-                        });
-                    }
-                }
-            })
             .flex()
             .key_context(self.key_context)
             .track_focus(&self.focus_handle)
@@ -1832,6 +1997,18 @@ impl Render for TextInput {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_scroll_wheel(cx.listener(Self::on_scroll_wheel));
+
+        for action in [
+            AccessibleAction::Click,
+            AccessibleAction::SetValue,
+            AccessibleAction::SetTextSelection,
+            AccessibleAction::ReplaceSelectedText,
+        ] {
+            let input = cx.entity().downgrade();
+            container = container.on_a11y_action(action, move |data, window, cx| {
+                let _ = input.update(cx, |input, cx| input.a11y_action(action, data, window, cx));
+            });
+        }
 
         container = if self.multiline {
             container.flex_col().flex_grow().min_h(px(0.0))
@@ -2136,6 +2313,10 @@ impl Element for TextElement {
                 .corner_radii(px(WIDTH / 2.0))
             });
 
+        self.input.update(cx, |input, _| {
+            input.publish_a11y_text(&layout, scroll, window);
+        });
+
         PrepaintState {
             layout,
             ghost: ghost_line,
@@ -2312,7 +2493,7 @@ mod gpui_regression_tests {
         input.update_in(cx, |input, window, cx| {
             input.set_placeholder("Search");
             let named = input.render(window, cx).into_element();
-            let mut node = accesskit::Node::new(Role::TextInput);
+            let mut node = Node::new(Role::TextInput);
             named.write_a11y_info(&mut node);
             assert_eq!(named.a11y_role(), Some(Role::TextInput));
             assert_eq!(node.label(), Some("Search"));
@@ -2322,7 +2503,7 @@ mod gpui_regression_tests {
             input.accessible_label = Some("Composer");
             input.accessibility_id = Some("composer".into());
             let labelled = input.render(window, cx).into_element();
-            let mut node = accesskit::Node::new(Role::TextInput);
+            let mut node = Node::new(Role::TextInput);
             labelled.write_a11y_info(&mut node);
             assert_eq!(node.label(), Some("Composer"));
             assert_eq!(node.author_id(), Some("composer"));
@@ -2335,11 +2516,186 @@ mod gpui_regression_tests {
         input.update_in(cx, |input, window, cx| {
             input.secure = true;
             let secure = input.render(window, cx).into_element();
-            let mut node = accesskit::Node::new(Role::PasswordInput);
+            let mut node = Node::new(Role::PasswordInput);
             secure.write_a11y_info(&mut node);
             assert_eq!(secure.a11y_role(), Some(Role::PasswordInput));
             assert_eq!(node.value(), None);
         });
+        let tree = cx.a11y_tree();
+        assert!(
+            tree.nodes
+                .iter()
+                .all(|(_, node)| node.role() != Role::TextRun)
+        );
+        assert!(
+            tree.nodes
+                .iter()
+                .all(|(_, node)| node.text_selection().is_none())
+        );
+    }
+
+    fn a11y_action(
+        cx: &mut VisualTestContext,
+        target_node: NodeId,
+        action: AccessibleAction,
+        data: ActionData,
+    ) {
+        cx.dispatch_a11y_action(accesskit::ActionRequest {
+            action,
+            target_tree: accesskit::TreeId::ROOT,
+            target_node,
+            data: Some(data),
+        });
+    }
+
+    #[gpui::test]
+    #[allow(clippy::unwrap_used)]
+    fn accessibility_can_select_unicode_insert_a_completion_and_undo_it(cx: &mut TestAppContext) {
+        let text = "a😀e\u{301}\nhello ";
+        let (input, cx) = open(cx, text);
+        input.update(cx, |input, cx| {
+            input.multiline = true;
+            cx.notify();
+        });
+        let tree = cx.a11y_tree();
+        let (id, node) = tree
+            .nodes
+            .iter()
+            .find(|(_, node)| node.role() == Role::MultilineTextInput)
+            .unwrap();
+        let published = node
+            .children()
+            .iter()
+            .map(|id| {
+                tree.nodes
+                    .iter()
+                    .find(|(node_id, _)| node_id == id)
+                    .unwrap()
+                    .1
+                    .value()
+                    .unwrap()
+            })
+            .collect::<String>();
+        assert_eq!(published, text);
+        let selection = input.read_with(cx, |input, _| TextSelection {
+            anchor: input.a11y_position(5).unwrap(),
+            focus: input.a11y_position(1).unwrap(),
+        });
+        a11y_action(
+            cx,
+            *id,
+            AccessibleAction::SetTextSelection,
+            ActionData::SetTextSelection(selection),
+        );
+        input.read_with(cx, |input, _| {
+            assert_eq!(input.selected_text(), "😀");
+            assert!(input.selection_reversed);
+        });
+        a11y_action(
+            cx,
+            *id,
+            AccessibleAction::ReplaceSelectedText,
+            ActionData::Value("world".into()),
+        );
+        assert_eq!(
+            input.read_with(cx, |input, _| input.text().to_owned()),
+            "aworlde\u{301}\nhello "
+        );
+        cx.dispatch_action(Undo);
+        input.read_with(cx, |input, _| {
+            assert_eq!(input.text(), text);
+            assert_eq!(input.selected_text(), "😀");
+            assert!(input.selection_reversed);
+        });
+
+        input.update(cx, |input, cx| input.set_text("different text", cx));
+        let _ = cx.a11y_tree();
+        a11y_action(
+            cx,
+            *id,
+            AccessibleAction::SetTextSelection,
+            ActionData::SetTextSelection(selection),
+        );
+        input.read_with(cx, |input, _| assert_eq!(input.selected_range(), 14..14));
+    }
+
+    #[gpui::test]
+    #[allow(clippy::unwrap_used)]
+    fn accessibility_cursor_geometry_matches_wrapped_scrolled_text_and_empty_drafts(
+        cx: &mut TestAppContext,
+    ) {
+        let text =
+            "Words that wrap across several visual rows. 😀 More words and a final newline.\n";
+        let (input, cx) = open(cx, text);
+        input.update(cx, |input, cx| {
+            input.multiline = true;
+            input.follow_caret = true;
+            cx.notify();
+        });
+        cx.simulate_resize(size(px(140.0), px(60.0)));
+        let tree = cx.a11y_tree();
+        let (_, node) = tree
+            .nodes
+            .iter()
+            .find(|(_, node)| node.role() == Role::MultilineTextInput)
+            .unwrap();
+        assert!(node.children().len() > 2);
+        for id in node.children() {
+            let run = &tree
+                .nodes
+                .iter()
+                .find(|(node_id, _)| node_id == id)
+                .unwrap()
+                .1;
+            assert_eq!(
+                run.character_lengths()
+                    .iter()
+                    .map(|length| usize::from(*length))
+                    .sum::<usize>(),
+                run.value().unwrap().len()
+            );
+            assert_eq!(
+                run.character_positions().unwrap().len(),
+                run.character_lengths().len()
+            );
+            assert_eq!(
+                run.character_widths().unwrap().len(),
+                run.character_lengths().len()
+            );
+        }
+        let focus = node.text_selection().unwrap().focus;
+        let run = &tree
+            .nodes
+            .iter()
+            .find(|(id, _)| *id == focus.node)
+            .unwrap()
+            .1;
+        assert_eq!(run.value(), Some(""));
+        let bounds = run.bounds().unwrap();
+        let scale = cx.update(|window, _| window.scale_factor());
+        input.read_with(cx, |input, _| {
+            let layout = input.last_layout.as_ref().unwrap();
+            let caret = layout.position_for_offset(text.len());
+            assert!(input.scroll.y > px(0.0));
+            let x = f64::from(f32::from(layout.bounds.left() + caret.x - input.scroll.x) * scale);
+            let y = f64::from(f32::from(layout.bounds.top() + caret.y - input.scroll.y) * scale);
+            assert!((bounds.x0 - x).abs() < 0.01);
+            assert!((bounds.y0 - y).abs() < 0.01);
+        });
+
+        input.update(cx, |input, cx| {
+            input.set_text("", cx);
+            input.set_placeholder("A placeholder must not become draft text");
+        });
+        let tree = cx.a11y_tree();
+        let runs: Vec<_> = tree
+            .nodes
+            .iter()
+            .filter(|(_, node)| node.role() == Role::TextRun)
+            .collect();
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].1.value(), Some(""));
+        assert!(runs[0].1.bounds().unwrap().width().abs() < f64::EPSILON);
     }
 
     fn open<'a>(
