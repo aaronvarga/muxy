@@ -43,6 +43,96 @@ impl ButtonInteraction for gpui::Stateful<gpui::Div> {
     }
 }
 
+/// Shared attachment states; focus is the current chip selection.
+pub fn attachment_chip(
+    id: &str,
+    name: &str,
+    label: &str,
+    enabled: bool,
+    style: crate::controls::Style,
+    activate: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    remove: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> gpui::Stateful<gpui::Div> {
+    use gpui::prelude::FluentBuilder;
+    let crate::controls::Style { theme, metrics: m } = style;
+    let button = |id: String, label: String| {
+        div()
+            .id(SharedString::from(format!("settings-button-{id}")))
+            .role(Role::Button)
+            .accessibility_id(format!("settings-button-{id}"))
+            .aria_label(label)
+            .aria_disabled(!enabled)
+            .debug_selector(move || id.clone())
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_center()
+            .h(m.control_small())
+            .rounded(m.radius_sm())
+            .border_1()
+            .border_color(gpui::transparent_black())
+            .text_size(m.font_footnote())
+            .text_color(theme.fg_muted)
+            .when(!enabled, |button| button.opacity(0.4))
+    };
+    div()
+        .id(SharedString::from(format!("{id}-chip")))
+        .flex()
+        .flex_none()
+        .items_center()
+        .rounded(m.radius_sm())
+        .border_1()
+        .border_color(theme.border)
+        .bg(theme.surface)
+        .child(
+            button(id.to_owned(), label.to_owned())
+                .max_w(px(220.0))
+                .px(m.spacing3())
+                .when(enabled, |body| {
+                    body.cursor_pointer()
+                        .button_interaction(activate)
+                        .hover(|s| {
+                            s.bg(theme.hover)
+                                .text_size(m.font_footnote())
+                                .text_color(theme.fg)
+                                .border_color(theme.border)
+                        })
+                        .focus(|s| {
+                            s.bg(theme.accent.opacity(0.12))
+                                .text_size(m.font_footnote())
+                                .border_color(theme.accent.opacity(0.75))
+                                .text_color(theme.fg)
+                        })
+                        .active(|s| s.bg(theme.accent.opacity(0.22)).border_color(theme.accent))
+                })
+                .child(
+                    div()
+                        .min_w(px(0.0))
+                        .truncate()
+                        .child(SharedString::from(name.to_owned())),
+                ),
+        )
+        .child(
+            button(
+                format!("{id}-remove"),
+                crate::tr!("Remove %@", name).to_string(),
+            )
+            .w(m.control_small())
+            .when(enabled, |button| {
+                button
+                    .cursor_pointer()
+                    .button_interaction(move |event, window, cx| {
+                        cx.stop_propagation();
+                        remove(event, window, cx);
+                    })
+                    .hover(|s| s.bg(theme.danger.opacity(0.12)).text_color(theme.danger))
+                    .focus(|s| s.bg(theme.danger.opacity(0.12)).border_color(theme.danger))
+                    .active(|s| s.bg(theme.danger.opacity(0.22)))
+            })
+            .child(IconGlyph::new(Icon::X, m.icon_xs(), theme.fg_muted)),
+        )
+}
+
 #[derive(IntoElement, Debug)]
 #[must_use]
 pub struct IconGlyph {
