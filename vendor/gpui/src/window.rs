@@ -4654,6 +4654,34 @@ impl Window {
         self.a11y.is_active()
     }
 
+    /// Update the current element's accessibility node during prepaint, after
+    /// layout-dependent properties such as text selection are available.
+    pub fn update_a11y_node(&mut self, update: impl FnOnce(&mut accesskit::Node)) {
+        if self.is_a11y_active() {
+            if let Some(node) = self.a11y.nodes.current_node_mut() {
+                update(node);
+            }
+        }
+    }
+
+    /// Add a layout-dependent accessibility child during prepaint. `id` is
+    /// scoped to the current element, just like an ordinary child element ID.
+    pub fn add_a11y_child(
+        &mut self,
+        id: impl Into<ElementId>,
+        node: accesskit::Node,
+    ) -> Option<accesskit::NodeId> {
+        if !self.is_a11y_active() {
+            return None;
+        }
+        let id = self.with_global_id(id.into(), |id, _| id.accesskit_node_id());
+        if !self.a11y.nodes.push(id, node) {
+            return None;
+        }
+        self.a11y.nodes.pop();
+        Some(id)
+    }
+
     /// Views can't be reused from the last frame while assistive technology is
     /// connected, because their accessibility nodes are collected in prepaint.
     pub(crate) fn view_caching_disabled(&self, cx: &App) -> bool {

@@ -157,7 +157,7 @@ impl A11y {
         self.active_this_frame = self.active_flag.load(Ordering::SeqCst);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn activate_for_test(&mut self) {
         self.active_flag.store(true, Ordering::SeqCst);
     }
@@ -203,6 +203,10 @@ pub(crate) struct A11yNodeBuilder {
 }
 
 impl A11yNodeBuilder {
+    pub(crate) fn current_node_mut(&mut self) -> Option<&mut accesskit::Node> {
+        self.nodes_stack.last_mut()
+    }
+
     fn new() -> Self {
         Self {
             ids_stack: SmallVec::new(),
@@ -254,7 +258,10 @@ impl A11yNodeBuilder {
     pub(crate) fn checkpoint(&self) -> A11yCheckpoint {
         A11yCheckpoint {
             nodes: self.all_nodes.len(),
-            children: self.nodes_stack.last().map_or(0, |node| node.children().len()),
+            children: self
+                .nodes_stack
+                .last()
+                .map_or(0, |node| node.children().len()),
             focus: self.focus,
             #[cfg(debug_assertions)]
             has_set_focus: self.has_set_focus,

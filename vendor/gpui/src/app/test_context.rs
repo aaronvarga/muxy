@@ -710,6 +710,30 @@ impl VisualTestContext {
         self.cx.test_window(self.window).0.lock().title.clone()
     }
 
+    /// Draw the current accessibility tree as if an assistive client were connected.
+    pub fn a11y_tree(&mut self) -> accesskit::TreeUpdate {
+        self.update(|window, cx| {
+            window.a11y.activate_for_test();
+            window.refresh();
+            window.draw(cx).clear();
+            window
+                .platform_window
+                .as_test()
+                .unwrap()
+                .0
+                .lock()
+                .a11y_tree_updates
+                .pop()
+                .unwrap()
+        })
+    }
+
+    /// Dispatch an accessibility action through the same listeners as a platform adapter.
+    pub fn dispatch_a11y_action(&mut self, request: accesskit::ActionRequest) {
+        self.update(|window, cx| window.handle_a11y_action(request, cx));
+        self.run_until_parked();
+    }
+
     /// Simulate a sequence of keystrokes `cx.simulate_keystrokes("cmd-p escape")`
     /// Automatically runs until parked.
     pub fn simulate_keystrokes(&mut self, keystrokes: &str) {
