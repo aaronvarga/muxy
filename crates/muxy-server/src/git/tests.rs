@@ -60,6 +60,9 @@ impl Repository {
                     color: "#ffffff".into(),
                     kind: None,
                     parent_id: None,
+                    folders: Vec::new(),
+                    folder_entries: Vec::new(),
+                    auto_subfolders: false,
                 }),
             })
             .unwrap();
@@ -188,6 +191,9 @@ fn a_failing_hook_reports_the_hook_not_git() {
         color: "#ffffff".into(),
         kind: None,
         parent_id: None,
+        folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     let failure = |command: &str| {
         let hook = muxy_protocol::WorktreeHook {
@@ -212,4 +218,38 @@ fn a_failing_hook_reports_the_hook_not_git() {
         failure("head -c 5000000 /dev/zero"),
         "Worktree hook failed (Setup): its output exceeds 4 MiB"
     );
+}
+
+#[test]
+fn changing_a_project_folder_starts_a_watch_for_the_new_repository() {
+    let repository = Repository::new();
+    let destination = Repository::new();
+    let connection = Arc::new(Connection::new(Arc::default()));
+    let old = repository
+        .registry
+        .watch_git(repository.project, &connection)
+        .unwrap()
+        .unwrap();
+    repository
+        .registry
+        .mutate_project(&ProjectIntent {
+            operation: OperationId::new(),
+            mutation: ProjectMutation::Patch {
+                project: repository.project,
+                patch: muxy_protocol::ProjectPatch::Directory(ServerPath::from(&destination.path)),
+            },
+        })
+        .unwrap();
+    let new = repository
+        .registry
+        .watch_git(repository.project, &connection)
+        .unwrap()
+        .unwrap();
+    assert_eq!(old.project().1, repository.path);
+    assert_eq!(new.project().1, destination.path);
+    assert_eq!(repository.registry.git.watches.watching(), 2);
+    drop(old);
+    assert_eq!(repository.registry.git.watches.watching(), 1);
+    drop(new);
+    assert_eq!(repository.registry.git.watches.watching(), 0);
 }

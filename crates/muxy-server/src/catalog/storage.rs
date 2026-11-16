@@ -1,8 +1,9 @@
 use super::{Creation, GitReceipt, Membership, Receipt, State, expiry};
 use muxy_protocol::{
-    ErrorCode, ErrorReply, GitReply, OperationId, ProjectDescriptor, ProjectId, ProjectIntent,
-    ProjectKind, ProjectMutation, ProjectPatch, ServerIdentity, ServerPath, SessionId, SessionInfo,
-    SessionStatus, WorktreeAction, WorktreeHook, WorktreeIntent, WorktreeOptions, WorktreeRemoval,
+    ErrorCode, ErrorReply, FolderEntry, GitReply, OperationId, ProjectDescriptor, ProjectId,
+    ProjectIntent, ProjectKind, ProjectMutation, ProjectPatch, ServerIdentity, ServerPath,
+    SessionId, SessionInfo, SessionStatus, WorktreeAction, WorktreeHook, WorktreeIntent,
+    WorktreeOptions, WorktreeRemoval,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -50,6 +51,7 @@ open_unit_enum! {
     #[serde(rename_all = "snake_case")]
     enum StoredKind for ProjectKind {
         Worktree,
+        FolderGroup,
     }
 }
 
@@ -138,6 +140,13 @@ struct StoredProject {
     color: String,
     kind: Option<StoredKind>,
     parent_id: Option<ProjectId>,
+    /// Fork: the keys `ProjectDescriptor` stored before this layer existed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    folders: Vec<ServerPath>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    folder_entries: Vec<FolderEntry>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    auto_subfolders: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -199,6 +208,15 @@ enum StoredPatch {
     Icon(Option<String>),
     Color(String),
     Logo(Option<Arc<[u8]>>),
+    /// Fork: folders and folder groups, named as `ProjectPatch` stored them.
+    Folders(Vec<ServerPath>),
+    FolderEntries(Vec<FolderEntry>),
+    HomeDirectory(ServerPath),
+    Directory(ServerPath),
+    FolderSource {
+        directory: ServerPath,
+        auto_subfolders: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -382,6 +400,9 @@ impl From<&ProjectDescriptor> for StoredProject {
             color: project.color.clone(),
             kind: project.kind.map(StoredKind::from),
             parent_id: project.parent_id,
+            folders: project.folders.clone(),
+            folder_entries: project.folder_entries.clone(),
+            auto_subfolders: project.auto_subfolders,
         }
     }
 }
@@ -398,6 +419,9 @@ impl From<StoredProject> for ProjectDescriptor {
             color: project.color,
             kind: project.kind.map(ProjectKind::from),
             parent_id: project.parent_id,
+            folders: project.folders,
+            folder_entries: project.folder_entries,
+            auto_subfolders: project.auto_subfolders,
         }
     }
 }
@@ -519,6 +543,21 @@ impl From<&ProjectMutation> for StoredMutation {
                     ProjectPatch::Icon(icon) => StoredPatch::Icon(icon.clone()),
                     ProjectPatch::Color(color) => StoredPatch::Color(color.clone()),
                     ProjectPatch::Logo(logo) => StoredPatch::Logo(logo.clone()),
+                    ProjectPatch::Folders(folders) => StoredPatch::Folders(folders.clone()),
+                    ProjectPatch::FolderEntries(entries) => {
+                        StoredPatch::FolderEntries(entries.clone())
+                    }
+                    ProjectPatch::Directory(directory) => StoredPatch::Directory(directory.clone()),
+                    ProjectPatch::HomeDirectory(directory) => {
+                        StoredPatch::HomeDirectory(directory.clone())
+                    }
+                    ProjectPatch::FolderSource {
+                        directory,
+                        auto_subfolders,
+                    } => StoredPatch::FolderSource {
+                        directory: directory.clone(),
+                        auto_subfolders: *auto_subfolders,
+                    },
                 },
             },
             ProjectMutation::Delete(project) => Self::Delete(*project),
@@ -538,6 +577,17 @@ impl From<StoredMutation> for ProjectMutation {
                     StoredPatch::Icon(icon) => ProjectPatch::Icon(icon),
                     StoredPatch::Color(color) => ProjectPatch::Color(color),
                     StoredPatch::Logo(logo) => ProjectPatch::Logo(logo),
+                    StoredPatch::Folders(folders) => ProjectPatch::Folders(folders),
+                    StoredPatch::FolderEntries(entries) => ProjectPatch::FolderEntries(entries),
+                    StoredPatch::Directory(directory) => ProjectPatch::Directory(directory),
+                    StoredPatch::HomeDirectory(directory) => ProjectPatch::HomeDirectory(directory),
+                    StoredPatch::FolderSource {
+                        directory,
+                        auto_subfolders,
+                    } => ProjectPatch::FolderSource {
+                        directory,
+                        auto_subfolders,
+                    },
                 },
             },
             StoredMutation::Delete(project) => Self::Delete(project),

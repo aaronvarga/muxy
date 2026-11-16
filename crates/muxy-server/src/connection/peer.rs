@@ -37,6 +37,7 @@ struct Inner {
     /// Who shows which session changed; announced once the lock is released.
     positions_changed: bool,
     closed: bool,
+    chat_read_only: HashSet<SessionId>,
 }
 
 /// The server's end of one app connection.
@@ -448,6 +449,7 @@ impl Connection {
         inner
             .outbox
             .retain_control(|message| session_state(message) != Some(session));
+        inner.outbox.chat_unsubscribe(session);
         inner.references.lock().ended(session);
         inner.state.session_colors.remove(&session);
         inner.open_sessions.remove(&session);
@@ -469,6 +471,76 @@ impl Connection {
         self.ready.notify_one();
     }
 
+    /// Fork: replaces this connection's chat queue for the snapshot's
+    /// session with the snapshot. False once the connection is closed.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "used by the macOS chat host")
+    )]
+    pub(crate) fn chat_subscribe(&self, snapshot: muxy_protocol::ChatBatch) -> bool {
+        let mut inner = self.lock();
+        if inner.closed {
+            return false;
+        }
+        inner.chat_read_only.remove(&snapshot.session);
+        inner.outbox.chat_subscribe(snapshot);
+        self.ready.notify_one();
+        true
+    }
+
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "used by the macOS chat host")
+    )]
+    pub(crate) fn chat_unsubscribe(&self, session: SessionId) {
+        self.lock().outbox.chat_unsubscribe(session);
+    }
+
+    pub(crate) fn chat_console_read_only(&self, session: SessionId, generation: u64) {
+        let mut inner = self.lock();
+        inner.chat_read_only.insert(session);
+        let channels: Vec<_> = inner
+            .attachments
+            .iter()
+            .filter(|(_, attachment)| attachment.handle.info().id == session)
+            .map(|(channel, _)| *channel)
+            .collect();
+        for channel in channels {
+            inner.outbox.push_metadata(
+                channel,
+                MetadataEvent::ChatMode {
+                    mode: muxy_protocol::ChatMode::Console,
+                    generation,
+                },
+            );
+        }
+        self.ready.notify_one();
+    }
+
+    /// Queues chat events `revisions.0..revisions.1`. False when this
+    /// connection takes no more of the session's chat until it subscribes.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "used by the macOS chat host")
+    )]
+    pub(crate) fn push_chat(
+        &self,
+        session: SessionId,
+        generation: u64,
+        revisions: (u64, u64),
+        events: Vec<muxy_protocol::ChatEvent>,
+    ) -> bool {
+        let mut inner = self.lock();
+        if inner.closed {
+            return false;
+        }
+        let queued = inner
+            .outbox
+            .push_chat(session, generation, revisions, events);
+        self.ready.notify_one();
+        queued
+    }
+
     pub(super) fn push_frame(&self, channel: ChannelId, mut frame: ScreenFrame) -> bool {
         let mut inner = self.lock();
         inner.defer(&mut frame);
@@ -481,6 +553,20 @@ impl Connection {
 
     pub(super) fn push_metadata(&self, channel: ChannelId, event: MetadataEvent) -> bool {
         let mut inner = self.lock();
+        let event = if let MetadataEvent::ChatMode { generation, .. } = event {
+            if inner.attachments.get(&channel).is_some_and(|attachment| {
+                inner.chat_read_only.contains(&attachment.handle.info().id)
+            }) {
+                MetadataEvent::ChatMode {
+                    mode: muxy_protocol::ChatMode::Console,
+                    generation,
+                }
+            } else {
+                event
+            }
+        } else {
+            event
+        };
         if inner.closed || !inner.outbox.push_metadata(channel, event) {
             return false;
         }
@@ -495,23 +581,30 @@ impl Connection {
     }
 
     /// The next message to write; `None` once closed and drained of control messages.
-    pub(super) fn next(&self) -> Option<(ChannelId, Message)> {
+    pub(crate) fn next(&self) -> Option<(ChannelId, Message)> {
         let mut inner = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
         loop {
-            if let Some(next) = inner.outbox.next_control() {
+            let now = std::time::Instant::now();
+            let open = !inner.closed;
+            let images = inner.state.images;
+            if let Some(next) = inner.outbox.next(open, now, images) {
                 return Some(next);
             }
             if inner.closed {
                 return None;
             }
-            let images = inner.state.images;
-            if let Some(next) = inner.outbox.next_channel(images) {
-                return Some(next);
-            }
-            inner = self
-                .ready
-                .wait(inner)
-                .unwrap_or_else(PoisonError::into_inner);
+            inner = match inner.outbox.chat_due(now) {
+                Some(due) => {
+                    self.ready
+                        .wait_timeout(inner, due.saturating_duration_since(now))
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .0
+                }
+                None => self
+                    .ready
+                    .wait(inner)
+                    .unwrap_or_else(PoisonError::into_inner),
+            };
         }
     }
 

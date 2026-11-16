@@ -83,6 +83,9 @@ fn fields(
         Message::Fatal(error) => {
             encoder.array(1)?.encode(error)?;
         }
+        Message::Chat(batch) => {
+            encoder.array(1)?.encode(batch)?;
+        }
         Message::Frame(frame) => {
             encoder.array(1)?.encode(frame)?;
         }
@@ -200,6 +203,7 @@ fn message(kind: MessageKind, fields: &mut Fields<'_, '_>) -> Result<Message, De
             metadata: fields.next()?,
         },
         MessageKind::Fatal => Message::Fatal(fields.next()?),
+        MessageKind::Chat => Message::Chat(fields.next()?),
         MessageKind::Frame => Message::Frame(fields.next()?),
         MessageKind::Metadata => Message::Metadata(fields.next()?),
         MessageKind::Mouse => Message::Mouse(fields.next()?),

@@ -269,6 +269,10 @@ pub enum RequestBody {
     /// Saved screens still carry pixels. Older servers reply `Unsupported`.
     #[n(54)]
     StreamImages,
+    /// Fork: chat with a session's Claude Code. The high number keeps clear
+    /// of upstream's methods; older servers answer `Unsupported`.
+    #[n(1000)]
+    Chat(#[n(0)] crate::ChatRequest),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -400,6 +404,9 @@ pub enum ReplyBody {
     ImageFrames(#[n(0)] Vec<crate::ImageFrame>),
     #[n(47)]
     ImagesStreamed,
+    /// Fork: the answer to `RequestBody::Chat`.
+    #[n(1000)]
+    Chat(#[n(0)] crate::ChatReply),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

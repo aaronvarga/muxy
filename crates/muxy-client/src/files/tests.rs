@@ -20,7 +20,7 @@ macro_rules! case {
     ($fake:expr, $project:expr, $name:ident, $name_async:ident($($arg:expr),*),
         $action:expr, $reply:expr, $expected:expr) => {{
         let (fake, project): (&Fake, ProjectId) = ($fake, $project);
-        let sent = RequestBody::Files(FilesRequest { project, action: $action });
+        let sent = RequestBody::Files(FilesRequest { project, action: $action, root: None });
         let (request, result) =
             fake.answer(ReplyBody::Files($reply), |client| client.$name(project, $($arg),*));
         assert_eq!(request, sent, stringify!($name));
@@ -199,4 +199,27 @@ fn each_file_method_sends_its_action_and_accepts_only_its_reply() {
         FilesReply::Done,
         ()
     );
+}
+
+/// Fork: a request naming an extra folder must reach the server with its root,
+/// or the action lands in the project's main folder instead.
+#[test]
+fn files_requests_keep_their_root() {
+    let fake = Fake::start();
+    let request = FilesRequest {
+        project: ProjectId::new(),
+        action: FilesAction::List(path("docs")),
+        root: Some(path("/extra")),
+    };
+    let sent = RequestBody::Files(request.clone());
+    let (got, result) = fake.answer(ReplyBody::Files(FilesReply::Done), |client| {
+        client.files(request.clone())
+    });
+    assert_eq!(got, sent);
+    assert_eq!(result.expect("files"), FilesReply::Done);
+    let (got, result) = fake.answer(ReplyBody::Files(FilesReply::Done), |client| {
+        wait(client.files_async(request.clone()))
+    });
+    assert_eq!(got, sent);
+    assert_eq!(result.expect("files_async"), FilesReply::Done);
 }

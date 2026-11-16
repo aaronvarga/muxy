@@ -98,6 +98,8 @@ pub enum Message {
     GitChanged {
         project: crate::ProjectId,
     },
+    /// Fork: chat events for a session this connection subscribed to.
+    Chat(crate::ChatBatch),
 }
 
 impl Message {
@@ -137,6 +139,7 @@ impl Message {
             Self::FilesChanged { .. }
             | Self::SessionMetadata { .. }
             | Self::Progress { .. }
+            | Self::Chat(_)
             | Self::GitChanged { .. }
             | Self::Changed { .. }
             | Self::Hello { .. }

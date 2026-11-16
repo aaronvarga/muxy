@@ -102,7 +102,10 @@ fn new_sessions_refuse_environment_a_process_cannot_hold() {
 #[test]
 #[allow(clippy::too_many_lines)]
 fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
-    use muxy_protocol::{FilesAction, FilesReply, GitAction, GitPullRequestAction, GitReply};
+    use muxy_protocol::{
+        ChatEvent, ChatReply, ChatRequest, FilesAction, FilesReply, GitAction,
+        GitPullRequestAction, GitReply, PermissionResponse,
+    };
 
     let mut seen = BTreeSet::new();
     for message in Message::samples() {
@@ -120,6 +123,73 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             Message::UnsupportedRequest { .. } | Message::UnreadableReply { .. } => {
                 panic!("samples are messages a peer sends, not decoding outcomes")
             }
+            Message::Request {
+                body: RequestBody::Chat(request),
+                ..
+            } => (
+                match request {
+                    ChatRequest::Discover { .. } => "ChatDiscover",
+                    ChatRequest::PrepareSubmission { .. } => "ChatPrepare",
+                    ChatRequest::Begin { .. } => "ChatBegin",
+                    ChatRequest::EnterProvider { .. } => "ChatEnterProvider",
+                    ChatRequest::Submit { .. } => "ChatSubmit",
+                    ChatRequest::OperationStatus { .. } => "ChatOperationStatus",
+                    ChatRequest::LeaveProvider { .. } => "ChatLeaveProvider",
+                    ChatRequest::Enter { .. } => "ChatEnter",
+                    ChatRequest::Start { .. } => "ChatStart",
+                    ChatRequest::Leave { .. } => "ChatLeave",
+                    ChatRequest::Send { .. } => "ChatSend",
+                    ChatRequest::Interrupt { .. } => "ChatInterrupt",
+                    ChatRequest::Respond { response, .. } => match response {
+                        PermissionResponse::Tool(_) => "ChatRespondTool",
+                        PermissionResponse::Questions(_) => "ChatRespondQuestions",
+                        PermissionResponse::Plan(muxy_protocol::PlanDecision::Approve {
+                            ..
+                        }) => "ChatRespondPlanApprove",
+                        PermissionResponse::Plan(_) => "ChatRespondPlan",
+                        PermissionResponse::NativeChoice { .. } => "ChatNativeChoice",
+                        PermissionResponse::Dismiss { .. } => "ChatRespondDismiss",
+                    },
+                    ChatRequest::SetModel { .. } => "ChatSetModel",
+                    ChatRequest::SetEffort { .. } => "ChatSetEffort",
+                    ChatRequest::Subscribe { .. } => "ChatSubscribe",
+                    ChatRequest::Unsubscribe { .. } => "ChatUnsubscribe",
+                },
+                ChannelKind::Control,
+            ),
+            Message::Reply {
+                body: ReplyBody::Chat(reply),
+                ..
+            } => (
+                match reply {
+                    ChatReply::Discovered { .. } => "ChatDiscovered",
+                    ChatReply::Prepared { .. } => "ChatPrepared",
+                    ChatReply::Submission(_) => "ChatSubmission",
+                    ChatReply::Entered { .. } => "ChatEntered",
+                    ChatReply::Left { .. } => "ChatLeft",
+                    ChatReply::Ok => "ChatOk",
+                    ChatReply::Subscribed { .. } => "ChatSubscribed",
+                    ChatReply::Refused { .. } => "ChatRefused",
+                },
+                ChannelKind::Control,
+            ),
+            Message::Chat(batch) => (
+                match (batch.snapshot.as_deref(), batch.events.as_slice()) {
+                    (Some(_), []) => "ChatSnapshot",
+                    (None, [ChatEvent::Upsert(_)]) => "ChatUpsert",
+                    (None, [ChatEvent::Delta { .. }]) => "ChatDelta",
+                    (None, [ChatEvent::State(_)]) => "ChatState",
+                    (None, [ChatEvent::PermissionAdded(_)]) => "ChatPermissionAdded",
+                    (None, [ChatEvent::PermissionRemoved { .. }]) => "ChatPermissionRemoved",
+                    (None, [ChatEvent::Resync]) => "ChatResync",
+                    (None, [ChatEvent::Error { .. }]) => "ChatError",
+                    (None, [ChatEvent::Exited { .. }]) => "ChatExited",
+                    (None, [ChatEvent::Blocked { .. }]) => "ChatBlocked",
+                    _ => panic!("chat samples hold one event each"),
+                },
+                ChannelKind::Control,
+            ),
+            Message::Metadata(MetadataEvent::ChatMode { .. }) => ("ChatMode", ChannelKind::Session),
             Message::Request {
                 body: RequestBody::IdentifyClient(muxy_protocol::ClientKind::Mobile),
                 ..
@@ -361,6 +431,18 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
                     }),
                 ..
             } => ("HomeDirectory", ChannelKind::Control),
+            Message::Request {
+                body:
+                    RequestBody::MutateProject(muxy_protocol::ProjectIntent {
+                        mutation:
+                            muxy_protocol::ProjectMutation::Patch {
+                                patch: muxy_protocol::ProjectPatch::Directory(_),
+                                ..
+                            },
+                        ..
+                    }),
+                ..
+            } => ("ProjectDirectory", ChannelKind::Control),
             Message::Request {
                 body: RequestBody::MutateProject(_),
                 ..
@@ -711,6 +793,7 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "FolderEntries",
             "FolderSource",
             "HomeDirectory",
+            "ProjectDirectory",
             "PruneWorktree",
             "ListProjectSessions",
             "CancelCreation",
@@ -810,6 +893,47 @@ fn samples_cover_every_message_variant_once_and_use_the_right_channel() {
             "RemoteAccess",
             "Pairing",
             "Unauthorized",
+            "ChatDiscover",
+            "ChatPrepare",
+            "ChatBegin",
+            "ChatEnterProvider",
+            "ChatSubmit",
+            "ChatOperationStatus",
+            "ChatLeaveProvider",
+            "ChatNativeChoice",
+            "ChatDiscovered",
+            "ChatPrepared",
+            "ChatSubmission",
+            "ChatEnter",
+            "ChatStart",
+            "ChatLeave",
+            "ChatSend",
+            "ChatInterrupt",
+            "ChatRespondTool",
+            "ChatRespondQuestions",
+            "ChatRespondPlan",
+            "ChatRespondPlanApprove",
+            "ChatRespondDismiss",
+            "ChatSetModel",
+            "ChatSetEffort",
+            "ChatSubscribe",
+            "ChatUnsubscribe",
+            "ChatEntered",
+            "ChatLeft",
+            "ChatOk",
+            "ChatSubscribed",
+            "ChatRefused",
+            "ChatSnapshot",
+            "ChatUpsert",
+            "ChatDelta",
+            "ChatState",
+            "ChatPermissionAdded",
+            "ChatPermissionRemoved",
+            "ChatResync",
+            "ChatError",
+            "ChatExited",
+            "ChatBlocked",
+            "ChatMode",
         ])
     );
 }
@@ -1306,4 +1430,398 @@ fn project_folders_must_be_separate_normalized_and_only_on_top_level_projects() 
     worktree.kind = Some(ProjectKind::Worktree);
     worktree.parent_id = Some(ProjectId::new());
     assert!(worktree.validate().is_err());
+}
+
+fn chat(events: Vec<muxy_protocol::ChatEvent>) -> Message {
+    Message::Chat(muxy_protocol::ChatBatch {
+        session: session_id(),
+        generation: 1,
+        from_rev: 0,
+        to_rev: 1,
+        events,
+        snapshot: None,
+    })
+}
+
+fn chat_with_snapshot(
+    snapshot: Box<muxy_protocol::ChatSnapshot>,
+    events: Vec<muxy_protocol::ChatEvent>,
+) -> Message {
+    Message::Chat(muxy_protocol::ChatBatch {
+        session: session_id(),
+        generation: 1,
+        from_rev: 0,
+        to_rev: 1,
+        events,
+        snapshot: Some(snapshot),
+    })
+}
+
+fn chat_snapshot(
+    pending: Vec<muxy_protocol::PermissionPrompt>,
+    models: usize,
+) -> Box<muxy_protocol::ChatSnapshot> {
+    Box::new(muxy_protocol::ChatSnapshot {
+        subscription: 1,
+        items: Vec::new(),
+        state: muxy_protocol::ChatState::default(),
+        capabilities: muxy_protocol::ChatCapabilities {
+            models: (0..models)
+                .map(|index| muxy_protocol::ChatModel {
+                    images: None,
+                    default_effort: None,
+                    alias: format!("model-{index}"),
+                    label: "Model".into(),
+                    efforts: vec!["high".into()],
+                })
+                .collect(),
+            commands: Vec::new(),
+        },
+        pending,
+        has_earlier: false,
+    })
+}
+
+fn prompt(kind: muxy_protocol::PermissionKind) -> muxy_protocol::PermissionPrompt {
+    muxy_protocol::PermissionPrompt {
+        request_id: "request".into(),
+        tool_use_id: None,
+        kind,
+    }
+}
+
+#[test]
+fn chat_items_and_approvals_over_their_caps_are_rejected() {
+    use muxy_protocol::{
+        ChatEvent, ChatItem, ChatItemKind, ChatQuestion, MAX_CHAT_PLAN, MAX_CHAT_PREVIEW,
+        MAX_CHAT_QUESTIONS, MAX_CHAT_TEXT, MAX_CHAT_TOOL_PROMPT, PermissionKind,
+    };
+
+    let upsert = |kind| {
+        chat(vec![ChatEvent::Upsert(ChatItem {
+            id: "item".into(),
+            turn_id: "turn".into(),
+            seq: 1,
+            kind,
+        })])
+        .validate()
+    };
+    let markdown = |length| ChatItemKind::Assistant {
+        markdown: "x".repeat(length),
+        final_in_turn: true,
+    };
+    let tool = |length| ChatItemKind::Tool {
+        name: "Bash".into(),
+        summary: String::new(),
+        input_preview: String::new(),
+        result: Some("x".repeat(length)),
+        subagent_count: 0,
+        is_error: false,
+    };
+    assert_eq!(upsert(markdown(MAX_CHAT_TEXT)), Ok(()));
+    assert_eq!(
+        upsert(markdown(MAX_CHAT_TEXT + 1)),
+        Err(ErrorCode::BadRequest)
+    );
+    assert_eq!(upsert(tool(MAX_CHAT_PREVIEW)), Ok(()));
+    assert_eq!(
+        upsert(tool(MAX_CHAT_PREVIEW + 1)),
+        Err(ErrorCode::BadRequest)
+    );
+    let changed = |count, length| ChatItemKind::TurnEnd {
+        duration_ms: 1,
+        is_error: false,
+        changed: vec![
+            muxy_protocol::FileChange {
+                path: "x".repeat(length),
+                added: 1,
+                removed: 0,
+            };
+            count
+        ],
+    };
+    let files = muxy_protocol::MAX_CHAT_FILE_CHANGES;
+    assert_eq!(upsert(changed(files, MAX_CHAT_PREVIEW)), Ok(()));
+    assert_eq!(upsert(changed(files + 1, 1)), Err(ErrorCode::BadRequest));
+    assert_eq!(
+        upsert(changed(1, MAX_CHAT_PREVIEW + 1)),
+        Err(ErrorCode::BadRequest)
+    );
+
+    let added = |kind| chat(vec![ChatEvent::PermissionAdded(prompt(kind))]).validate();
+    let plan = |length| PermissionKind::Plan {
+        markdown: "x".repeat(length),
+    };
+    let questions = |length| PermissionKind::Questions {
+        questions: vec![ChatQuestion {
+            allow_other: None,
+            question: "x".repeat(length),
+            header: String::new(),
+            options: Vec::new(),
+            multi_select: false,
+        }],
+    };
+    // Title and detail share one cap.
+    let tool_prompt = |length| PermissionKind::Tool {
+        tool: "Bash".into(),
+        title: "x".repeat(length / 2),
+        detail: "x".repeat(length - length / 2),
+        always: None,
+    };
+    for (kind, cap) in [
+        (plan as fn(usize) -> PermissionKind, MAX_CHAT_PLAN),
+        (questions, MAX_CHAT_QUESTIONS),
+        (tool_prompt, MAX_CHAT_TOOL_PROMPT),
+    ] {
+        assert_eq!(added(kind(cap)), Ok(()));
+        assert_eq!(added(kind(cap + 1)), Err(ErrorCode::BadRequest));
+    }
+}
+
+#[test]
+fn question_previews_have_their_own_cap_and_count_toward_the_total() {
+    use muxy_protocol::{ChatEvent, ChatQuestion, MAX_CHAT_QUESTIONS, PermissionKind};
+
+    let added = |kind| chat(vec![ChatEvent::PermissionAdded(prompt(kind))]).validate();
+    // A preview has its own cap and counts toward the questions' total.
+    let preview = |length, options, questions| PermissionKind::Questions {
+        questions: vec![
+            ChatQuestion {
+                allow_other: None,
+                question: String::new(),
+                header: String::new(),
+                options: vec![
+                    muxy_protocol::ChatQuestionOption {
+                        label: String::new(),
+                        description: String::new(),
+                        preview: "x".repeat(length),
+                    };
+                    options
+                ],
+                multi_select: false,
+            };
+            questions
+        ],
+    };
+    let cap = muxy_protocol::MAX_CHAT_QUESTION_PREVIEW;
+    assert_eq!(added(preview(cap, 1, 1)), Ok(()));
+    assert_eq!(added(preview(cap + 1, 1, 1)), Err(ErrorCode::BadRequest));
+    // Each preview fits, but together they pass the questions' total.
+    let options = MAX_CHAT_QUESTIONS / cap / 2 + 1;
+    assert_eq!(added(preview(cap, options, 2)), Err(ErrorCode::BadRequest));
+}
+
+#[test]
+fn chat_snapshots_bound_pending_approvals_and_models_and_travel_alone() {
+    use muxy_protocol::{
+        ChatEvent, MAX_CHAT_EVENTS, MAX_CHAT_MODELS, MAX_CHAT_PLAN, PermissionKind,
+    };
+
+    let plans = |count| {
+        (0..count)
+            .map(|_| {
+                prompt(PermissionKind::Plan {
+                    markdown: "x".repeat(MAX_CHAT_PLAN),
+                })
+            })
+            .collect()
+    };
+    // Four plans at their cap fill the 1 MiB pending budget exactly.
+    assert_eq!(
+        chat_with_snapshot(chat_snapshot(plans(4), 1), Vec::new()).validate(),
+        Ok(())
+    );
+    assert_eq!(
+        chat_with_snapshot(chat_snapshot(plans(5), 1), Vec::new()).validate(),
+        Err(ErrorCode::BadRequest)
+    );
+    assert_eq!(
+        chat_with_snapshot(chat_snapshot(Vec::new(), MAX_CHAT_MODELS), Vec::new()).validate(),
+        Ok(())
+    );
+    assert_eq!(
+        chat_with_snapshot(chat_snapshot(Vec::new(), MAX_CHAT_MODELS + 1), Vec::new()).validate(),
+        Err(ErrorCode::BadRequest)
+    );
+    assert_eq!(
+        chat_with_snapshot(chat_snapshot(Vec::new(), 1), vec![ChatEvent::Resync]).validate(),
+        Err(ErrorCode::BadRequest)
+    );
+    assert_eq!(
+        chat(vec![ChatEvent::Resync; MAX_CHAT_EVENTS]).validate(),
+        Ok(())
+    );
+    assert_eq!(
+        chat(vec![ChatEvent::Resync; MAX_CHAT_EVENTS + 1]).validate(),
+        Err(ErrorCode::BadRequest)
+    );
+    let backwards = Message::Chat(muxy_protocol::ChatBatch {
+        session: session_id(),
+        generation: 1,
+        from_rev: 2,
+        to_rev: 1,
+        events: Vec::new(),
+        snapshot: None,
+    });
+    assert_eq!(backwards.validate(), Err(ErrorCode::BadRequest));
+}
+
+#[test]
+fn chat_subscriptions_bound_their_feature_list() {
+    use muxy_protocol::{ChatRequest, Feature, MAX_CHAT_FEATURES};
+
+    let subscribe = |count| {
+        request(RequestBody::Chat(ChatRequest::Subscribe {
+            session: session_id(),
+            subscription: 1,
+            features: vec![Feature::AGENT_CHAT; count],
+        }))
+        .validate()
+    };
+    assert_eq!(subscribe(MAX_CHAT_FEATURES), Ok(()));
+    assert_eq!(subscribe(MAX_CHAT_FEATURES + 1), Err(ErrorCode::BadRequest));
+}
+
+#[test]
+fn chat_prompts_refuse_too_many_large_or_mislabelled_images() {
+    use muxy_protocol::{
+        ChatImage, ChatImageType, ChatRequest, MAX_CHAT_IMAGE_BYTES, MAX_CHAT_IMAGES, MAX_CHAT_TEXT,
+    };
+
+    let png = |length: usize| {
+        let mut bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+        bytes.resize(length, 0);
+        ChatImage {
+            mime: ChatImageType::Png,
+            bytes,
+        }
+    };
+    let send = |text: String, images| {
+        request(RequestBody::Chat(ChatRequest::Send {
+            session: session_id(),
+            generation: 1,
+            text,
+            images,
+        }))
+        .validate()
+    };
+    assert_eq!(
+        send("x".repeat(MAX_CHAT_TEXT), vec![png(16); MAX_CHAT_IMAGES]),
+        Ok(())
+    );
+    for (text, images) in [
+        ("x".repeat(MAX_CHAT_TEXT + 1), Vec::new()),
+        (String::new(), vec![png(16); MAX_CHAT_IMAGES + 1]),
+        (String::new(), vec![png(MAX_CHAT_IMAGE_BYTES + 1)]),
+        // Each within its own cap, but 15 MiB together.
+        (String::new(), vec![png(MAX_CHAT_IMAGE_BYTES); 3]),
+    ] {
+        assert_eq!(send(text, images), Err(ErrorCode::BadRequest));
+    }
+    for (mime, bytes) in [
+        (ChatImageType::Jpeg, b"\x89PNG\r\n\x1a\n".to_vec()),
+        (ChatImageType::Png, b"\xff\xd8\xff\xe0".to_vec()),
+        (ChatImageType::Webp, b"RIFF\0\0\0\0WAVE".to_vec()),
+        (ChatImageType::Gif, b"GIF8".to_vec()),
+    ] {
+        assert_eq!(
+            send(String::new(), vec![ChatImage { mime, bytes }]),
+            Err(ErrorCode::BadRequest),
+            "{mime:?}"
+        );
+    }
+    for (mime, bytes) in [
+        (ChatImageType::Jpeg, b"\xff\xd8\xff\xe0".to_vec()),
+        (ChatImageType::Gif, b"GIF89a".to_vec()),
+        (ChatImageType::Webp, b"RIFF\0\0\0\0WEBPVP8 ".to_vec()),
+    ] {
+        assert_eq!(
+            send(String::new(), vec![ChatImage { mime, bytes }]),
+            Ok(()),
+            "{mime:?}"
+        );
+    }
+}
+
+#[test]
+fn chat_answers_are_capped_by_count_not_only_by_bytes() {
+    use muxy_protocol::{ChatAnswer, ChatRequest, MAX_CHAT_QUESTION_ENTRIES, PermissionResponse};
+
+    let respond = |count: usize| {
+        request(RequestBody::Chat(ChatRequest::Respond {
+            session: session_id(),
+            generation: 1,
+            request_id: "request".into(),
+            response: PermissionResponse::Questions(vec![
+                ChatAnswer {
+                    question: String::new(),
+                    answers: Vec::new(),
+                };
+                count
+            ]),
+        }))
+        .validate()
+    };
+    let one_answer = |count: usize| {
+        request(RequestBody::Chat(ChatRequest::Respond {
+            session: session_id(),
+            generation: 1,
+            request_id: "request".into(),
+            response: PermissionResponse::Questions(vec![ChatAnswer {
+                question: String::new(),
+                answers: vec![String::new(); count],
+            }]),
+        }))
+        .validate()
+    };
+    assert_eq!(one_answer(MAX_CHAT_QUESTION_ENTRIES), Ok(()));
+    assert_eq!(
+        one_answer(MAX_CHAT_QUESTION_ENTRIES + 1),
+        Err(ErrorCode::BadRequest)
+    );
+    assert_eq!(respond(MAX_CHAT_QUESTION_ENTRIES), Ok(()));
+    // Empty answers weigh nothing in bytes, but a peer could still send millions.
+    assert_eq!(
+        respond(MAX_CHAT_QUESTION_ENTRIES + 1),
+        Err(ErrorCode::BadRequest)
+    );
+}
+
+#[test]
+fn chat_commands_are_bounded_typeable_words() {
+    use muxy_protocol::{
+        ChatCommand, MAX_CHAT_COMMAND_DESCRIPTION, MAX_CHAT_COMMAND_NAME, MAX_CHAT_COMMANDS,
+    };
+
+    let with = |commands: Vec<ChatCommand>| {
+        let mut snapshot = chat_snapshot(Vec::new(), 1);
+        snapshot.capabilities.commands = commands;
+        chat_with_snapshot(snapshot, Vec::new()).validate()
+    };
+    let command = |name: &str, description: usize| ChatCommand {
+        name: name.into(),
+        description: "d".repeat(description),
+        skill: false,
+    };
+    let longest = "n".repeat(MAX_CHAT_COMMAND_NAME);
+    assert_eq!(
+        with(vec![
+            command("codex:review", MAX_CHAT_COMMAND_DESCRIPTION),
+            command(&longest, 0)
+        ]),
+        Ok(())
+    );
+    assert_eq!(with(vec![command("compact", 0); MAX_CHAT_COMMANDS]), Ok(()));
+    for bad in [
+        vec![command("compact", 0); MAX_CHAT_COMMANDS + 1],
+        vec![command(&format!("{longest}n"), 0)],
+        vec![command("compact", MAX_CHAT_COMMAND_DESCRIPTION + 1)],
+        // A name must be one typed word: not empty, no spaces, no control or non-ASCII bytes.
+        vec![command("", 0)],
+        vec![command("Robinhood:market overview (MCP)", 0)],
+        vec![command("caf\u{e9}", 0)],
+        vec![command("a\tb", 0)],
+    ] {
+        assert_eq!(with(bad), Err(ErrorCode::BadRequest));
+    }
 }

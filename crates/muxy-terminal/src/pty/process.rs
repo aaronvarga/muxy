@@ -3,7 +3,7 @@ use std::fmt;
 use std::io::Write;
 use std::os::unix::io::RawFd;
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::sync::mpsc::Sender;
 
@@ -66,12 +66,18 @@ pub struct Pty {
     child: Child,
     child_pid: u32,
     master_fd: RawFd,
+    environment: Vec<(OsString, OsString)>,
+    /// The terminal device `openpty` named while its slave side was still open.
+    tty_path: Option<PathBuf>,
     size: PtySize,
     cell: crate::CellSize,
 }
 
 impl Pty {
     pub fn spawn(request: SpawnRequest) -> Result<Self, PtyError> {
+        let mut environment: std::collections::BTreeMap<_, _> = std::env::vars_os().collect();
+        environment.extend(request.env.iter().cloned());
+        let environment = environment.into_iter().collect();
         let size = request.size;
         let cell = crate::CellSize::default();
         let PtyPair { master, slave } = native_pty_system()
@@ -80,6 +86,8 @@ impl Pty {
         let master_fd = master
             .as_raw_fd()
             .ok_or_else(|| PtyError::wrap(PtyStep::Open, "master side has no file descriptor"))?;
+
+        let tty_path = master.tty_name();
 
         let mut command = CommandBuilder::new(request.program);
         command.args(request.args);
@@ -106,9 +114,15 @@ impl Pty {
             child: *child,
             child_pid,
             master_fd,
+            environment,
+            tty_path,
             size,
             cell,
         })
+    }
+
+    pub fn environment(&self) -> &[(OsString, OsString)] {
+        &self.environment
     }
 
     pub fn start_reader<T>(&self, sink: Sender<T>) -> Result<ReaderHandle, PtyError>
@@ -180,6 +194,24 @@ impl Pty {
 
     pub fn master_fd(&self) -> RawFd {
         self.master_fd
+    }
+
+    /// The terminal device's path, for code that must open it by name (such as
+    /// discarding unread input). `None` if the platform couldn't name it.
+    pub fn tty_path(&self) -> Option<&Path> {
+        self.tty_path.as_deref()
+    }
+
+    /// A duplicate of the master side's descriptor, so another thread can query
+    /// the terminal without racing this `Pty` closing it.
+    pub fn clone_master(&self) -> std::io::Result<std::os::fd::OwnedFd> {
+        #[allow(
+            unsafe_code,
+            reason = "the master descriptor is owned by `self.master` and stays open while `self` lives"
+        )]
+        // SAFETY: `master_fd` belongs to `self.master`, which outlives this borrow.
+        let master = unsafe { std::os::fd::BorrowedFd::borrow_raw(self.master_fd) };
+        master.try_clone_to_owned()
     }
 }
 

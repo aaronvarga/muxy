@@ -1,3 +1,6 @@
+#[cfg(target_os = "macos")]
+mod chat;
+mod input_gate;
 mod metadata;
 mod owner;
 
@@ -17,6 +20,14 @@ use crate::notifier::Notifier;
 pub(crate) use owner::OwnerEvent;
 
 pub(crate) use owner::start;
+
+#[cfg(target_os = "macos")]
+pub(crate) use chat::Services as ChatServices;
+
+/// Fork: the chat host's shared services; chat is macOS only.
+#[cfg(not(target_os = "macos"))]
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ChatServices;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct AttachmentId(pub u64);
@@ -71,6 +82,65 @@ pub enum SessionCommand {
         reply: Sender<Result<SearchPage, ServerError>>,
     },
     Stop,
+    /// Fork: a chat request, answered through its `reply`.
+    Chat(ChatCommand),
+}
+
+/// Fork: a chat request for one session and where its reply goes.
+pub struct ChatCommand {
+    pub(crate) request: muxy_protocol::ChatRequest,
+    /// The requesting connection, which `Subscribe` registers.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "chat is macOS only")
+    )]
+    pub(crate) from: std::sync::Weak<Connection>,
+    pub(crate) reply: ChatReplyTo,
+}
+
+impl fmt::Debug for ChatCommand {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ChatCommand")
+            .field("request", &self.request)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Where a chat reply goes; Enter and Leave answer when their transition ends.
+pub(crate) enum ChatReplyTo {
+    Outbox {
+        outbox: std::sync::Weak<Connection>,
+        id: muxy_protocol::RequestId,
+    },
+    #[cfg(target_os = "macos")]
+    Channel(Sender<muxy_protocol::ChatReply>),
+    /// A transition the server started itself, such as after Claude exited.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "chat is macOS only")
+    )]
+    Nobody,
+}
+
+impl ChatReplyTo {
+    pub(crate) fn send(self, reply: muxy_protocol::ChatReply) {
+        match self {
+            Self::Outbox { outbox, id } => {
+                if let Some(outbox) = outbox.upgrade() {
+                    outbox.push_control(Message::Reply {
+                        id,
+                        body: muxy_protocol::ReplyBody::Chat(reply),
+                    });
+                }
+            }
+            #[cfg(target_os = "macos")]
+            Self::Channel(sender) => {
+                let _ = sender.send(reply);
+            }
+            Self::Nobody => {}
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -249,8 +319,19 @@ impl SessionHandle {
     }
 
     /// Hands an undelivered command back, so the caller decides where its sink drops.
-    pub(crate) fn try_send(&self, command: SessionCommand) -> Result<(), SendError<OwnerEvent>> {
-        self.commands.send(OwnerEvent::Command(command))
+    pub(crate) fn try_send(
+        &self,
+        command: SessionCommand,
+    ) -> Result<(), Box<SendError<OwnerEvent>>> {
+        self.commands
+            .send(OwnerEvent::Command(command))
+            .map_err(Box::new)
+    }
+
+    /// Delivers an owner event as if a PTY or supervisor thread had sent it.
+    #[cfg(all(test, target_os = "macos"))]
+    pub(crate) fn inject(&self, event: OwnerEvent) {
+        let _ = self.commands.send(event);
     }
 
     /// A handle whose commands arrive on the returned receiver instead of a session thread.

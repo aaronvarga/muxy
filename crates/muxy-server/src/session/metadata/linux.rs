@@ -91,12 +91,10 @@ pub(super) fn open_files(pid: i32) -> Vec<std::path::PathBuf> {
 }
 
 pub(super) fn agent_provider(group: u32) -> Option<muxy_protocol::AgentProvider> {
-    group_members(group)
-        .into_iter()
-        .find_map(|(pid, name)| {
-            let leader = u32::try_from(pid).is_ok_and(|pid| pid == group);
-            crate::detection::identify_member(&name, &process_arguments(pid), leader)
-        })
+    group_members(group).into_iter().find_map(|(pid, name)| {
+        let leader = u32::try_from(pid).is_ok_and(|pid| pid == group);
+        crate::detection::identify_member(&name, &process_arguments(pid), leader)
+    })
 }
 
 #[cfg(test)]

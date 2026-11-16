@@ -1,8 +1,8 @@
-mod agent_session;
+pub(super) mod agent_session;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "macos")]
-mod macos;
+pub(super) mod macos;
 #[cfg(target_os = "linux")]
 use linux as platform;
 #[cfg(target_os = "macos")]

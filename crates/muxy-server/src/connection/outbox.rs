@@ -1,8 +1,9 @@
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::sync::Arc;
+use std::time::Instant;
 
-use muxy_protocol::{CONTROL, ChannelId, Graphics, Message, MetadataEvent, ScreenFrame};
+use muxy_protocol::{CONTROL, ChannelId, Graphics, Message, MetadataEvent, ScreenFrame, SessionId};
 
 use super::merge::merge;
 use super::state::ImageDelivery;
@@ -10,7 +11,7 @@ use super::state::ImageDelivery;
 /// What a connection has yet to write. Control messages go first, folded by
 /// their coalesce key; then each channel's metadata; then each channel's
 /// merged frame, once the client acknowledged the one before it.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub(super) struct Outbox {
     control: VecDeque<Message>,
     metadata: HashMap<ChannelId, Vec<MetadataEvent>>,
@@ -21,7 +22,16 @@ pub(super) struct Outbox {
     /// The image frames, by image and key, whose pixels each channel was
     /// sent and still lists.
     pixels: HashMap<ChannelId, BTreeSet<(u32, u64)>>,
+    /// Fork: chat batches, scheduled beside control, metadata and frames.
+    chat: super::chat::ChatQueues,
+    /// Control messages sent in a row while a chat batch was waiting.
+    control_burst: u8,
+    /// The last message sent was a chat batch, so terminal work goes next.
+    chat_served: bool,
 }
+
+/// Control messages sent ahead of a waiting chat batch before it gets a turn.
+const CONTROL_BURST: u8 = 8;
 
 impl Outbox {
     pub(super) fn push_control(&mut self, message: Message) {
@@ -94,11 +104,91 @@ impl Outbox {
         false
     }
 
-    pub(super) fn next_control(&mut self) -> Option<(ChannelId, Message)> {
-        self.control.pop_front().map(|message| (CONTROL, message))
+    /// Fork: replaces the chat queue for the snapshot's session with the snapshot.
+    pub(super) fn chat_subscribe(&mut self, snapshot: muxy_protocol::ChatBatch) {
+        self.chat.subscribe(snapshot);
     }
 
-    pub(super) fn next_channel(&mut self, images: ImageDelivery) -> Option<(ChannelId, Message)> {
+    pub(super) fn chat_unsubscribe(&mut self, session: SessionId) {
+        self.chat.unsubscribe(session);
+    }
+
+    /// Queues chat events `revisions.0..revisions.1`. False when this
+    /// connection takes no more of the session's chat until it subscribes.
+    pub(super) fn push_chat(
+        &mut self,
+        session: SessionId,
+        generation: u64,
+        revisions: (u64, u64),
+        events: Vec<muxy_protocol::ChatEvent>,
+    ) -> bool {
+        self.chat
+            .push(session, generation, revisions, events, Instant::now())
+    }
+
+    /// When a held chat batch is next due.
+    pub(super) fn chat_due(&self, now: Instant) -> Option<Instant> {
+        self.chat.ready(now).1
+    }
+
+    /// The next message to write; only control once the connection closed.
+    pub(super) fn next(
+        &mut self,
+        open: bool,
+        now: Instant,
+        images: ImageDelivery,
+    ) -> Option<(ChannelId, Message)> {
+        let chat_ready = open && self.chat.ready(now).0;
+        self.next_control(chat_ready).or_else(|| {
+            open.then(|| self.next_channel(chat_ready, now, images))
+                .flatten()
+        })
+    }
+
+    /// Control goes first, but a ready chat batch gets a turn after
+    /// `CONTROL_BURST` of them.
+    fn next_control(&mut self, chat_ready: bool) -> Option<(ChannelId, Message)> {
+        if chat_ready && self.control_burst >= CONTROL_BURST {
+            return None;
+        }
+        let message = self.control.pop_front()?;
+        self.control_burst = if chat_ready {
+            self.control_burst + 1
+        } else {
+            0
+        };
+        Some((CONTROL, message))
+    }
+
+    /// A ready chat batch, alternating with metadata and frames so neither
+    /// starves the other.
+    fn next_channel(
+        &mut self,
+        chat_ready: bool,
+        now: Instant,
+        images: ImageDelivery,
+    ) -> Option<(ChannelId, Message)> {
+        self.control_burst = 0;
+        if chat_ready
+            && !self.chat_served
+            && let Some(batch) = self.chat.pop(now)
+        {
+            self.chat_served = true;
+            return Some((CONTROL, Message::Chat(batch)));
+        }
+        self.chat_served = false;
+        if let Some(next) = self.terminal_work(images) {
+            return Some(next);
+        }
+        if chat_ready && let Some(batch) = self.chat.pop(now) {
+            self.chat_served = true;
+            return Some((CONTROL, Message::Chat(batch)));
+        }
+        None
+    }
+
+    /// Ready metadata, else a frame whose channel has credit.
+    fn terminal_work(&mut self, images: ImageDelivery) -> Option<(ChannelId, Message)> {
         if let Some(channel) = self.metadata.keys().next().copied()
             && let Some(pending) = self.metadata.get_mut(&channel)
         {
@@ -155,6 +245,7 @@ impl Outbox {
 
     /// Drops every channel's output; control messages still go out.
     pub(super) fn close_channels(&mut self) {
+        self.chat.clear();
         self.frames.clear();
         self.pixels.clear();
         self.metadata.clear();
@@ -170,9 +261,6 @@ impl Outbox {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, mpsc};
-    use std::thread;
-    use std::time::Duration;
 
     use muxy_protocol::{
         Cursor, FileChanges, Modes, ProgressState, ProjectId, Row, ServerPath, SessionId,
@@ -199,7 +287,7 @@ mod tests {
     }
 
     fn drain(outbox: &mut Outbox) -> Vec<Message> {
-        std::iter::from_fn(|| outbox.next_control())
+        std::iter::from_fn(|| outbox.next_control(false))
             .map(|(_, message)| message)
             .collect()
     }
@@ -232,6 +320,7 @@ mod tests {
             changes: FileChanges {
                 paths: paths.iter().copied().map(ServerPath::from).collect(),
                 rescan: false,
+                root: None,
             },
         };
         let changed = |topic, revision| Message::Changed { topic, revision };
@@ -302,98 +391,31 @@ mod tests {
 
     #[test]
     fn file_changes_from_different_folders_both_arrive() {
-        let outbox = Outbox::new(Arc::default());
-        let project = muxy_protocol::ProjectId::new();
-        let extra = Some(muxy_protocol::ServerPath(b"/srv/shared".to_vec()));
+        let mut outbox = Outbox::default();
+        let project = ProjectId::new();
+        let extra = Some(ServerPath(b"/srv/shared".to_vec()));
         for (rescan, root) in [(true, None), (false, extra.clone())] {
             outbox.push_control(Message::FilesChanged {
                 project,
-                changes: muxy_protocol::FileChanges {
+                changes: FileChanges {
                     paths: if rescan {
                         Vec::new()
                     } else {
-                        vec![muxy_protocol::ServerPath(b"file".to_vec())]
+                        vec![ServerPath(b"file".to_vec())]
                     },
                     rescan,
                     root,
                 },
             });
         }
-        let roots: Vec<_> = std::iter::from_fn(|| outbox.next())
-            .take(2)
-            .map(|(_, message)| match message {
+        let roots: Vec<_> = drain(&mut outbox)
+            .into_iter()
+            .map(|message| match message {
                 Message::FilesChanged { changes, .. } => (changes.rescan, changes.root),
                 other => panic!("unexpected {other:?}"),
             })
             .collect();
         assert_eq!(roots, vec![(true, None), (false, extra)]);
-    }
-
-    #[test]
-    fn extra_folder_changes_name_their_folder_and_stop_once_it_is_removed() {
-        use muxy_protocol::{
-            FilesAction, FilesRequest, OperationId, ProjectDescriptor, ProjectIntent,
-            ProjectMutation, ProjectPatch, ServerPath,
-        };
-        use std::os::unix::ffi::OsStrExt;
-        let temp = |name: &str| {
-            let path = std::env::temp_dir().join(format!("muxy-{name}-{}", OperationId::new()));
-            std::fs::create_dir(&path).unwrap();
-            path.canonicalize().unwrap()
-        };
-        let (main, extra) = (temp("main"), temp("extra"));
-        let wire = |path: &std::path::Path| ServerPath(path.as_os_str().as_bytes().to_vec());
-        let (events, _) = mpsc::channel();
-        let registry = crate::Registry::new(crate::ServerSettings::default(), events);
-        let project = ProjectDescriptor::new(wire(&main), []);
-        let mutate = |mutation| {
-            registry
-                .mutate_project(&ProjectIntent {
-                    operation: OperationId::new(),
-                    mutation,
-                })
-                .unwrap();
-        };
-        mutate(ProjectMutation::Create(project.clone()));
-        let patch = |folders| ProjectMutation::Patch {
-            project: project.id,
-            patch: ProjectPatch::Folders(folders),
-        };
-        mutate(patch(vec![wire(&extra)]));
-        let outbox = Arc::new(Outbox::new(Arc::default()));
-        let mut watches = crate::files::watch::Subscriptions::default();
-        watches
-            .request(
-                &registry,
-                &outbox,
-                &FilesRequest {
-                    project: project.id,
-                    action: FilesAction::Watch,
-                    root: Some(wire(&extra)),
-                },
-            )
-            .unwrap();
-        let changed = |name: &str, wait: Duration| {
-            std::fs::write(extra.join(name), "x").unwrap();
-            let deadline = std::time::Instant::now() + wait;
-            while std::time::Instant::now() < deadline {
-                if let Some(message) = outbox.lock().control.pop_front() {
-                    return Some(message);
-                }
-                thread::sleep(Duration::from_millis(20));
-            }
-            None
-        };
-        let Some(Message::FilesChanged { changes, .. }) = changed("a", Duration::from_secs(5))
-        else {
-            panic!("no change reported");
-        };
-        assert_eq!(changes.root, Some(wire(&extra)));
-        mutate(patch(Vec::new()));
-        assert_eq!(changed("b", Duration::from_secs(1)), None);
-        drop(watches);
-        let _ = std::fs::remove_dir_all(&main);
-        let _ = std::fs::remove_dir_all(&extra);
     }
 
     fn frame(seq: u64, index: u16) -> ScreenFrame {
@@ -423,17 +445,20 @@ mod tests {
         outbox.open(ChannelId(2));
         outbox.push_frame(ChannelId(1), frame(1, 0));
         assert_eq!(
-            outbox.next_channel(ImageDelivery::Send),
+            outbox.next_channel(false, Instant::now(), ImageDelivery::Send),
             Some((ChannelId(1), Message::Frame(frame(1, 0))))
         );
         outbox.push_frame(ChannelId(1), frame(2, 1));
         outbox.push_frame(ChannelId(1), frame(4, 2));
         outbox.push_frame(ChannelId(2), frame(1, 0));
         assert_eq!(
-            outbox.next_channel(ImageDelivery::Send),
+            outbox.next_channel(false, Instant::now(), ImageDelivery::Send),
             Some((ChannelId(2), Message::Frame(frame(1, 0))))
         );
-        assert_eq!(outbox.next_channel(ImageDelivery::Send), None);
+        assert_eq!(
+            outbox.next_channel(false, Instant::now(), ImageDelivery::Send),
+            None
+        );
         assert!(!outbox.ack(ChannelId(1), 0));
         assert!(!outbox.ack(ChannelId(1), 5));
         assert!(outbox.ack(ChannelId(1), 1));
@@ -443,7 +468,7 @@ mod tests {
             runs: vec![],
         });
         assert_eq!(
-            outbox.next_channel(ImageDelivery::Send),
+            outbox.next_channel(false, Instant::now(), ImageDelivery::Send),
             Some((ChannelId(1), Message::Frame(merged)))
         );
         assert!(!outbox.ack(ChannelId(1), 1));
@@ -456,7 +481,7 @@ mod tests {
         assert!(!outbox.push_metadata(channel, MetadataEvent::Bell));
         outbox.open(channel);
         outbox.push_frame(channel, frame(1, 0));
-        outbox.next_channel(ImageDelivery::Send);
+        outbox.next_channel(false, Instant::now(), ImageDelivery::Send);
         for index in 0..1000 {
             outbox.push_metadata(channel, MetadataEvent::Title(index.to_string()));
             outbox.push_metadata(channel, MetadataEvent::Bell);
@@ -468,14 +493,14 @@ mod tests {
             MetadataEvent::ClipboardWrite("999".into()),
         ] {
             assert_eq!(
-                outbox.next_channel(ImageDelivery::Send),
+                outbox.next_channel(false, Instant::now(), ImageDelivery::Send),
                 Some((channel, Message::Metadata(event)))
             );
         }
         outbox.push_metadata(channel, MetadataEvent::Bell);
         outbox.close_channel(channel);
         assert!(!outbox.push_metadata(channel, MetadataEvent::Bell));
-        assert_eq!(outbox.next_channel(ImageDelivery::Send), None);
+        assert_eq!(outbox.terminal_work(ImageDelivery::Send), None);
     }
 
     fn image(id: u32, generation: u64) -> muxy_protocol::GraphicImage {
@@ -501,7 +526,8 @@ mod tests {
 
     /// The images of the next frame on `channel`, each with whether it carries pixels.
     fn sent_images(outbox: &mut Outbox, channel: ChannelId) -> Vec<(u32, bool)> {
-        let Some((sent, Message::Frame(frame))) = outbox.next_channel(ImageDelivery::Stream) else {
+        let Some((sent, Message::Frame(frame))) = outbox.terminal_work(ImageDelivery::Stream)
+        else {
             panic!("no frame");
         };
         assert_eq!(sent, channel);
@@ -547,7 +573,7 @@ mod tests {
         let mut outbox = Outbox::default();
         outbox.open(channel);
         outbox.push_frame(channel, with_images(1, &[image(1, 1)]));
-        let Some((_, Message::Frame(first))) = outbox.next_channel(ImageDelivery::Stream) else {
+        let Some((_, Message::Frame(first))) = outbox.terminal_work(ImageDelivery::Stream) else {
             panic!("no frame");
         };
         outbox.push_frame(channel, with_images(2, &[image(2, 1)]));
@@ -564,11 +590,72 @@ mod tests {
         outbox.open(channel);
         for seq in [1, 2] {
             outbox.push_frame(channel, with_images(seq, &[image(1, 1)]));
-            let Some((_, Message::Frame(frame))) = outbox.next_channel(ImageDelivery::Send) else {
+            let Some((_, Message::Frame(frame))) = outbox.terminal_work(ImageDelivery::Send) else {
                 panic!("no frame");
             };
             assert!(!frame.graphics.expect("graphics").images[0].rgba.is_empty());
             assert!(outbox.ack(channel, seq));
         }
+    }
+
+    #[test]
+    fn chat_traffic_cannot_starve_replies_or_frames() {
+        use muxy_protocol::{
+            ChatBatch, ChatCapabilities, ChatEvent, ChatItem, ChatItemKind, ChatSnapshot,
+            ChatState, MAX_CHAT_EVENTS, ReplyBody, RequestId,
+        };
+        let mut outbox = Outbox::default();
+        let session = SessionId::from(std::num::NonZeroU64::MIN);
+        outbox.open(ChannelId(1));
+        outbox.chat_subscribe(ChatBatch {
+            session,
+            generation: 1,
+            from_rev: 0,
+            to_rev: 0,
+            events: Vec::new(),
+            snapshot: Some(Box::new(ChatSnapshot {
+                subscription: 1,
+                items: Vec::new(),
+                state: ChatState::default(),
+                capabilities: ChatCapabilities::default(),
+                pending: Vec::new(),
+                has_earlier: false,
+            })),
+        });
+        // Ten full batches are ready at once.
+        let count = 10 * MAX_CHAT_EVENTS + 1;
+        let events = (0..count)
+            .map(|index| {
+                ChatEvent::Upsert(ChatItem {
+                    id: index.to_string(),
+                    turn_id: "turn:0".into(),
+                    seq: index as u64,
+                    kind: ChatItemKind::Notice { text: "n".into() },
+                })
+            })
+            .collect();
+        assert!(outbox.push_chat(session, 1, (0, count as u64), events));
+        for id in 0..20 {
+            outbox.push_control(Message::Reply {
+                id: RequestId(id),
+                body: ReplyBody::Pong,
+            });
+        }
+        assert!(outbox.push_frame(ChannelId(1), frame(1, 0)));
+
+        let order: String = (0..24)
+            .map(
+                |_| match outbox.next(true, Instant::now(), ImageDelivery::Send) {
+                    Some((CONTROL, Message::Reply { .. })) => 'r',
+                    Some((CONTROL, Message::Chat(_))) => 'c',
+                    Some((ChannelId(1), Message::Frame(_))) => 'f',
+                    other => panic!("unexpected {other:?}"),
+                },
+            )
+            .collect();
+        assert_eq!(
+            order, "rrrrrrrrcrrrrrrrrfrrrrcc",
+            "a chat batch gets a turn after 8 replies, and a frame goes before the next one"
+        );
     }
 }

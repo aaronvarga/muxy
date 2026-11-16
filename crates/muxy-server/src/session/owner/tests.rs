@@ -34,7 +34,17 @@ impl Fixture {
         let (events, receiver) = mpsc::channel();
         let (input, pending) = mpsc::channel();
         let (sink, frames) = mpsc::channel();
+        let input = Arc::new(InputGate::new(input, Arc::new(AtomicBool::new(false))));
+        #[cfg(target_os = "macos")]
+        let chat = super::super::chat::Host::new(
+            info.clone(),
+            super::super::ChatServices::default(),
+            events.clone(),
+            input.clone(),
+        );
         let owner = Owner {
+            #[cfg(target_os = "macos")]
+            chat,
             metadata: Metadata::new(info.directory.clone()),
             info,
             pty,

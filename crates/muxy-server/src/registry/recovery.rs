@@ -104,6 +104,9 @@ fn a_moved_session_leaves_its_old_project_and_survives_restart() -> TestResult {
         directory: ServerPath::from(folder.as_path()),
         kind: None,
         parent_id: None,
+        folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     registry.mutate_project(&ProjectIntent {
         operation: OperationId::new(),

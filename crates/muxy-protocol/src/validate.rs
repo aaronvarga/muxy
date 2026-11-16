@@ -13,6 +13,56 @@ pub const MAX_AGENT_ARGUMENT: usize = 4096;
 
 pub const MAX_INPUT: usize = 1024 * 1024;
 
+/// Chat item text, such as an assistant's markdown; the server shortens longer text.
+pub const MAX_CHAT_TEXT: usize = 256 * 1024;
+/// A tool item's summary, input preview and result, and short chat details.
+pub const MAX_CHAT_PREVIEW: usize = 8 * 1024;
+/// Ids, model aliases and labels, effort levels and tool names in chat.
+pub const MAX_CHAT_NAME: usize = 256;
+/// Files one turn's summary lists as changed; the server keeps the first ones.
+pub const MAX_CHAT_FILE_CHANGES: usize = 64;
+/// A plan awaiting approval. Approvals are never shortened; the server
+/// denies one over its cap.
+pub const MAX_CHAT_PLAN: usize = 256 * 1024;
+/// The questions of one approval, or the answers to them.
+pub const MAX_CHAT_QUESTIONS: usize = 64 * 1024;
+/// One question option's preview; the server shortens longer ones. Previews
+/// also count toward `MAX_CHAT_QUESTIONS`.
+pub const MAX_CHAT_QUESTION_PREVIEW: usize = 4 * 1024;
+/// A tool approval's title and detail together.
+pub const MAX_CHAT_TOOL_PROMPT: usize = 64 * 1024;
+/// All pending approvals together.
+pub const MAX_CHAT_PENDING: usize = 1024 * 1024;
+/// Events in one chat batch.
+pub const MAX_CHAT_EVENTS: usize = 256;
+/// An ordinary chat batch's encoding, checked by the server when it encodes one.
+pub const MAX_CHAT_BATCH_BYTES: usize = 1024 * 1024;
+/// A snapshot batch's encoding, pending approvals included, checked by the
+/// server when it encodes one.
+pub const MAX_CHAT_SNAPSHOT_BYTES: usize = 3 * 1024 * 1024;
+pub const MAX_CHAT_IMAGES: usize = 5;
+pub const MAX_CHAT_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+/// All images of one prompt together.
+pub const MAX_CHAT_IMAGES_BYTES: usize = 12 * 1024 * 1024;
+pub const MAX_CHAT_MODELS: usize = 32;
+/// Slash commands one chat lists; the server keeps the first ones.
+pub const MAX_CHAT_COMMANDS: usize = 512;
+/// A slash command's name, without its `/`; the server drops longer ones.
+pub const MAX_CHAT_COMMAND_NAME: usize = 128;
+/// A slash command's description; the server shortens longer ones.
+pub const MAX_CHAT_COMMAND_DESCRIPTION: usize = 256;
+/// Effort levels of one model.
+pub const MAX_CHAT_EFFORTS: usize = 8;
+/// Questions in one approval, options in one question, and answers in one
+/// response. Counted separately from bytes, so empty entries can't pile up.
+pub const MAX_CHAT_QUESTION_ENTRIES: usize = 16;
+/// Pending approvals at once.
+pub const MAX_CHAT_PENDING_PROMPTS: usize = 64;
+/// Features one chat subscription lists.
+pub const MAX_CHAT_FEATURES: usize = 64;
+/// Items in one snapshot.
+pub const MAX_CHAT_SNAPSHOT_ITEMS: usize = 16 * 1024;
+
 pub fn validate_search(query: &str, max_results: u16) -> Result<(), ErrorCode> {
     if !(1..=256).contains(&query.len()) {
         return Err(ErrorCode::BadRequest);
@@ -166,6 +216,7 @@ impl Message {
                 }
             }
             Self::FilesChanged { changes, .. } => changes.validate(),
+            Self::Chat(batch) => batch.validate(),
             Self::SessionMetadata { metadata, .. } => validate_path(&metadata.directory),
             Self::Changed { .. }
             | Self::GitChanged { .. }
@@ -182,7 +233,8 @@ impl Message {
                 | MetadataEvent::Bell
                 | MetadataEvent::History { .. }
                 | MetadataEvent::InputModes(_)
-                | MetadataEvent::CursorBlinking(_),
+                | MetadataEvent::CursorBlinking(_)
+                | MetadataEvent::ChatMode { .. },
             ) => Ok(()),
         }
     }
@@ -234,6 +286,7 @@ fn validate_request(body: &RequestBody) -> Result<(), ErrorCode> {
         RequestBody::ListFolders(path) => validate_absolute_path(path),
         RequestBody::Upload(chunk) => chunk.validate(),
         RequestBody::Exec(request) => request.validate(),
+        RequestBody::Chat(request) => request.validate(),
         RequestBody::SyncSessionReferences { sessions, .. } => {
             if sessions.len() > 16_384 {
                 Err(ErrorCode::BadRequest)
@@ -357,6 +410,7 @@ fn validate_reply(body: &ReplyBody) -> Result<(), ErrorCode> {
         ReplyBody::Folders(names) => crate::validate_folder_names(names),
         ReplyBody::Uploaded(path) => crate::validate_uploaded(path.as_ref()),
         ReplyBody::Exec(reply) => reply.validate(),
+        ReplyBody::Chat(reply) => reply.validate(),
         ReplyBody::Catalog(page) => page.validate(),
         ReplyBody::ProjectSessions(page) => page.validate(),
         ReplyBody::ServerSettings(settings) => settings.validate(),

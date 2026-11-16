@@ -39,6 +39,9 @@ pub(super) fn sample() -> State {
         color: "#e5484d".into(),
         kind: None,
         parent_id: None,
+        folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     let project = ProjectDescriptor {
         id: ProjectId::from_u128(2),
@@ -50,6 +53,9 @@ pub(super) fn sample() -> State {
         color: "#30a46c".into(),
         kind: None,
         parent_id: None,
+        folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     let worktree = ProjectDescriptor {
         id: ProjectId::from_u128(3),
@@ -61,6 +67,9 @@ pub(super) fn sample() -> State {
         color: "#30a46c".into(),
         kind: Some(ProjectKind::Worktree),
         parent_id: Some(project.id),
+        folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     let info = |id: u64, project: &ProjectDescriptor| SessionInfo {
         project: project.id,
@@ -541,6 +550,9 @@ fn a_session_moves_only_to_a_project_that_stays_and_never_while_discarded() {
         color: "#30a46c".into(),
         kind: None,
         parent_id: None,
+        folders: Vec::new(),
+        folder_entries: Vec::new(),
+        auto_subfolders: false,
     };
     let (app, leaving) = (project(2), project(3));
     state.projects.insert(app.id, app.clone());

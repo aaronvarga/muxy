@@ -1,4 +1,5 @@
 mod auth;
+mod chat;
 mod handshake;
 mod merge;
 mod outbox;

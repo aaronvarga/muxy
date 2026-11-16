@@ -14,12 +14,13 @@ impl Client {
     /// Any file action, answered with whatever the server sends, for callers
     /// that handle actions as data.
     pub fn files(&self, request: FilesRequest) -> Result<FilesReply, ClientError> {
-        self.send_files(request.project, request.action, any)
+        // Fork: the whole request, so a `root` naming an extra folder survives.
+        any(self.request_with_timeout(RequestBody::Files(request), FILES_TIMEOUT)?)
     }
 
     /// Like `files`, without blocking.
     pub fn files_async(&self, request: FilesRequest) -> Request<FilesReply> {
-        self.send_files_async(request.project, request.action, any)
+        self.request_async(RequestBody::Files(request), FILES_TIMEOUT, any)
     }
 
     fn send_files<T>(

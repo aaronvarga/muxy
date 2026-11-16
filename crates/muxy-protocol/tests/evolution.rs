@@ -294,3 +294,247 @@ fn fork_folder_capability_cannot_alias_upstream_computer_pairing() {
     let unique: std::collections::BTreeSet<_> = muxy_protocol::FEATURES.iter().collect();
     assert_eq!(unique.len(), muxy_protocol::FEATURES.len());
 }
+
+#[test]
+fn chat_requests_and_replies_from_a_newer_build_are_correlated() -> Result<(), Box<dyn Error>> {
+    // Chat (method 1000) holding a chat request this build doesn't know.
+    let request = cbor(|e| {
+        e.array(2)?.encode(RequestId(7))?;
+        e.array(2)?.u32(1000)?.array(1)?;
+        e.array(2)?.u32(99)?.array(1)?.str("newer")?;
+        Ok(())
+    })?;
+    assert_eq!(
+        decode_one(&frame(MessageKind::Request as u8, CONTROL, &request)?)?,
+        Some((CONTROL, Message::UnsupportedRequest { id: RequestId(7) }))
+    );
+    let reply = cbor(|e| {
+        e.array(2)?.encode(RequestId(8))?;
+        e.array(2)?.u32(1000)?.array(1)?;
+        e.array(2)?.u32(99)?.array(0)?;
+        Ok(())
+    })?;
+    assert_eq!(
+        decode_one(&frame(MessageKind::Reply as u8, CONTROL, &reply)?)?,
+        Some((CONTROL, Message::UnreadableReply { id: RequestId(8) }))
+    );
+    Ok(())
+}
+
+/// Dropping a whole batch for one newer event would leave a revision gap, and
+/// the snapshot after resubscribing would hold the same event again. Skipping
+/// the event instead keeps revisions continuous.
+#[test]
+fn chat_batches_skip_only_events_and_items_a_newer_build_added() -> Result<(), Box<dyn Error>> {
+    use muxy_protocol::{
+        ChatBatch, ChatCapabilities, ChatEvent, ChatItem, ChatItemKind, ChatSnapshot, ChatState,
+    };
+
+    let session = SessionId::new(3).ok_or("zero ID")?;
+    let known = ChatItem {
+        id: "a".into(),
+        turn_id: "t".into(),
+        seq: 1,
+        kind: ChatItemKind::Notice {
+            text: "kept".into(),
+        },
+    };
+    let ordinary = cbor(|e| {
+        e.array(1)?
+            .array(5)?
+            .encode(session)?
+            .u64(1)?
+            .u64(4)?
+            .u64(6)?;
+        e.array(2)?;
+        e.array(2)?.u32(99)?.array(1)?.str("newer event")?;
+        e.encode(ChatEvent::Resync)?;
+        Ok(())
+    })?;
+    assert_eq!(
+        decode_one(&frame(MessageKind::Chat as u8, CONTROL, &ordinary)?)?,
+        Some((
+            CONTROL,
+            Message::Chat(ChatBatch {
+                session,
+                generation: 1,
+                from_rev: 4,
+                to_rev: 6,
+                events: vec![ChatEvent::Resync],
+                snapshot: None,
+            })
+        ))
+    );
+    let snapshot = cbor(|e| {
+        e.array(1)?
+            .array(6)?
+            .encode(session)?
+            .u64(1)?
+            .u64(0)?
+            .u64(9)?;
+        e.array(0)?;
+        // [subscription, items, state, capabilities, pending, has_earlier]
+        e.array(6)?.u32(2)?;
+        e.array(2)?.encode(&known)?;
+        e.array(4)?.str("b")?.str("t")?.u64(2)?;
+        e.array(2)?.u32(99)?.array(0)?;
+        e.encode(ChatState::default())?
+            .encode(ChatCapabilities::default())?
+            .array(0)?
+            .bool(false)?;
+        Ok(())
+    })?;
+    let Some((_, Message::Chat(batch))) =
+        decode_one(&frame(MessageKind::Chat as u8, CONTROL, &snapshot)?)?
+    else {
+        return Err("the snapshot batch was dropped".into());
+    };
+    assert!(batch.events.is_empty());
+    assert_eq!(
+        batch.snapshot,
+        Some(Box::new(ChatSnapshot {
+            subscription: 2,
+            items: vec![known],
+            state: ChatState::default(),
+            capabilities: ChatCapabilities::default(),
+            pending: Vec::new(),
+            has_earlier: false,
+        }))
+    );
+    Ok(())
+}
+
+/// Option previews were added after questions shipped: an older build's option has
+/// no preview, and an older build skips the one this build sends.
+#[test]
+fn question_option_previews_cross_builds_in_both_directions() -> Result<(), Box<dyn Error>> {
+    use muxy_protocol::ChatQuestionOption;
+
+    #[derive(Debug, PartialEq, minicbor::Decode)]
+    struct OlderOption {
+        #[n(0)]
+        label: String,
+        #[n(1)]
+        description: String,
+    }
+
+    let older = cbor(|e| {
+        e.array(2)?.str("Red")?.str("Pick red")?;
+        Ok(())
+    })?;
+    assert_eq!(
+        minicbor::decode::<ChatQuestionOption>(&older)?,
+        ChatQuestionOption {
+            label: "Red".into(),
+            description: "Pick red".into(),
+            preview: String::new(),
+        }
+    );
+
+    let option = ChatQuestionOption {
+        label: "Red".into(),
+        description: "Pick red".into(),
+        preview: "+-----+\n| red |\n+-----+".into(),
+    };
+    let newer = minicbor::to_vec(&option)?;
+    assert_eq!(minicbor::decode::<ChatQuestionOption>(&newer)?, option);
+    assert_eq!(
+        minicbor::decode::<OlderOption>(&newer)?,
+        OlderOption {
+            label: "Red".into(),
+            description: "Pick red".into(),
+        }
+    );
+    Ok(())
+}
+
+/// Slash commands were added to capabilities after chat shipped: an older server's
+/// capabilities have none, and an older client skips the ones this build sends.
+#[test]
+fn chat_commands_cross_builds_in_both_directions() -> Result<(), Box<dyn Error>> {
+    use muxy_protocol::{ChatCapabilities, ChatCommand, ChatModel};
+
+    #[derive(Debug, PartialEq, minicbor::Decode)]
+    struct OlderCapabilities {
+        #[n(0)]
+        models: Vec<ChatModel>,
+    }
+
+    let model = ChatModel {
+        images: None,
+        default_effort: None,
+        alias: "opus".into(),
+        label: "Opus".into(),
+        efforts: vec!["high".into()],
+    };
+    let older = cbor(|e| {
+        e.array(1)?.array(1)?.encode(&model)?;
+        Ok(())
+    })?;
+    assert_eq!(
+        minicbor::decode::<ChatCapabilities>(&older)?,
+        ChatCapabilities {
+            models: vec![model.clone()],
+            commands: Vec::new(),
+        }
+    );
+
+    let capabilities = ChatCapabilities {
+        models: vec![model.clone()],
+        commands: vec![ChatCommand {
+            name: "codex:review".into(),
+            description: "Review with Codex".into(),
+            skill: true,
+        }],
+    };
+    let newer = minicbor::to_vec(&capabilities)?;
+    assert_eq!(minicbor::decode::<ChatCapabilities>(&newer)?, capabilities);
+    assert_eq!(
+        minicbor::decode::<OlderCapabilities>(&newer)?,
+        OlderCapabilities {
+            models: vec![model],
+        }
+    );
+    Ok(())
+}
+
+#[test]
+fn provider_state_is_additive_and_legacy_states_keep_claude_defaults() -> Result<(), Box<dyn Error>>
+{
+    use muxy_protocol::{ChatProvider, ChatState};
+    #[derive(minicbor::Decode)]
+    struct OlderState {
+        #[n(0)]
+        busy: bool,
+        #[n(1)]
+        quiescent: bool,
+        #[n(2)]
+        model: Option<String>,
+    }
+    let state = ChatState {
+        provider: Some(ChatProvider::Codex),
+        shared_engine: true,
+        model: Some("native-model".into()),
+        quiescent: true,
+        ..ChatState::default()
+    };
+    let encoded = minicbor::to_vec(&state)?;
+    let older: OlderState = minicbor::decode(&encoded)?;
+    assert!(!older.busy && older.quiescent);
+    assert_eq!(older.model.as_deref(), Some("native-model"));
+    let legacy = cbor(|encoder| {
+        encoder
+            .array(6)?
+            .bool(false)?
+            .bool(true)?
+            .null()?
+            .null()?
+            .u8(0)?
+            .null()?;
+        Ok(())
+    })?;
+    let restored: ChatState = minicbor::decode(&legacy)?;
+    assert_eq!(restored.provider, None);
+    assert!(!restored.shared_engine && restored.target.is_none());
+    Ok(())
+}

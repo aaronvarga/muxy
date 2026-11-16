@@ -20,7 +20,7 @@ pub(super) fn foreground_member(group: u32) -> Option<(i32, String)> {
     members.into_iter().find_map(named)
 }
 
-pub(super) fn process_directory(pid: i32) -> Option<ServerPath> {
+pub(in crate::session) fn process_directory(pid: i32) -> Option<ServerPath> {
     let info = proc_pid::pidinfo::<VnodePathInfo>(pid, 0).ok()?;
     let path = &info.current.path;
     let length = path.iter().position(|byte| *byte == 0)?;
@@ -84,7 +84,7 @@ impl PIDFDInfo for VnodeFdPathInfo {
 }
 
 /// The foreground group's processes, by pid, with their names.
-pub(super) fn group_members(group: u32) -> Vec<(i32, String)> {
+pub(in crate::session) fn group_members(group: u32) -> Vec<(i32, String)> {
     let mut pids =
         processes::pids_by_type(ProcFilter::ByProgramGroup { pgrpid: group }).unwrap_or_default();
     pids.sort_unstable();
@@ -118,19 +118,40 @@ pub(super) fn open_files(pid: i32) -> Vec<PathBuf> {
 }
 
 pub(super) fn agent_provider(group: u32) -> Option<muxy_protocol::AgentProvider> {
-    group_members(group)
-        .into_iter()
-        .find_map(|(pid, name)| {
-            let leader = u32::try_from(pid).is_ok_and(|pid| pid == group);
-            crate::detection::identify_member(&name, &process_arguments(pid), leader)
-        })
+    group_members(group).into_iter().find_map(|(pid, name)| {
+        let leader = u32::try_from(pid).is_ok_and(|pid| pid == group);
+        crate::detection::identify_member(&name, &process_arguments(pid), leader)
+    })
 }
 
+/// What a process was started with: its executable, arguments and environment.
+pub(in crate::session) struct ProcessLaunch {
+    pub(in crate::session) executable: std::ffi::OsString,
+    pub(in crate::session) argv: Vec<std::ffi::OsString>,
+    pub(in crate::session) env: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+}
+
+impl std::fmt::Debug for ProcessLaunch {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProcessLaunch")
+            .field("executable", &self.executable)
+            .field("argv", &self.argv)
+            .field(
+                "env",
+                &self.env.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
+/// The raw `KERN_PROCARGS2` record: argc, the executable path, padding, then
+/// argv, the environment, and the kernel's own strings, all NUL-terminated.
 #[allow(
     unsafe_code,
     reason = "Darwin exposes process arguments only through sysctl"
 )]
-pub(super) fn process_arguments(pid: i32) -> Vec<String> {
+fn procargs(pid: i32) -> Option<Vec<u8>> {
     unsafe extern "C" {
         fn sysctl(
             name: *mut std::ffi::c_int,
@@ -142,8 +163,22 @@ pub(super) fn process_arguments(pid: i32) -> Vec<String> {
         ) -> std::ffi::c_int;
     }
     let mut mib = [1, 49, pid]; // CTL_KERN, KERN_PROCARGS2
-    let mut bytes = vec![0u8; 64 * 1024];
-    let mut length = bytes.len();
+    let mut length = 0;
+    // SAFETY: a null buffer asks only for the record's size, written to `length`.
+    if unsafe {
+        sysctl(
+            mib.as_mut_ptr(),
+            3,
+            std::ptr::null_mut(),
+            &raw mut length,
+            std::ptr::null_mut(),
+            0,
+        )
+    } != 0
+    {
+        return None;
+    }
+    let mut bytes = vec![0u8; length];
     // SAFETY: all pointers reference initialized, writable buffers of the supplied lengths.
     if unsafe {
         sysctl(
@@ -156,31 +191,63 @@ pub(super) fn process_arguments(pid: i32) -> Vec<String> {
         )
     } != 0
     {
-        return Vec::new();
+        return None;
     }
     bytes.truncate(length);
-    let Some(count) = bytes
-        .get(..4)
-        .and_then(|b| <[u8; 4]>::try_from(b).ok())
-        .map(i32::from_ne_bytes)
-    else {
-        return Vec::new();
-    };
-    let Some(rest) = bytes.get(4..) else {
-        return Vec::new();
-    };
-    let Some(executable_end) = rest.iter().position(|b| *b == 0) else {
-        return Vec::new();
-    };
-    let args = &rest[executable_end..];
-    let Some(start) = args.iter().position(|b| *b != 0) else {
-        return Vec::new();
-    };
-    args[start..]
-        .split(|b| *b == 0)
-        .take(usize::try_from(count).unwrap_or(0).min(65))
-        .map(|b| String::from_utf8_lossy(b).into_owned())
-        .collect()
+    Some(bytes)
+}
+
+/// The executable, argv and environment entries of a `KERN_PROCARGS2` record.
+type Procargs<'a> = (&'a [u8], Vec<&'a [u8]>, Vec<&'a [u8]>);
+
+/// Splits a `KERN_PROCARGS2` record into the executable, argv and environment.
+fn parse_procargs(bytes: &[u8]) -> Option<Procargs<'_>> {
+    let count = usize::try_from(i32::from_ne_bytes(bytes.get(..4)?.try_into().ok()?)).ok()?;
+    let rest = bytes.get(4..)?;
+    let executable_end = rest.iter().position(|b| *b == 0)?;
+    let strings = &rest[executable_end..];
+    let start = strings.iter().position(|b| *b != 0)?;
+    let mut strings = strings[start..].split(|b| *b == 0);
+    let argv: Vec<_> = strings.by_ref().take(count).collect();
+    // The environment ends at the first empty string; the kernel's own strings follow.
+    let env = strings.take_while(|string| !string.is_empty()).collect();
+    Some((&rest[..executable_end], argv, env))
+}
+
+pub(in crate::session) fn process_arguments(pid: i32) -> Vec<String> {
+    procargs(pid)
+        .as_deref()
+        .and_then(parse_procargs)
+        .map(|(_, argv, _)| {
+            argv.into_iter()
+                .take(65)
+                .map(|b| String::from_utf8_lossy(b).into_owned())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The complete launch record of `pid`, or `None` if any part is unreadable.
+/// macOS hides the environment of platform binaries, so it may be empty.
+pub(in crate::session) fn process_launch(pid: i32) -> Option<ProcessLaunch> {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let bytes = procargs(pid)?;
+    let (executable, argv, env) = parse_procargs(&bytes)?;
+    let count = usize::try_from(i32::from_ne_bytes(bytes.get(..4)?.try_into().ok()?)).ok()?;
+    (argv.len() == count && !executable.is_empty()).then_some(())?;
+    let owned = |bytes: &[u8]| OsStr::from_bytes(bytes).to_owned();
+    Some(ProcessLaunch {
+        executable: owned(executable),
+        argv: argv.into_iter().map(owned).collect(),
+        env: env
+            .into_iter()
+            .filter_map(|entry| {
+                let split = entry.iter().position(|b| *b == b'=')?;
+                Some((owned(&entry[..split]), owned(&entry[split + 1..])))
+            })
+            .collect(),
+    })
 }
 
 #[cfg(test)]
@@ -260,5 +327,25 @@ mod tests {
             agent_of_group_running_claude("long-prompt", &["-p".into(), "x".repeat(100 * 1024)]),
             None
         );
+    }
+
+    #[test]
+    fn process_launch_reads_this_process_environment() -> Result<(), Box<dyn std::error::Error>> {
+        let launch = process_launch(i32::try_from(std::process::id())?).ok_or("unreadable")?;
+        let current = std::env::current_exe()?;
+        assert_eq!(
+            std::path::Path::new(&launch.executable).canonicalize()?,
+            current.canonicalize()?
+        );
+        assert_eq!(launch.argv.len(), std::env::args_os().len());
+        for name in ["PATH", "HOME", "CARGO_PKG_NAME"] {
+            let value = launch
+                .env
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value);
+            assert_eq!(value, std::env::var_os(name).as_ref(), "{name}");
+        }
+        Ok(())
     }
 }

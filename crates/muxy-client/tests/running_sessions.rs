@@ -29,6 +29,7 @@ fn paged_inventory_keeps_attached_and_starting_sessions_without_reopening_ended_
             status,
             attached,
             owner: attached.then(Default::default),
+            name: None,
         })
     })
     .collect::<Result<Vec<_>>>()?;

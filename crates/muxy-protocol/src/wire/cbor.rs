@@ -128,6 +128,47 @@ pub mod rows {
     }
 }
 
+/// Lists whose elements a newer build may extend with variants: an element
+/// naming a variant this build doesn't know is skipped, so the list and the
+/// message holding it stay readable. Malformed elements stay errors.
+pub mod known {
+    use minicbor::decode::Error as DecodeError;
+    use minicbor::encode::{Error as EncodeError, Write};
+    use minicbor::{Decode, Decoder, Encode, Encoder};
+
+    pub fn encode<C, T: Encode<C>, W: Write>(
+        values: &[T],
+        encoder: &mut Encoder<W>,
+        ctx: &mut C,
+    ) -> Result<(), EncodeError<W::Error>> {
+        encoder.encode_with(values, ctx)?;
+        Ok(())
+    }
+
+    pub fn decode<'b, C, T: Decode<'b, C>>(
+        decoder: &mut Decoder<'b>,
+        ctx: &mut C,
+    ) -> Result<Vec<T>, DecodeError> {
+        let position = decoder.position();
+        let length = decoder
+            .array()?
+            .ok_or_else(|| DecodeError::message("expected a definite array").at(position))?;
+        let mut values = Vec::new();
+        for _ in 0..length {
+            let start = decoder.position();
+            match decoder.decode_with(ctx) {
+                Ok(value) => values.push(value),
+                Err(error) if error.is_unknown_variant() => {
+                    decoder.set_position(start);
+                    decoder.skip()?;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(values)
+    }
+}
+
 /// Enums the server sends, which older builds must still read.
 ///
 /// A variant without a value is written as its number, and a variant with a

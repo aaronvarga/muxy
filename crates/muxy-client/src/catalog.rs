@@ -223,7 +223,7 @@ impl Client {
         self.all_project_sessions(project, |session| {
             matches!(
                 session.status,
-                muxy_protocol::SessionStatus::Live | muxy_protocol::SessionStatus::Starting
+                SessionStatus::Live | SessionStatus::Starting
             )
         })
     }

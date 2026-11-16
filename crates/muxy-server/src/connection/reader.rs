@@ -154,7 +154,7 @@ struct Requests {
     files_readers: WorkerPool,
     push_workers: WorkerPool,
     files_watch: Arc<Mutex<crate::files::watch::Subscriptions>>,
-    git_watch: Arc<Mutex<Option<crate::watch::Subscription>>>,
+    git_watch: Arc<Mutex<Option<crate::git::watch::Subscription>>>,
     search_cache: Arc<Mutex<SearchCache>>,
     last_channel: Arc<AtomicU32>,
 }
@@ -234,14 +234,18 @@ impl Requests {
                             let mut watch = watch
                                 .lock()
                                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-                            if watch
-                                .as_ref()
-                                .is_some_and(|current| current.project() == request.project)
-                            {
+                            if watch.as_ref().is_some_and(|current| {
+                                registry
+                                    .catalog
+                                    .project(request.project)
+                                    .is_ok_and(|project| {
+                                        current.project()
+                                            == (project.id, project.directory.as_path().to_owned())
+                                    })
+                            }) {
                                 Ok(muxy_protocol::GitReply::Done)
                             } else {
-                                let subscribed = registry.watch_git(request.project, &output);
-                                match subscribed {
+                                match registry.watch_git(request.project, &output) {
                                     Ok(subscription) => {
                                         *watch = subscription;
                                         Ok(muxy_protocol::GitReply::Done)
@@ -303,6 +307,7 @@ impl Requests {
                     .map_err(|error| ServerError::new(ErrorCode::BadRequest, error.to_string()))?;
                 Ok(None)
             }
+            RequestBody::Chat(request) => chat(request, id, &self.registry, connection),
             body => {
                 let registry = Arc::clone(&self.registry);
                 let output = Arc::clone(connection);
@@ -456,6 +461,7 @@ fn ordered_request(
         RequestBody::Ping
         | RequestBody::RegisterPush(_)
         | RequestBody::UnregisterPush
+        | RequestBody::Chat(_)
         | RequestBody::Exec(_)
         | RequestBody::CancelExec(_)
         | RequestBody::Git(_)
@@ -583,6 +589,30 @@ fn ordered_request(
     }))
 }
 
+/// Fork: hands a chat request to its session's owner, which replies when it
+/// is done; Enter and Leave reply only after their transition, so nothing
+/// here waits. Off macOS the owner refuses it.
+fn chat(
+    request: muxy_protocol::ChatRequest,
+    id: RequestId,
+    registry: &Registry,
+    connection: &Arc<Connection>,
+) -> Result<Option<ReplyBody>, ServerError> {
+    let session = request.session();
+    let handle = registry
+        .handle(session)
+        .ok_or_else(|| ServerError::unknown_session(session))?;
+    handle.send(SessionCommand::Chat(crate::session::ChatCommand {
+        request,
+        from: Arc::downgrade(connection),
+        reply: crate::session::ChatReplyTo::Outbox {
+            outbox: Arc::downgrade(connection),
+            id,
+        },
+    }))?;
+    Ok(None)
+}
+
 fn project_request(
     body: RequestBody,
     registry: &Registry,
@@ -616,7 +646,10 @@ fn project_request(
 
         RequestBody::ReadCatalog { after, revision } => {
             connection.watch_catalog();
-            ReplyBody::Catalog(catalog_for(connection, registry.read_catalog(after, revision)?))
+            ReplyBody::Catalog(catalog_for(
+                connection,
+                registry.read_catalog(after, revision)?,
+            ))
         }
         RequestBody::MutateProject(intent) => ReplyBody::ProjectMutated {
             revision: registry.mutate_project(&intent)?,

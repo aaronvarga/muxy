@@ -40,7 +40,7 @@ pub(crate) struct Git {
     github: github::Github,
     hook_config: Option<PathBuf>,
     pub(crate) operations: operations::Operations,
-    pub(crate) watches: crate::watch::Shared,
+    pub(crate) watches: crate::watch::Shared<(ProjectId, PathBuf)>,
 }
 impl Git {
     fn lock_for(&self, path: &Path) -> Result<Arc<RwLock<()>>> {

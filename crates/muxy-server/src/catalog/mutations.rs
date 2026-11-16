@@ -81,6 +81,16 @@ impl Catalog {
                         if let ProjectPatch::Folders(folders) = patch {
                             state.validate_folders(&descriptor, folders)?;
                         }
+                        if let ProjectPatch::Directory(directory) = patch {
+                            if descriptor.home || descriptor.parent_id.is_some() {
+                                return Err(bad("only top-level projects can change their folder"));
+                            }
+                            if !directory.as_path().is_dir() {
+                                return Err(folder_error("Project folder does not exist"));
+                            }
+                            descriptor.directory.clone_from(directory);
+                            state.validate_folders(&descriptor, &descriptor.folders)?;
+                        }
                         patch.apply(&mut descriptor);
                         descriptor
                             .validate()

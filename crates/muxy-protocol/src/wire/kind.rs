@@ -27,6 +27,8 @@ pub enum MessageKind {
     FilesChanged = 21,
     // 22 is retired; see `Changed`.
     TerminalInput = 23,
+    /// Fork: kinds from 60 up stay clear of upstream's and below the 0xc0 flag bits.
+    Chat = 60,
 }
 
 impl MessageKind {
@@ -56,6 +58,7 @@ impl MessageKind {
             20 => Self::SessionMetadata,
             21 => Self::FilesChanged,
             23 => Self::TerminalInput,
+            60 => Self::Chat,
             _ => return Ok(None),
         }))
     }
@@ -65,6 +68,7 @@ impl From<&Message> for MessageKind {
     fn from(message: &Message) -> Self {
         match message {
             Message::FilesChanged { .. } => Self::FilesChanged,
+            Message::Chat(_) => Self::Chat,
             Message::SessionMetadata { .. } => Self::SessionMetadata,
             Message::GitChanged { .. } => Self::GitChanged,
             Message::Progress { .. } => Self::Progress,

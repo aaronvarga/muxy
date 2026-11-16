@@ -32,6 +32,7 @@ pub(super) fn permit(device: Option<DeviceKind>, body: &RequestBody) -> Result<(
         | RequestBody::WriteServerSettings(_)
         | RequestBody::Exec(_)
         | RequestBody::CancelExec(_)
+        | RequestBody::Chat(_)
         | RequestBody::IdentifyClient(ClientKind::Desktop | ClientKind::Tui | ClientKind::Cli) => {
             desktop_only(device)
         }
@@ -152,11 +153,14 @@ mod tests {
         }
     }
 
-    fn desktop_work() -> [RequestBody; 3] {
+    fn desktop_work() -> [RequestBody; 4] {
         [
             RequestBody::IdentifyClient(ClientKind::Desktop),
             RequestBody::CancelExec(1),
             RequestBody::StopServer,
+            RequestBody::Chat(muxy_protocol::ChatRequest::Unsubscribe {
+                session: muxy_protocol::SessionId::from(std::num::NonZeroU64::MIN),
+            }),
         ]
     }
 

@@ -43,6 +43,8 @@ pub enum ClientEvent {
     GitChanged {
         project: muxy_protocol::ProjectId,
     },
+    /// Fork: chat events for a session this connection subscribed to.
+    Chat(muxy_protocol::ChatBatch),
     SessionsChanged {
         revision: u64,
     },
@@ -174,6 +176,11 @@ impl Router<'_> {
         loop {
             let (channel, message) = decoder.next().ok()?;
             if message.validate().is_err() {
+                // Fork: a bad chat batch costs only chat, which sees the revision gap
+                // and subscribes again; terminals on this connection keep running.
+                if matches!(message, Message::Chat(_)) {
+                    continue;
+                }
                 return None;
             }
             let event = match (channel, message) {
@@ -194,6 +201,7 @@ impl Router<'_> {
                     ClientEvent::FilesChanged { project, changes }
                 }
                 (CONTROL, Message::GitChanged { project }) => ClientEvent::GitChanged { project },
+                (CONTROL, Message::Chat(batch)) => ClientEvent::Chat(batch),
                 (CONTROL, Message::ServerRestarting) => ClientEvent::ServerRestarting,
                 (CONTROL, Message::Reply { id, body }) => match self.reply(id, body) {
                     Some(attached) => return Some(attached),

@@ -104,6 +104,7 @@ impl Message {
         samples.extend(activity_samples(session));
         samples.extend(remote_samples());
         samples.extend(push_samples());
+        samples.extend(chat_samples());
         samples
     }
 }
@@ -844,6 +845,10 @@ fn folder_group_samples() -> Vec<Message> {
         },
         crate::ProjectMutation::Patch {
             project: crate::ProjectId::from_u128(1),
+            patch: crate::ProjectPatch::Directory(ServerPath(b"/tmp/project".to_vec())),
+        },
+        crate::ProjectMutation::Patch {
+            project: crate::ProjectId::from_u128(1),
             patch: crate::ProjectPatch::FolderSource {
                 directory: ServerPath(b"/tmp/clients".to_vec()),
                 auto_subfolders: true,
@@ -1258,4 +1263,429 @@ fn exec_samples() -> Vec<Message> {
             body: ReplyBody::ExecCancelled,
         },
     ]
+}
+
+fn chat_samples() -> Vec<Message> {
+    use crate::{ChatBatch, ChatEvent, ChatItemKind, ChatMode, PermissionRemoved};
+
+    let session = SessionId::from(NonZeroU64::MIN);
+    let generation = 1;
+    let item = chat_item;
+    let state = chat_state();
+    let tool_prompt = chat_tool_prompt();
+    let snapshot = chat_snapshot(state.clone(), tool_prompt.clone());
+    let events = [
+        ChatEvent::Upsert(item("msg_02:0", ChatItemKind::User { text: "go".into() })),
+        ChatEvent::Delta {
+            item_id: "msg_02:0".into(),
+            text: " on".into(),
+        },
+        ChatEvent::State(state),
+        ChatEvent::PermissionAdded(tool_prompt),
+        ChatEvent::PermissionRemoved {
+            request_id: "3f2f5616-2a4c-4504-8c51-5bc270050845".into(),
+            reason: PermissionRemoved::Cancelled,
+        },
+        ChatEvent::Resync,
+        ChatEvent::Error {
+            text: "write failed".into(),
+        },
+        ChatEvent::Exited {
+            reason: "exit 1: boom".into(),
+        },
+        ChatEvent::Blocked {
+            reason: "Claude did not exit".into(),
+        },
+    ];
+    let mut messages = vec![Message::Chat(ChatBatch {
+        session,
+        generation,
+        from_rev: 0,
+        to_rev: 1,
+        events: Vec::new(),
+        snapshot: Some(Box::new(snapshot)),
+    })];
+    messages.extend(events.into_iter().zip(1..).map(|(event, from_rev)| {
+        Message::Chat(ChatBatch {
+            session,
+            generation,
+            from_rev,
+            to_rev: from_rev + 1,
+            events: vec![event],
+            snapshot: None,
+        })
+    }));
+    messages.push(Message::Metadata(MetadataEvent::ChatMode {
+        mode: ChatMode::Chat,
+        generation,
+    }));
+    messages.extend(chat_request_samples(session, generation));
+    messages
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "Wire fixture covers each request variant in one table"
+)]
+fn chat_request_samples(session: SessionId, generation: u64) -> Vec<Message> {
+    use crate::{
+        ChatAnswer, ChatImage, ChatImageType, ChatRequest, PermissionResponse, PlanDecision,
+        ToolDecision,
+    };
+
+    let mut messages = Vec::new();
+    let operation = crate::OperationId::from_u128(7);
+    let features = vec![
+        crate::Feature::CHAT_PROVIDERS,
+        crate::Feature::CHAT_OPERATIONS,
+        crate::Feature::CHAT_NATIVE_APPROVALS,
+        crate::Feature::CHAT_QUESTIONS,
+    ];
+    let selection = crate::ChatSelection {
+        provider: crate::ChatProvider::Codex,
+        model: Some("native-model".into()),
+        effort: Some("high".into()),
+        target: None,
+        launch_context: Some(8),
+    };
+    let requests = [
+        ChatRequest::Discover {
+            session,
+            provider: crate::ChatProvider::Codex,
+            features: features.clone(),
+        },
+        ChatRequest::PrepareSubmission { session },
+        ChatRequest::Begin {
+            session,
+            host_epoch: 3,
+            operation,
+            selection: Box::new(selection.clone()),
+            text: "hello".into(),
+            images: Vec::new(),
+            features: features.clone(),
+        },
+        ChatRequest::EnterProvider {
+            session,
+            selection: Box::new(selection),
+            features,
+        },
+        ChatRequest::Submit {
+            session,
+            generation,
+            operation,
+            text: "hello again".into(),
+            images: Vec::new(),
+        },
+        ChatRequest::OperationStatus { session, operation },
+        ChatRequest::LeaveProvider {
+            session,
+            generation,
+            interrupt: false,
+        },
+        ChatRequest::Respond {
+            session,
+            generation,
+            request_id: "native-request".into(),
+            response: PermissionResponse::NativeChoice { choice: "0".into() },
+        },
+        ChatRequest::Enter {
+            session,
+            model: Some("opus".into()),
+            effort: None,
+        },
+        ChatRequest::Start {
+            session,
+            model: None,
+            effort: Some("high".into()),
+        },
+        ChatRequest::Leave {
+            session,
+            generation,
+        },
+        ChatRequest::Send {
+            session,
+            generation,
+            text: "look".into(),
+            images: vec![ChatImage {
+                mime: ChatImageType::Png,
+                bytes: b"\x89PNG\r\n\x1a\n".to_vec(),
+            }],
+        },
+        ChatRequest::Interrupt {
+            session,
+            generation,
+        },
+        ChatRequest::Respond {
+            session,
+            generation,
+            request_id: "3f2f5616-2a4c-4504-8c51-5bc270050845".into(),
+            response: PermissionResponse::Tool(ToolDecision::Deny {
+                message: "not now".into(),
+                interrupt: true,
+            }),
+        },
+        ChatRequest::Respond {
+            session,
+            generation,
+            request_id: "dismiss-request".into(),
+            response: PermissionResponse::Dismiss {
+                message: "not supported here".into(),
+            },
+        },
+        ChatRequest::Respond {
+            session,
+            generation,
+            request_id: "question-request".into(),
+            response: PermissionResponse::Questions(vec![ChatAnswer {
+                question: "Which color do you pick?".into(),
+                answers: vec!["Red".into(), "Blue".into()],
+            }]),
+        },
+        ChatRequest::Respond {
+            session,
+            generation,
+            request_id: "plan-request".into(),
+            response: PermissionResponse::Plan(PlanDecision::KeepPlanning {
+                feedback: "smaller steps".into(),
+            }),
+        },
+        ChatRequest::Respond {
+            session,
+            generation,
+            request_id: "plan-approve-request".into(),
+            response: PermissionResponse::Plan(PlanDecision::Approve {
+                mode: Some(crate::PermissionMode::AcceptEdits),
+            }),
+        },
+        ChatRequest::SetModel {
+            session,
+            generation,
+            model: "sonnet".into(),
+        },
+        ChatRequest::SetEffort {
+            session,
+            generation,
+            effort: "max".into(),
+        },
+        ChatRequest::Subscribe {
+            session,
+            subscription: 3,
+            features: vec![crate::Feature::TERMINAL_INPUT],
+        },
+        ChatRequest::Unsubscribe { session },
+    ];
+    messages.extend(requests.into_iter().map(|request| Message::Request {
+        id: RequestId(60),
+        body: RequestBody::Chat(request),
+    }));
+    messages.extend(chat_reply_samples(generation));
+    messages
+}
+
+fn chat_reply_samples(generation: u64) -> Vec<Message> {
+    use crate::{ChatRefusal, ChatReply};
+
+    let replies = [
+        ChatReply::Discovered {
+            host_epoch: 3,
+            provider: crate::ChatProvider::Codex,
+            capabilities: crate::ChatCapabilities::default(),
+            model: None,
+            effort: None,
+            threads: vec![crate::ChatThread {
+                target: crate::ChatTarget {
+                    provider: crate::ChatProvider::Codex,
+                    thread_id: "bde3d35b-d3c0-49d7-93c1-9a0391781702".into(),
+                    home: ServerPath(b"/tmp/codex".to_vec()),
+                    endpoint: Some(ServerPath(b"/tmp/codex/engine.sock".to_vec())),
+                    executable: ServerPath(b"/usr/local/bin/codex".to_vec()),
+                    engine: Some(crate::ChatEngine {
+                        pid: 42,
+                        started_seconds: 7,
+                        started_micros: 8,
+                    }),
+                },
+                title: "Native conversation".into(),
+                updated_at: 7,
+                busy: false,
+            }],
+            launch_context: Some(8),
+        },
+        ChatReply::Prepared {
+            host_epoch: 3,
+            operation: crate::OperationId::from_u128(7),
+        },
+        ChatReply::Submission(crate::ChatSubmission {
+            operation: crate::OperationId::from_u128(7),
+            outcome: crate::SubmissionOutcome::Uncertain,
+            generation,
+            detail: Some("Check native history".into()),
+        }),
+        ChatReply::Entered { generation },
+        ChatReply::Left {
+            resumed: false,
+            detail: Some("the folder no longer exists".into()),
+        },
+        ChatReply::Ok,
+        ChatReply::Subscribed {
+            generation,
+            subscription: 3,
+        },
+        ChatReply::Refused {
+            reason: ChatRefusal::NotChat,
+            detail: None,
+        },
+    ];
+    replies
+        .into_iter()
+        .map(|reply| Message::Reply {
+            id: RequestId(60),
+            body: ReplyBody::Chat(reply),
+        })
+        .collect()
+}
+
+fn chat_item(id: &str, kind: crate::ChatItemKind) -> crate::ChatItem {
+    crate::ChatItem {
+        id: id.into(),
+        turn_id: "turn-1".into(),
+        seq: 1,
+        kind,
+    }
+}
+
+fn chat_state() -> crate::ChatState {
+    crate::ChatState {
+        provider: None,
+        shared_engine: false,
+        target: None,
+        busy: true,
+        quiescent: false,
+        model: Some("opus".into()),
+        effort: Some("high".into()),
+        permission_mode: crate::PermissionMode::AcceptEdits,
+        context_percent: Some(12),
+    }
+}
+
+fn chat_tool_prompt() -> crate::PermissionPrompt {
+    crate::PermissionPrompt {
+        request_id: "3f2f5616-2a4c-4504-8c51-5bc270050845".into(),
+        tool_use_id: Some("toolu_01".into()),
+        kind: crate::PermissionKind::Tool {
+            tool: "Bash".into(),
+            title: "Run a command".into(),
+            detail: "rm -rf build".into(),
+            always: Some(crate::AlwaysAllow {
+                label: "Bash(rm:*)".into(),
+                saved_to_settings: true,
+            }),
+        },
+    }
+}
+
+fn chat_snapshot(
+    state: crate::ChatState,
+    tool_prompt: crate::PermissionPrompt,
+) -> crate::ChatSnapshot {
+    use crate::{
+        ChatCapabilities, ChatItemKind, ChatModel, ChatQuestion, ChatQuestionOption, ChatSnapshot,
+        PermissionKind, PermissionPrompt,
+    };
+
+    let item = chat_item;
+    ChatSnapshot {
+        subscription: 3,
+        items: vec![
+            item("user-uuid", ChatItemKind::User { text: "hi".into() }),
+            item(
+                "msg_01:0",
+                ChatItemKind::Assistant {
+                    markdown: "**Hello**".into(),
+                    final_in_turn: false,
+                },
+            ),
+            item("msg_01:1", ChatItemKind::Thinking { text: "hmm".into() }),
+            item(
+                "toolu_01",
+                ChatItemKind::Tool {
+                    name: "Read".into(),
+                    summary: "Read lib.rs".into(),
+                    input_preview: "{\"file_path\":\"lib.rs\"}".into(),
+                    result: Some("//! Docs".into()),
+                    subagent_count: 0,
+                    is_error: true,
+                },
+            ),
+            item("folded-1", ChatItemKind::Folded { count: 4 }),
+            item(
+                "turn-1:end",
+                ChatItemKind::TurnEnd {
+                    duration_ms: 1200,
+                    is_error: false,
+                    changed: vec![crate::FileChange {
+                        path: "/repo/src/lib.rs".into(),
+                        added: 4,
+                        removed: 1,
+                    }],
+                },
+            ),
+            item(
+                "notice-1",
+                ChatItemKind::Notice {
+                    text: "Untested Claude Code version".into(),
+                },
+            ),
+        ],
+        state,
+        capabilities: ChatCapabilities {
+            models: vec![ChatModel {
+                images: None,
+                default_effort: None,
+                alias: "opus".into(),
+                label: "Opus".into(),
+                efforts: vec!["low".into(), "high".into(), "max".into()],
+            }],
+            commands: vec![
+                crate::ChatCommand {
+                    name: "compact".into(),
+                    description: "Free up context".into(),
+                    skill: false,
+                },
+                crate::ChatCommand {
+                    name: "codex:review".into(),
+                    description: "Review with Codex".into(),
+                    skill: true,
+                },
+            ],
+        },
+        pending: vec![
+            tool_prompt,
+            PermissionPrompt {
+                request_id: "question-request".into(),
+                tool_use_id: None,
+                kind: PermissionKind::Questions {
+                    questions: vec![ChatQuestion {
+                        question: "Which color do you pick?".into(),
+                        header: "Color".into(),
+                        options: vec![ChatQuestionOption {
+                            label: "Red".into(),
+                            description: "Pick red".into(),
+                            preview: "+-----+\n| red |\n+-----+".into(),
+                        }],
+                        multi_select: false,
+                        allow_other: None,
+                    }],
+                },
+            },
+            PermissionPrompt {
+                request_id: "plan-request".into(),
+                tool_use_id: None,
+                kind: PermissionKind::Plan {
+                    markdown: "1. Do it".into(),
+                },
+            },
+        ],
+        has_earlier: true,
+    }
 }

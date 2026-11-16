@@ -1,4 +1,7 @@
 use std::sync::{Arc, mpsc};
+use std::time::Duration;
+
+use muxy_protocol::Message;
 
 use crate::{Registry, ServerSettings};
 
@@ -161,7 +164,7 @@ fn every_session_ended_reaches_connections_before_they_close_at_shutdown()
         .take_control()
         .into_iter()
         .filter_map(|message| match message {
-            muxy_protocol::Message::SessionEnded { session, .. } => Some(session),
+            Message::SessionEnded { session, .. } => Some(session),
             _ => None,
         })
         .collect();
@@ -305,7 +308,7 @@ fn greeted(
 
     let serving = Arc::clone(registry);
     let connection = std::thread::spawn(move || super::serve(Box::new(server), serving));
-    client.set_read_timeout(Some(std::time::Duration::from_secs(5)))?;
+    client.set_read_timeout(Some(Duration::from_secs(5)))?;
     let mut decoder = Decoder::new(client.try_clone()?);
     let mut encoder = Encoder::new(client.try_clone()?);
     encoder.send(
@@ -500,7 +503,6 @@ fn a_metadata_watcher_hears_titles_of_sessions_it_does_not_show()
         .map_err(|error| error.to_string())?;
     std::fs::remove_dir_all(&directory)?;
     Ok(())
-    Ok(())
 }
 
 #[test]
@@ -531,4 +533,74 @@ fn phones_get_no_text_icons_that_stock_apps_reject() {
         icons(&super::reader::catalog_for(&desktop, page.clone())),
         icons(&page)
     );
+}
+
+#[test]
+fn extra_folder_changes_name_their_folder_and_stop_once_it_is_removed() {
+    use muxy_protocol::{
+        FilesAction, FilesRequest, OperationId, ProjectDescriptor, ProjectIntent, ProjectMutation,
+        ProjectPatch, ServerPath,
+    };
+    use std::os::unix::ffi::OsStrExt;
+    let temp = |name: &str| {
+        let path = std::env::temp_dir().join(format!("muxy-{name}-{}", OperationId::new()));
+        std::fs::create_dir(&path).unwrap();
+        path.canonicalize().unwrap()
+    };
+    let (main, extra) = (temp("main"), temp("extra"));
+    let wire = |path: &std::path::Path| ServerPath(path.as_os_str().as_bytes().to_vec());
+    let (events, _events) = mpsc::channel();
+    let registry = Registry::new(ServerSettings::default(), events);
+    let project = ProjectDescriptor::new(wire(&main), []);
+    let mutate = |mutation| {
+        registry
+            .mutate_project(&ProjectIntent {
+                operation: OperationId::new(),
+                mutation,
+            })
+            .unwrap();
+    };
+    mutate(ProjectMutation::Create(project.clone()));
+    let patch = |folders| ProjectMutation::Patch {
+        project: project.id,
+        patch: ProjectPatch::Folders(folders),
+    };
+    mutate(patch(vec![wire(&extra)]));
+    let outbox = Arc::new(Connection::new(Arc::clone(&registry.notifier)));
+    let mut watches = crate::files::watch::Subscriptions::default();
+    watches
+        .request(
+            &registry,
+            &outbox,
+            &FilesRequest {
+                project: project.id,
+                action: FilesAction::Watch,
+                root: Some(wire(&extra)),
+            },
+        )
+        .unwrap();
+    let changed = |name: &str, wait: Duration| {
+        std::fs::write(extra.join(name), "x").unwrap();
+        let deadline = std::time::Instant::now() + wait;
+        while std::time::Instant::now() < deadline {
+            if let Some(message) = outbox
+                .take_control()
+                .into_iter()
+                .find(|message| matches!(message, Message::FilesChanged { .. }))
+            {
+                return Some(message);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        None
+    };
+    let Some(Message::FilesChanged { changes, .. }) = changed("a", Duration::from_secs(5)) else {
+        panic!("no change reported");
+    };
+    assert_eq!(changes.root, Some(wire(&extra)));
+    mutate(patch(Vec::new()));
+    assert_eq!(changed("b", Duration::from_secs(1)), None);
+    drop(watches);
+    let _ = std::fs::remove_dir_all(&main);
+    let _ = std::fs::remove_dir_all(&extra);
 }

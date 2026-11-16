@@ -47,8 +47,22 @@ impl Feature {
     pub const FOLDER_GROUPS: Self = Self(0x8002);
     /// Fork capability: project icons can be up to `MAX_ICON_TEXT` characters.
     pub const TEXT_ICONS: Self = Self(0x8003);
+    /// Fork capability: change a top-level project's starting folder.
+    pub const PROJECT_DIRECTORY: Self = Self(0x800b);
     /// Fork capability: change the built-in Home project's starting folder.
     pub const HOME_DIRECTORY: Self = Self(0x8004);
+    /// Fork capability: a session running Claude Code can switch to chat, with
+    /// `RequestBody::Chat` and `Message::Chat`.
+    pub const AGENT_CHAT: Self = Self(0x8005);
+    /// Fork chat feature a client lists in `ChatRequest::Subscribe`: it can
+    /// answer `PermissionKind::Questions`. Tool approvals need no feature.
+    pub const CHAT_QUESTIONS: Self = Self(0x8006);
+    /// Fork chat feature a client lists in `ChatRequest::Subscribe`: it can
+    /// answer `PermissionKind::Plan`.
+    pub const CHAT_PLAN: Self = Self(0x8007);
+    pub const CHAT_PROVIDERS: Self = Self(0x8008);
+    pub const CHAT_OPERATIONS: Self = Self(0x8009);
+    pub const CHAT_NATIVE_APPROVALS: Self = Self(0x800a);
 }
 
 /// Features this build's server supports.
@@ -62,4 +76,11 @@ pub const FEATURES: &[Feature] = &[
     Feature::FOLDER_GROUPS,
     Feature::TEXT_ICONS,
     Feature::HOME_DIRECTORY,
+    Feature::PROJECT_DIRECTORY,
+    #[cfg(target_os = "macos")]
+    Feature::AGENT_CHAT,
+    #[cfg(target_os = "macos")]
+    Feature::CHAT_PROVIDERS,
+    #[cfg(target_os = "macos")]
+    Feature::CHAT_OPERATIONS,
 ];

@@ -17,12 +17,12 @@ pub(super) fn find(group: u32, provider: AgentProvider) -> Option<AgentSession> 
     let members = group_members(group);
     let (argv, id) = match provider {
         AgentProvider::Claude => {
-            let sessions = claude_home()?.join("sessions");
             // Only Claude itself, so a stale `<pid>.json` can't match a reused pid of a child.
             members.iter().find_map(|(pid, name)| {
                 let argv = process_arguments(*pid);
                 (crate::detection::identify(name, &argv) == Some(AgentProvider::Claude))
                     .then_some(())?;
+                let sessions = claude_home(*pid)?.join("sessions");
                 Some((argv, claude_session(&sessions, *pid)?))
             })?
         }
@@ -42,14 +42,56 @@ pub(super) fn find(group: u32, provider: AgentProvider) -> Option<AgentSession> 
     })
 }
 
-fn claude_home() -> Option<PathBuf> {
+/// Claude's config directory as the agent itself sees it, where macOS lets us
+/// read its environment; otherwise the server's own.
+fn claude_home(pid: i32) -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    if let Some(launch) = super::platform::process_launch(pid)
+        && !launch.env.is_empty()
+    {
+        use std::os::unix::ffi::OsStringExt;
+        let cwd = super::platform::process_directory(pid)
+            .map(|directory| PathBuf::from(std::ffi::OsString::from_vec(directory.0)));
+        return claude_config_dir(&launch.env, cwd.as_deref());
+    }
+    let _ = pid;
     std::env::var_os("CLAUDE_CONFIG_DIR")
         .map(PathBuf::from)
         .or_else(|| std::env::home_dir().map(|home| home.join(".claude")))
 }
 
+/// `CLAUDE_CONFIG_DIR` (relative to `cwd`), else `~/.claude`, from a captured
+/// environment. Falls back to the server's home when `HOME` is missing.
+#[cfg_attr(
+    not(target_os = "macos"),
+    allow(
+        dead_code,
+        reason = "only macOS can read another process's environment"
+    )
+)]
+pub(in crate::session) fn claude_config_dir(
+    env: &[(std::ffi::OsString, std::ffi::OsString)],
+    cwd: Option<&Path>,
+) -> Option<PathBuf> {
+    let var = |name: &str| {
+        env.iter()
+            .find(|(key, value)| key == name && !value.is_empty())
+            .map(|(_, value)| PathBuf::from(value))
+    };
+    if let Some(directory) = var("CLAUDE_CONFIG_DIR") {
+        return if directory.is_absolute() {
+            Some(directory)
+        } else {
+            cwd.map(|cwd| cwd.join(directory))
+        };
+    }
+    var("HOME")
+        .or_else(std::env::home_dir)
+        .map(|home| home.join(".claude"))
+}
+
 /// Claude Code records each running process's session in `sessions/<pid>.json`.
-fn claude_session(sessions: &Path, pid: i32) -> Option<String> {
+pub(in crate::session) fn claude_session(sessions: &Path, pid: i32) -> Option<String> {
     #[derive(serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct Record {
@@ -78,7 +120,7 @@ fn codex_session(files: &[PathBuf]) -> Option<String> {
         .map(|(_, id)| id)
 }
 
-fn uuid_shaped(id: &str) -> bool {
+pub(in crate::session) fn uuid_shaped(id: &str) -> bool {
     id.len() == 36
         && id.bytes().enumerate().all(|(index, byte)| match index {
             8 | 13 | 18 | 23 => byte == b'-',
@@ -87,7 +129,7 @@ fn uuid_shaped(id: &str) -> bool {
 }
 
 /// Drops the program, and the script when a runtime such as node runs it.
-fn user_arguments(mut argv: Vec<String>) -> Vec<String> {
+pub(in crate::session) fn user_arguments(mut argv: Vec<String>) -> Vec<String> {
     let runtime = argv.first().is_some_and(|program| {
         let name = Path::new(program)
             .file_name()

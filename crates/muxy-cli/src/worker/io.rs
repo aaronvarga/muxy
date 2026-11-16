@@ -257,6 +257,7 @@ pub(super) fn reader(client: Client, shared: Arc<Mutex<Shared>>) -> Result<JoinH
                         }
                     }
                     ClientEvent::FilesChanged { .. }
+                    | ClientEvent::Chat(_)
                     | ClientEvent::ClipboardWrite { .. }
                     | ClientEvent::GitChanged { .. }
                     | ClientEvent::RemoteAccessChanged { .. }

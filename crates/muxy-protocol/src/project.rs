@@ -101,7 +101,7 @@ pub struct FolderEntry {
 impl FolderEntry {
     pub fn validate(&self) -> Result<(), ErrorCode> {
         validate_name(&self.name)?;
-        crate::validate_folder_path(&self.directory)?;
+        validate_absolute_path(&self.directory)?;
         if self.command.len() > 8192 || self.command.chars().any(char::is_control) {
             return Err(ErrorCode::BadRequest);
         }
@@ -413,6 +413,9 @@ pub enum ProjectPatch {
     /// Needs `Feature::HOME_DIRECTORY`; only applies to Home.
     #[n(7)]
     HomeDirectory(#[n(0)] ServerPath),
+    /// Needs `Feature::PROJECT_DIRECTORY`; changes a top-level project folder.
+    #[n(8)]
+    Directory(#[n(0)] ServerPath),
     #[n(6)]
     FolderSource {
         #[n(0)]
@@ -431,9 +434,9 @@ impl ProjectPatch {
             Self::Logo(logo) => validate_logo(logo.as_deref()),
             Self::Folders(folders) => validate_folders(folders),
             Self::FolderEntries(entries) => validate_folder_entries(entries),
-            Self::FolderSource { directory, .. } | Self::HomeDirectory(directory) => {
-                crate::validate_folder_path(directory)
-            }
+            Self::FolderSource { directory, .. }
+            | Self::HomeDirectory(directory)
+            | Self::Directory(directory) => validate_absolute_path(directory),
         }
     }
     pub fn apply(&self, project: &mut ProjectDescriptor) {
@@ -444,7 +447,9 @@ impl ProjectPatch {
             Self::Logo(logo) => project.logo.clone_from(logo),
             Self::Folders(folders) => project.folders.clone_from(folders),
             Self::FolderEntries(entries) => project.folder_entries.clone_from(entries),
-            Self::HomeDirectory(directory) => project.directory.clone_from(directory),
+            Self::HomeDirectory(directory) | Self::Directory(directory) => {
+                project.directory.clone_from(directory);
+            }
             Self::FolderSource {
                 directory,
                 auto_subfolders,

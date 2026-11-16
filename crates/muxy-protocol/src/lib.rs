@@ -6,9 +6,18 @@
 //! types come from `muxy-core`.
 
 mod build;
+mod chat;
 pub use build::{
     BuildInfo, CATALOG_FILE, COMPATIBILITY, MAX_UNREADABLE_ERROR, MAX_UNREADABLE_FILES, ServerInfo,
     UNREADABLE_SUFFIX, UnreadableFile,
+};
+pub use chat::{
+    AlwaysAllow, ChatAnswer, ChatApprovalChoice, ChatBatch, ChatCapabilities, ChatCommand,
+    ChatEngine, ChatEvent, ChatImage, ChatImageType, ChatItem, ChatItemKind, ChatMode, ChatModel,
+    ChatProvider, ChatQuestion, ChatQuestionOption, ChatRefusal, ChatReply, ChatRequest,
+    ChatSelection, ChatSnapshot, ChatState, ChatSubmission, ChatTarget, ChatThread, FileChange,
+    PermissionKind, PermissionMode, PermissionPrompt, PermissionRemoved, PermissionResponse,
+    PlanDecision, SubmissionOutcome, ToolDecision,
 };
 mod control;
 mod exec;
@@ -40,10 +49,15 @@ pub use session::{
     SessionClient, SessionInfo, SessionMetadata, SessionProgress, TerminalProgress,
 };
 pub use validate::{
-    MAX_AGENT_ARGUMENT, MAX_AGENT_ARGUMENTS, MAX_CLIPBOARD_TEXT, MAX_COLS, MAX_INPUT,
-    MAX_LINK_SPANS, MAX_LINK_URI, MAX_PATH, MAX_ROWS, validate_absolute_path,
-    validate_environment, validate_input, validate_path, validate_relative_path, validate_search,
-    validate_size, validate_versions,
+    MAX_AGENT_ARGUMENT, MAX_AGENT_ARGUMENTS, MAX_CHAT_BATCH_BYTES, MAX_CHAT_COMMAND_DESCRIPTION,
+    MAX_CHAT_COMMAND_NAME, MAX_CHAT_COMMANDS, MAX_CHAT_EFFORTS, MAX_CHAT_EVENTS, MAX_CHAT_FEATURES,
+    MAX_CHAT_FILE_CHANGES, MAX_CHAT_IMAGE_BYTES, MAX_CHAT_IMAGES, MAX_CHAT_IMAGES_BYTES,
+    MAX_CHAT_MODELS, MAX_CHAT_NAME, MAX_CHAT_PENDING, MAX_CHAT_PENDING_PROMPTS, MAX_CHAT_PLAN,
+    MAX_CHAT_PREVIEW, MAX_CHAT_QUESTION_ENTRIES, MAX_CHAT_QUESTION_PREVIEW, MAX_CHAT_QUESTIONS,
+    MAX_CHAT_SNAPSHOT_BYTES, MAX_CHAT_SNAPSHOT_ITEMS, MAX_CHAT_TEXT, MAX_CHAT_TOOL_PROMPT,
+    MAX_CLIPBOARD_TEXT, MAX_COLS, MAX_INPUT, MAX_LINK_SPANS, MAX_LINK_URI, MAX_PATH, MAX_ROWS,
+    validate_absolute_path, validate_environment, validate_input, validate_path,
+    validate_relative_path, validate_search, validate_size, validate_versions,
 };
 pub use version::{CURRENT, FEATURES, Feature, SUPPORTED, V1, V2, Version};
 
@@ -59,8 +73,8 @@ pub use project::{
     CATALOG_PAGE_SIZE, CatalogPage, ClientId, DeviceId, FolderEntry, FolderEntryId, MAX_ICON_TEXT,
     MAX_PROJECT_FOLDERS, MAX_PROJECT_LOGO_BYTES, MAX_PROJECTS, MAX_SESSION_NAME, OperationId,
     PROJECT_COLORS, ProjectDescriptor, ProjectId, ProjectIntent, ProjectKind, ProjectMutation,
-    ProjectPatch, ProjectSession, ProjectSessions, ServerIdentity, SessionStatus,
-    icon_text_length, is_inside_folder_group, is_project_symbol, overlaps, validate_session_name,
+    ProjectPatch, ProjectSession, ProjectSessions, ServerIdentity, SessionStatus, icon_text_length,
+    is_inside_folder_group, is_project_symbol, overlaps, validate_session_name,
 };
 
 mod remote;

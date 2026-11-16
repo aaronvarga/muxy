@@ -274,6 +274,16 @@ pub enum MetadataEvent {
         #[n(2)]
         arguments: Vec<String>,
     },
+    /// Fork: the session's chat mode; the latest one wins. A newer
+    /// generation means the client subscribes again.
+    /// Fork range, so upstream's next variants can't collide.
+    #[n(1000)]
+    ChatMode {
+        #[n(0)]
+        mode: crate::ChatMode,
+        #[n(1)]
+        generation: u64,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]

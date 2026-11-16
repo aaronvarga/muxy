@@ -87,21 +87,21 @@ impl Registry {
                     .as_ref()
                     .is_none_or(|root| *root == project.directory)
             {
-                return Ok(path(&project.directory).to_owned());
+                return Ok(project.directory.as_path().to_owned());
             }
             return match &request.root {
                 Some(root)
                     if (project.auto_subfolders
                         && muxy_protocol::is_inside_folder_group(
-                            path(root),
-                            path(&project.directory),
+                            root.as_path(),
+                            project.directory.as_path(),
                         ))
                         || project
                             .folder_entries
                             .iter()
                             .any(|entry| entry.directory == *root) =>
                 {
-                    Ok(path(root).to_owned())
+                    Ok(root.as_path().to_owned())
                 }
                 _ => Err(error("Choose a saved folder in this folder group")),
             };

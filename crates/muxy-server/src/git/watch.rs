@@ -1,7 +1,7 @@
 use super::{Result, command, error, is_repository, run};
 use crate::Registry;
 use crate::connection::Connection;
-use crate::watch::{DebouncedWatch, MAX_DELAY, Subscribers, Subscription, Timing};
+use crate::watch::{DebouncedWatch, MAX_DELAY, Subscribers, Timing};
 use muxy_protocol::{Message, ProjectId};
 use notify::EventKind;
 use std::collections::HashSet;
@@ -10,6 +10,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
+
+pub(crate) type Subscription = crate::watch::Subscription<(ProjectId, PathBuf)>;
 
 const TIMING: Timing = Timing {
     quiet: Duration::from_millis(800),
@@ -186,7 +188,7 @@ impl Registry {
         let directory = descriptor.directory.as_path();
         self.git
             .watches
-            .subscribe(project, connection, |subscribers| {
+            .subscribe((project, directory.to_owned()), connection, |subscribers| {
                 if !directory.is_dir() || !is_repository(directory)? {
                     return Ok(None);
                 }

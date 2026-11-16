@@ -4,6 +4,7 @@ use muxy_protocol::{
 };
 use muxy_server::{LegacyImport, Registry, ServerSettings};
 use std::fs;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
@@ -330,6 +331,68 @@ fn home_folder_changes_are_validated_and_survive_server_restart() -> Result {
             .directory
             .0,
         custom.as_os_str().as_bytes()
+    );
+    Ok(())
+}
+
+#[test]
+fn project_folder_patch_preserves_metadata_and_rejects_invalid_roots() -> Result {
+    let fixture = Fixture::new()?;
+    let registry = fixture.registry(LegacyImport::default())?;
+    let old = fixture.0.join("old");
+    let new = fixture.0.join("new");
+    let extra = fixture.0.join("extra");
+    for folder in [&old, &new, &extra] {
+        fs::create_dir(folder)?;
+    }
+    let mut original = project(&old);
+    original.name = "Custom name".into();
+    original.icon = Some("sf:briefcase".into());
+    original.color = "#e5484d".into();
+    original.logo = Some(
+        include_bytes!("../../muxy-protocol/tests/fixtures/project-logo.png")
+            .as_slice()
+            .into(),
+    );
+    original.folders = vec![ServerPath::from(&extra)];
+    registry.mutate_project(&intent(ProjectMutation::Create(original.clone())))?;
+    fs::remove_dir(&old)?;
+    let change = |id, path: &Path| {
+        intent(ProjectMutation::Patch {
+            project: id,
+            patch: ProjectPatch::Directory(ServerPath::from(path)),
+        })
+    };
+    let file = fixture.0.join("file");
+    fs::write(&file, "not a folder")?;
+    let alias = fixture.0.join("alias");
+    std::os::unix::fs::symlink(&extra, &alias)?;
+    for invalid in [fixture.0.join("missing"), file, extra, alias] {
+        assert!(
+            registry
+                .mutate_project(&change(original.id, &invalid))
+                .is_err()
+        );
+        assert!(
+            registry
+                .read_catalog(None, None)?
+                .projects
+                .contains(&original)
+        );
+    }
+    let home = registry.read_catalog(None, None)?.home;
+    assert!(registry.mutate_project(&change(home, &new)).is_err());
+    let patch = change(original.id, &new);
+    registry.mutate_project(&patch)?;
+    registry.mutate_project(&patch)?;
+    drop(registry);
+    let registry = fixture.registry(LegacyImport::default())?;
+    original.directory = ServerPath::from(&new);
+    assert!(
+        registry
+            .read_catalog(None, None)?
+            .projects
+            .contains(&original)
     );
     Ok(())
 }

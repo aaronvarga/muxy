@@ -4,6 +4,7 @@ mod tests;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::{self, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -18,6 +19,7 @@ use muxy_terminal::pty::{ExitStatus, Pty, PtyEvent};
 use crate::archive::{Archive, bound_history_page, history_range};
 use crate::error::ServerError;
 use crate::search::Search;
+use crate::session::input_gate::{InputGate, InputWrite};
 use crate::session::metadata::Metadata;
 use crate::session::{
     AttachmentEvent, AttachmentId, AttachmentSink, SessionCommand, SessionHandle,
@@ -32,22 +34,14 @@ const METADATA_POLL: Duration = Duration::from_millis(100);
 
 type Fault = Box<dyn Error + Send + Sync>;
 
-struct InputWrite {
-    bytes: Vec<u8>,
-    reply: Option<Sender<Result<(), ServerError>>>,
-}
-
-impl From<Vec<u8>> for InputWrite {
-    fn from(bytes: Vec<u8>) -> Self {
-        Self { bytes, reply: None }
-    }
-}
-
 #[derive(Debug)]
 pub(crate) enum OwnerEvent {
     Command(SessionCommand),
     Pty(PtyEvent),
     WriteFailed(io::Error),
+    /// Fork: supervisor and transition events for the chat host.
+    #[cfg(target_os = "macos")]
+    Chat(super::chat::Event),
 }
 
 impl From<PtyEvent> for OwnerEvent {
@@ -97,7 +91,7 @@ struct Owner {
     seen_reports: u64,
     size: Size,
     events: Receiver<OwnerEvent>,
-    input: Sender<InputWrite>,
+    input: std::sync::Arc<InputGate>,
     attachments: HashMap<AttachmentId, Attachment>,
     output_pending: bool,
     resize_pending: bool,
@@ -117,6 +111,8 @@ struct Owner {
     archive: Archive,
     next_checkpoint: Option<Instant>,
     next_metadata: Instant,
+    #[cfg(target_os = "macos")]
+    chat: super::chat::Host,
 }
 
 #[allow(
@@ -132,6 +128,7 @@ pub(crate) fn start(
     colors: Option<TerminalColors>,
     activity: std::sync::Arc<crate::activity::Activity>,
     notifier: std::sync::Arc<crate::notifier::Notifier>,
+    chat: super::ChatServices,
     on_exit: impl FnOnce(ExitReason) + Send + 'static,
 ) -> Result<SessionHandle, ServerError> {
     let id = info.id.get();
@@ -144,6 +141,10 @@ pub(crate) fn start(
     let owner_published = std::sync::Arc::clone(&published);
     let session = info.clone();
     let failed = sender.clone();
+    #[cfg(target_os = "macos")]
+    let chat_events = sender.clone();
+    #[cfg(not(target_os = "macos"))]
+    let _ = chat;
     thread::Builder::new()
         .name(format!("session-{id}"))
         .spawn(move || {
@@ -172,6 +173,8 @@ pub(crate) fn start(
                 }
             };
             let _ = ready_sender.send(Ok(()));
+            #[cfg(target_os = "macos")]
+            let chat = super::chat::Host::new(session.clone(), chat, chat_events, input.clone());
             let owner = Owner {
                 metadata: Metadata::new(session.directory.clone()),
                 published: owner_published,
@@ -209,6 +212,8 @@ pub(crate) fn start(
                 archive,
                 next_checkpoint: Some(Instant::now() + CHECKPOINT),
                 next_metadata: Instant::now(),
+                #[cfg(target_os = "macos")]
+                chat,
             };
             on_exit(owner.run());
         })
@@ -230,13 +235,27 @@ fn set_colors(
 fn start_input(
     pty: &mut Pty,
     events: Sender<OwnerEvent>,
-) -> Result<Sender<InputWrite>, ServerError> {
-    let mut writer = pty.take_writer().map_err(ServerError::spawn_failed)?;
+) -> Result<std::sync::Arc<InputGate>, ServerError> {
+    let writer = pty.take_writer().map_err(ServerError::spawn_failed)?;
+    spawn_input_writer(writer, format!("session-{}-input", pty.child_pid()), events)
+}
+
+fn spawn_input_writer(
+    mut writer: impl Write + Send + 'static,
+    name: String,
+    events: Sender<OwnerEvent>,
+) -> Result<std::sync::Arc<InputGate>, ServerError> {
     let (input, pending) = mpsc::channel::<InputWrite>();
+    let closed = std::sync::Arc::new(AtomicBool::new(false));
+    let gate = std::sync::Arc::new(InputGate::new(input, closed.clone()));
     thread::Builder::new()
-        .name(format!("session-{}-input", pty.child_pid()))
+        .name(name)
         .spawn(move || {
             for input in pending {
+                if !input.authorized && closed.load(Ordering::Acquire) {
+                    input.refuse();
+                    continue;
+                }
                 let result = writer.write_all(&input.bytes);
                 if let Some(reply) = input.reply {
                     let acknowledgement = result.as_ref().copied().map_err(|error| {
@@ -254,7 +273,7 @@ fn start_input(
             }
         })
         .map_err(ServerError::spawn_failed)?;
-    Ok(input)
+    Ok(gate)
 }
 
 impl Owner {
@@ -295,6 +314,7 @@ impl Owner {
                     self.input.send(InputWrite {
                         bytes,
                         reply: Some(reply),
+                        authorized: false,
                     })?;
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::ClearScreen { reply })) => {
@@ -376,6 +396,23 @@ impl Owner {
                 }
                 Wake::Event(OwnerEvent::Command(SessionCommand::Stop)) => {
                     return self.terminate(ExitReason::ServerStopped);
+                }
+                #[cfg(target_os = "macos")]
+                Wake::Event(OwnerEvent::Command(SessionCommand::Chat(command))) => {
+                    self.chat.command(command, &self.pty);
+                    self.chat_changed();
+                }
+                #[cfg(not(target_os = "macos"))]
+                Wake::Event(OwnerEvent::Command(SessionCommand::Chat(command))) => {
+                    command.reply.send(muxy_protocol::ChatReply::Refused {
+                        reason: muxy_protocol::ChatRefusal::PlatformUnsupported,
+                        detail: None,
+                    });
+                }
+                #[cfg(target_os = "macos")]
+                Wake::Event(OwnerEvent::Chat(event)) => {
+                    self.chat.event(event);
+                    self.chat_changed();
                 }
                 Wake::Tick => self.tick()?,
                 Wake::Checkpoint => self.checkpoint(None),
@@ -556,6 +593,10 @@ impl Owner {
             }));
             if let Some(session) = self.metadata.agent_session.clone() {
                 sink.send(AttachmentEvent::Metadata(session.event()));
+            }
+            #[cfg(target_os = "macos")]
+            if let Some(mode) = self.chat.mode_event() {
+                sink.send(AttachmentEvent::Metadata(mode));
             }
             self.attachments.insert(id, Attachment { sink, seq: 1 });
         }
@@ -770,6 +811,11 @@ impl Owner {
                     .send(AttachmentEvent::Metadata(event.clone()))
             });
         }
+        if self.report_chat_activity() {
+            // Chat state, not the terminal (nor Claude's hooks), is the activity source.
+            self.next_metadata = Instant::now() + Duration::from_secs(1);
+            return;
+        }
         let (agent, status) = crate::detection::reporting_agent(
             self.metadata.agent,
             self.detector.provider,
@@ -812,6 +858,42 @@ impl Owner {
             } else {
                 Duration::from_secs(1)
             };
+    }
+
+    /// Fork: broadcasts a chat mode change and refreshes chat activity.
+    #[cfg(target_os = "macos")]
+    fn chat_changed(&mut self) {
+        if let Some(event) = self.chat.take_mode_change() {
+            self.attachments.retain(|_, attachment| {
+                attachment
+                    .sink
+                    .send(AttachmentEvent::Metadata(event.clone()))
+            });
+        }
+        self.report_chat_activity();
+    }
+
+    /// Reports activity from chat state while the session isn't in Console.
+    /// Returns whether it did.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(clippy::unused_self, reason = "chat is macOS only")
+    )]
+    fn report_chat_activity(&mut self) -> bool {
+        #[cfg(target_os = "macos")]
+        if let Some((state, completed)) = self.chat.activity() {
+            self.activity.update(
+                muxy_protocol::AgentActivity {
+                    session: self.info.id,
+                    project: self.info.project,
+                    provider: self.chat.provider(),
+                    state,
+                },
+                completed,
+            );
+            return true;
+        }
+        false
     }
 
     /// The status the foreground program reported itself (OSC 7501). A report
@@ -978,5 +1060,141 @@ fn exit_reason(status: ExitStatus) -> ExitReason {
         (Some(code), _) => ExitReason::Exited(code),
         (None, Some(signal)) => ExitReason::Signaled(signal),
         (None, None) => ExitReason::Ended,
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod input_tests {
+    use super::*;
+    use crate::session::chat::flush::{FlushTarget, gate_and_flush};
+    use muxy_terminal::pty::{PtySize, SpawnRequest};
+
+    type TestResult = Result<(), Box<dyn Error>>;
+    const WAIT: Duration = Duration::from_secs(2);
+
+    /// Bytes of complete lines the terminal holds that no program has read.
+    #[allow(unsafe_code, reason = "FIONREAD is only reachable through ioctl")]
+    fn unread(path: &std::path::Path) -> io::Result<i32> {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::fs::OpenOptionsExt;
+        let device = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .custom_flags(libc::O_NOCTTY)
+            .open(path)?;
+        let mut count: libc::c_int = 0;
+        // SAFETY: `device` is open and FIONREAD writes one int to `count`.
+        if unsafe { libc::ioctl(device.as_raw_fd(), libc::FIONREAD, &raw mut count) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(count)
+    }
+
+    fn write(bytes: &[u8]) -> (InputWrite, Receiver<Result<(), ServerError>>) {
+        let (reply, written) = mpsc::channel();
+        let input = InputWrite {
+            bytes: bytes.to_vec(),
+            reply: Some(reply),
+            authorized: false,
+        };
+        (input, written)
+    }
+
+    #[test]
+    fn gated_input_never_reaches_the_terminal() -> TestResult {
+        let mut pty = Pty::spawn(SpawnRequest {
+            program: "/bin/sleep".into(),
+            args: vec!["30".into()],
+            cwd: "/".into(),
+            env: Vec::new(),
+            size: PtySize { cols: 80, rows: 24 },
+        })?;
+        let (events, _events) = mpsc::channel();
+        let gate = start_input(&mut pty, events)?;
+        let target = FlushTarget::new(&pty)?;
+        let path = pty.tty_path().ok_or("no terminal path")?.to_path_buf();
+
+        let (typed, written) = write(b"typed\n");
+        gate.send(typed)?;
+        written.recv_timeout(WAIT)??;
+        gate.send(b"queued\n".to_vec().into())?;
+        let before = unread(&path)?;
+        gate_and_flush(&gate, &target, WAIT)?;
+        let after = unread(&path)?;
+
+        let (late, refused) = write(b"late\n");
+        gate.send(late)?;
+        let refused = refused.recv_timeout(WAIT)?;
+        gate.send(b"mouse\n".to_vec().into())?;
+        let recovery = b"claude --resume x\n";
+        let (reply, recovered) = mpsc::channel();
+        gate.send_authorized(recovery.to_vec(), Some(reply))?;
+        recovered.recv_timeout(WAIT)??;
+        let delivered = unread(&path)?;
+        pty.kill()?;
+        pty.wait()?;
+
+        assert!(before > 0, "the typed line was pending before the flush");
+        assert_eq!(after, 0, "the flush discarded every unread byte");
+        assert!(refused.is_err(), "WriteInput is refused while gated");
+        assert_eq!(
+            usize::try_from(delivered)?,
+            recovery.len(),
+            "only the authorized recovery line reached the terminal"
+        );
+        Ok(())
+    }
+
+    struct Stalled {
+        started: Sender<Vec<u8>>,
+        release: Receiver<()>,
+    }
+
+    impl Write for Stalled {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            let _ = self.started.send(bytes.to_vec());
+            let _ = self.release.recv();
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn idle_waits_for_the_write_in_progress() -> TestResult {
+        let (started, writes) = mpsc::channel();
+        let (release, stalled) = mpsc::channel();
+        let (events, _events) = mpsc::channel();
+        let gate = spawn_input_writer(
+            Stalled {
+                started,
+                release: stalled,
+            },
+            "test-input".into(),
+            events,
+        )?;
+        gate.send(b"first".to_vec().into())?;
+        let first = writes.recv_timeout(WAIT)?;
+        let (second, refused) = write(b"second");
+        gate.send(second)?;
+
+        let fence = gate.close();
+        let busy = fence.recv_timeout(Duration::from_millis(100));
+        release.send(())?;
+        fence.recv_timeout(WAIT)??;
+
+        assert_eq!(first, b"first");
+        assert!(
+            matches!(busy, Err(RecvTimeoutError::Timeout)),
+            "not idle while a write is in progress"
+        );
+        assert!(
+            refused.recv_timeout(WAIT)?.is_err(),
+            "input queued before the gate closed is dropped, not written"
+        );
+        assert!(writes.try_recv().is_err());
+        Ok(())
     }
 }

@@ -489,8 +489,10 @@ fn deliver(pump: &Pump, events: &Receiver<ClientEvent>, listener: &dyn Connectio
                 listener.on_event(ConnectionEvent::Disconnected);
                 return;
             }
+            // Fork: the phone has no chat view and never subscribes to chat.
             ClientEvent::ClipboardWrite { .. }
             | ClientEvent::Progress { .. }
+            | ClientEvent::Chat(_)
             | ClientEvent::RemoteAccessChanged { .. } => None,
         };
         if let Some(notice) = notice {

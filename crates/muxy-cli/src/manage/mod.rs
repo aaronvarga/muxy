@@ -79,6 +79,7 @@ impl Paths {
     }
 }
 
+#[allow(clippy::too_many_lines, reason = "Dispatches management actions")]
 fn execute(invocation: Invocation, client: &Client, paths: Paths) -> Result {
     let output = Output {
         json: invocation.json,

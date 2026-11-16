@@ -362,7 +362,10 @@ impl Workspace {
         self.mutate(ProjectMutation::Patch {
             project: self.project,
             patch: muxy_protocol::ProjectPatch::Folders(
-                folders.iter().map(|folder| wire_path(folder)).collect(),
+                folders
+                    .iter()
+                    .map(|folder| ServerPath::from(*folder))
+                    .collect(),
             ),
         })
     }
@@ -371,7 +374,7 @@ impl Workspace {
         self.registry.files(&FilesRequest {
             project,
             action,
-            root: Some(wire_path(root)),
+            root: Some(ServerPath::from(root)),
         })
     }
 }
@@ -458,7 +461,7 @@ fn folders_cannot_overlap_even_through_links_or_worktrees() {
         ProjectMutation::Create(ProjectDescriptor {
             id: ProjectId::new(),
             home: false,
-            directory: wire_path(directory),
+            directory: ServerPath::from(directory),
             name: "Worktree".into(),
             icon: None,
             logo: None,

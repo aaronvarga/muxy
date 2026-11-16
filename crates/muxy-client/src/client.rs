@@ -549,6 +549,71 @@ impl Client {
         }
     }
 
+    /// Fork: requires `Feature::AGENT_CHAT`. Enter and Leave answer when their
+    /// switch ends, which the server bounds at 30 s, plus 10 s for a rollback.
+    pub fn chat(
+        &self,
+        request: muxy_protocol::ChatRequest,
+    ) -> Result<muxy_protocol::ChatReply, ClientError> {
+        self.check_chat(&request)?;
+        let timeout = self.chat_timeout(&request);
+        match self.request_with_timeout(RequestBody::Chat(request), timeout)? {
+            ReplyBody::Chat(reply) => Ok(reply),
+            other => Err(ClientError::UnexpectedReply(Box::new(other))),
+        }
+    }
+
+    /// [`Self::chat`] without blocking the caller, with the same timeouts.
+    pub fn chat_async(
+        &self,
+        request: muxy_protocol::ChatRequest,
+    ) -> crate::Request<muxy_protocol::ChatReply> {
+        let decode = |body| match body {
+            ReplyBody::Chat(reply) => Ok(reply),
+            body => Err(ClientError::UnexpectedReply(Box::new(body))),
+        };
+        if let Err(error) = self.check_chat(&request) {
+            return crate::Request::failed(error, decode);
+        }
+        let timeout = self.chat_timeout(&request);
+        self.request_async(RequestBody::Chat(request), timeout, decode)
+    }
+
+    fn check_chat(&self, request: &muxy_protocol::ChatRequest) -> Result<(), ClientError> {
+        use muxy_protocol::ChatRequest;
+        let feature = match request {
+            ChatRequest::Begin { .. }
+            | ChatRequest::Submit { .. }
+            | ChatRequest::OperationStatus { .. }
+            | ChatRequest::PrepareSubmission { .. } => Feature::CHAT_OPERATIONS,
+            ChatRequest::Discover { .. }
+            | ChatRequest::EnterProvider { .. }
+            | ChatRequest::LeaveProvider { .. } => Feature::CHAT_PROVIDERS,
+            _ => Feature::AGENT_CHAT,
+        };
+        if !self.supports(feature)
+            || (matches!(request, ChatRequest::Begin { .. })
+                && !self.supports(Feature::CHAT_PROVIDERS))
+        {
+            return Err(ClientError::Invalid(ErrorCode::Unsupported));
+        }
+        Ok(())
+    }
+
+    fn chat_timeout(&self, request: &muxy_protocol::ChatRequest) -> Duration {
+        const SWITCH_TIMEOUT: Duration = Duration::from_secs(45);
+        match request {
+            muxy_protocol::ChatRequest::Enter { .. }
+            | muxy_protocol::ChatRequest::Start { .. }
+            | muxy_protocol::ChatRequest::Begin { .. }
+            | muxy_protocol::ChatRequest::Discover { .. }
+            | muxy_protocol::ChatRequest::EnterProvider { .. }
+            | muxy_protocol::ChatRequest::LeaveProvider { .. }
+            | muxy_protocol::ChatRequest::Leave { .. } => SWITCH_TIMEOUT.max(self.timeout),
+            _ => self.timeout,
+        }
+    }
+
     pub fn ping(&self) -> Result<(), ClientError> {
         match self.request(RequestBody::Ping)? {
             ReplyBody::Pong => Ok(()),

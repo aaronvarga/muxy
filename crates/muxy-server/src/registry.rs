@@ -62,6 +62,8 @@ pub struct Registry {
     archive: Archive,
     pub(crate) remote: crate::RemoteAccess,
     pub(crate) push: crate::push::Push,
+    /// Fork: shared by every session's chat host, such as the conversation reservations.
+    chat: session::ChatServices,
 }
 
 impl Registry {
@@ -87,6 +89,7 @@ impl Registry {
             completed: Arc::default(),
             remote,
             push: crate::push::Push::default(),
+            chat: session::ChatServices::default(),
         }
     }
 
@@ -468,6 +471,10 @@ impl Registry {
         self.create_launched(project, operation, directory, size, Launch::default(), None)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "session startup reads best in one place"
+    )]
     pub(crate) fn create_launched(
         &self,
         project: muxy_protocol::ProjectId,
@@ -526,6 +533,7 @@ impl Registry {
                 launch.colors,
                 Arc::clone(&self.activity),
                 Arc::clone(&self.notifier),
+                self.chat.clone(),
                 self.session_exit(id),
             )
         });
